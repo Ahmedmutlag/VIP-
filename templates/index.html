@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VIP Downloader - تحميل فيديوهات مجاناً</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- Background particles -->
+  <div class="bg-particles" id="particles"></div>
+
+  <header class="header">
+    <div class="logo">
+      <span class="logo-icon">⬇️</span>
+      <span class="logo-text">VIP <span class="accent">Downloader</span></span>
+    </div>
+    <nav class="nav-links">
+      <a href="#platforms">المنصات</a>
+      <a href="#how">كيف تعمل</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-badge">مجاني 100% • بدون تسجيل</div>
+      <h1 class="hero-title">حمّل أي فيديو<br /><span class="gradient-text">في ثوانٍ</span></h1>
+      <p class="hero-sub">ألصق الرابط واختر الجودة — بسيط، سريع، مجاني</p>
+
+      <!-- URL Input Card -->
+      <div class="card input-card">
+        <div class="input-wrap">
+          <span class="input-icon">🔗</span>
+          <input
+            id="urlInput"
+            type="url"
+            placeholder="الصق رابط الفيديو هنا..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button id="pasteBtn" class="paste-btn" title="لصق">📋</button>
+        </div>
+        <button id="fetchBtn" class="btn-primary" onclick="fetchInfo()">
+          <span class="btn-text">جلب معلومات الفيديو</span>
+          <span class="btn-icon">→</span>
+        </button>
+      </div>
+
+      <!-- Error Message -->
+      <div id="errorBox" class="error-box hidden">
+        <span class="error-icon">⚠️</span>
+        <span id="errorText"></span>
+      </div>
+    </section>
+
+    <!-- Video Info Card -->
+    <section id="infoSection" class="hidden">
+      <div class="card info-card">
+        <div class="video-meta">
+          <img id="thumbnail" src="" alt="thumbnail" class="thumbnail" />
+          <div class="video-details">
+            <div id="platformBadge" class="platform-badge"></div>
+            <h2 id="videoTitle" class="video-title"></h2>
+            <div class="video-stats">
+              <span id="uploaderEl" class="stat"></span>
+              <span id="durationEl" class="stat"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="formats-section">
+          <h3 class="formats-title">اختر الجودة</h3>
+          <div id="formatsList" class="formats-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Progress Card -->
+    <section id="progressSection" class="hidden">
+      <div class="card progress-card">
+        <div class="progress-header">
+          <span class="progress-label">جاري التحميل...</span>
+          <span id="progressPercent" class="progress-pct">0%</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+        <div class="progress-meta">
+          <span id="progressSpeed"></span>
+          <span id="progressEta"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Success Card -->
+    <section id="successSection" class="hidden">
+      <div class="card success-card">
+        <div class="success-icon">✅</div>
+        <h3>جاهز للتحميل!</h3>
+        <p>تم معالجة الفيديو بنجاح</p>
+        <a id="downloadLink" href="#" class="btn-download">
+          <span>⬇️</span> تحميل الفيديو
+        </a>
+        <button onclick="resetPage()" class="btn-ghost">تحميل فيديو آخر</button>
+      </div>
+    </section>
+
+    <!-- Supported Platforms -->
+    <section id="platforms" class="platforms-section">
+      <h2 class="section-title">المنصات المدعومة</h2>
+      <div class="platforms-grid">
+        <div class="platform-card">
+          <div class="p-icon yt">▶</div>
+          <span>YouTube</span>
+        </div>
+        <div class="platform-card">
+          <div class="p-icon tw">𝕏</div>
+          <span>Twitter / X</span>
+        </div>
+        <div class="platform-card">
+          <div class="p-icon ig">📸</div>
+          <span>Instagram</span>
+        </div>
+        <div class="platform-card">
+          <div class="p-icon tk">♪</div>
+          <span>TikTok</span>
+        </div>
+        <div class="platform-card">
+          <div class="p-icon fb">f</div>
+          <span>Facebook</span>
+        </div>
+        <div class="platform-card">
+          <div class="p-icon vm">V</div>
+          <span>Vimeo</span>
+        </div>
+        <div class="platform-card">
+          <div class="p-icon dm">d</div>
+          <span>Dailymotion</span>
+        </div>
+        <div class="platform-card">
+          <div class="p-icon rd">R</div>
+          <span>Reddit</span>
+        </div>
+        <div class="platform-card more">
+          <div class="p-icon">+</div>
+          <span>والمزيد...</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works -->
+    <section id="how" class="how-section">
+      <h2 class="section-title">كيف يعمل؟</h2>
+      <div class="steps-grid">
+        <div class="step">
+          <div class="step-num">١</div>
+          <h3>انسخ الرابط</h3>
+          <p>انسخ رابط أي فيديو من منصات التواصل الاجتماعي</p>
+        </div>
+        <div class="step-arrow">←</div>
+        <div class="step">
+          <div class="step-num">٢</div>
+          <h3>اختر الجودة</h3>
+          <p>اختر جودة الفيديو المناسبة لك من الخيارات المتاحة</p>
+        </div>
+        <div class="step-arrow">←</div>
+        <div class="step">
+          <div class="step-num">٣</div>
+          <h3>حمّل الآن</h3>
+          <p>اضغط تحميل واحفظ الفيديو على جهازك مجاناً</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>VIP Downloader &copy; 2025 — مجاني دائماً</p>
+    <p class="footer-note">للاستخدام الشخصي فقط. احترم حقوق الملكية الفكرية.</p>
+  </footer>
+
+  <script src="/static/js/main.js"></script>
+</body>
+</html>
