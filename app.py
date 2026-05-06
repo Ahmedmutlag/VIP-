@@ -59,6 +59,11 @@ def make_progress_hook(task_id):
     return hook
 
 
+@app.route("/ads.txt")
+def ads_txt():
+    return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
+
+
 @app.route("/")
 def index():
     return render_template("index.html", stripe_link=STRIPE_PAYMENT_LINK)
