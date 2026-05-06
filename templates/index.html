@@ -3,15 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VIP Downloader - تحميل فيديوهات مجاناً</title>
+  <title>VIP Downloader - تحميل فيديوهات TikTok وInstagram وFacebook</title>
   <link rel="stylesheet" href="/static/css/style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+
+  <!-- Google AdSense — ضع كود AdSense هنا -->
+  <!-- <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXX" crossorigin="anonymous"></script> -->
 </head>
 <body>
-  <!-- Background particles -->
   <div class="bg-particles" id="particles"></div>
 
+  <!-- ===== Header ===== -->
   <header class="header">
     <div class="logo">
       <span class="logo-icon">⬇️</span>
@@ -19,28 +22,31 @@
     </div>
     <nav class="nav-links">
       <a href="#platforms">المنصات</a>
+      <a href="#pricing">الاشتراك</a>
       <a href="#how">كيف تعمل</a>
     </nav>
   </header>
 
-  <main>
-    <!-- Hero Section -->
-    <section class="hero">
-      <div class="hero-badge">مجاني 100% • بدون تسجيل</div>
-      <h1 class="hero-title">حمّل أي فيديو<br /><span class="gradient-text">في ثوانٍ</span></h1>
-      <p class="hero-sub">ألصق الرابط واختر الجودة — بسيط، سريع، مجاني</p>
+  <!-- ===== Ad Banner Top ===== -->
+  <div class="ad-banner top-ad">
+    <span class="ad-label">إعلان</span>
+    <!-- AdSense unit -->
+    <!-- <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXXXXX" data-ad-slot="XXXXXXXXXX" data-ad-format="auto"></ins> -->
+    <div class="ad-placeholder">مساحة إعلانية — 728×90</div>
+  </div>
 
-      <!-- URL Input Card -->
+  <main>
+    <!-- ===== Hero ===== -->
+    <section class="hero">
+      <div class="hero-badge">مجاني ✦ بدون تسجيل ✦ تحميل فوري</div>
+      <h1 class="hero-title">حمّل الفيديوهات<br /><span class="gradient-text">بضغطة واحدة</span></h1>
+      <p class="hero-sub">TikTok • Instagram • Facebook — ألصق الرابط وحمّل مجاناً</p>
+
+      <!-- URL Input -->
       <div class="card input-card">
         <div class="input-wrap">
           <span class="input-icon">🔗</span>
-          <input
-            id="urlInput"
-            type="url"
-            placeholder="الصق رابط الفيديو هنا..."
-            autocomplete="off"
-            spellcheck="false"
-          />
+          <input id="urlInput" type="url" placeholder="الصق رابط الفيديو هنا..." autocomplete="off" spellcheck="false" />
           <button id="pasteBtn" class="paste-btn" title="لصق">📋</button>
         </div>
         <button id="fetchBtn" class="btn-primary" onclick="fetchInfo()">
@@ -49,14 +55,19 @@
         </button>
       </div>
 
-      <!-- Error Message -->
       <div id="errorBox" class="error-box hidden">
         <span class="error-icon">⚠️</span>
         <span id="errorText"></span>
       </div>
     </section>
 
-    <!-- Video Info Card -->
+    <!-- ===== Ad Middle ===== -->
+    <div class="ad-banner mid-ad">
+      <span class="ad-label">إعلان</span>
+      <div class="ad-placeholder">مساحة إعلانية — 300×250</div>
+    </div>
+
+    <!-- ===== Video Info ===== -->
     <section id="infoSection" class="hidden">
       <div class="card info-card">
         <div class="video-meta">
@@ -70,7 +81,6 @@
             </div>
           </div>
         </div>
-
         <div class="formats-section">
           <h3 class="formats-title">اختر الجودة</h3>
           <div id="formatsList" class="formats-grid"></div>
@@ -78,7 +88,7 @@
       </div>
     </section>
 
-    <!-- Progress Card -->
+    <!-- ===== Progress ===== -->
     <section id="progressSection" class="hidden">
       <div class="card progress-card">
         <div class="progress-header">
@@ -95,91 +105,157 @@
       </div>
     </section>
 
-    <!-- Success Card -->
+    <!-- ===== Success ===== -->
     <section id="successSection" class="hidden">
       <div class="card success-card">
         <div class="success-icon">✅</div>
         <h3>جاهز للتحميل!</h3>
         <p>تم معالجة الفيديو بنجاح</p>
-        <a id="downloadLink" href="#" class="btn-download">
-          <span>⬇️</span> تحميل الفيديو
-        </a>
+        <a id="downloadLink" href="#" class="btn-download"><span>⬇️</span> تحميل الفيديو</a>
         <button onclick="resetPage()" class="btn-ghost">تحميل فيديو آخر</button>
       </div>
     </section>
 
-    <!-- Supported Platforms -->
+    <!-- ===== Platforms ===== -->
     <section id="platforms" class="platforms-section">
       <h2 class="section-title">المنصات المدعومة</h2>
-      <div class="platforms-grid">
-        <div class="platform-card">
-          <div class="p-icon yt">▶</div>
-          <span>YouTube</span>
-        </div>
-        <div class="platform-card">
-          <div class="p-icon tw">𝕏</div>
-          <span>Twitter / X</span>
-        </div>
-        <div class="platform-card">
-          <div class="p-icon ig">📸</div>
-          <span>Instagram</span>
-        </div>
-        <div class="platform-card">
+      <div class="platforms-grid three">
+        <div class="platform-card featured">
           <div class="p-icon tk">♪</div>
           <span>TikTok</span>
         </div>
-        <div class="platform-card">
+        <div class="platform-card featured">
+          <div class="p-icon ig">📸</div>
+          <span>Instagram</span>
+        </div>
+        <div class="platform-card featured">
           <div class="p-icon fb">f</div>
           <span>Facebook</span>
-        </div>
-        <div class="platform-card">
-          <div class="p-icon vm">V</div>
-          <span>Vimeo</span>
-        </div>
-        <div class="platform-card">
-          <div class="p-icon dm">d</div>
-          <span>Dailymotion</span>
-        </div>
-        <div class="platform-card">
-          <div class="p-icon rd">R</div>
-          <span>Reddit</span>
-        </div>
-        <div class="platform-card more">
-          <div class="p-icon">+</div>
-          <span>والمزيد...</span>
         </div>
       </div>
     </section>
 
-    <!-- How It Works -->
+    <!-- ===== Pricing ===== -->
+    <section id="pricing" class="pricing-section">
+      <h2 class="section-title">اختر خطتك</h2>
+      <p class="section-sub">استمتع بالتحميل المجاني أو اشترك للحصول على تجربة أفضل</p>
+
+      <div class="pricing-grid">
+        <!-- Free Plan -->
+        <div class="plan-card">
+          <div class="plan-header">
+            <h3>مجاني</h3>
+            <div class="plan-price">
+              <span class="price-amount">$0</span>
+              <span class="price-period">/دائماً</span>
+            </div>
+          </div>
+          <ul class="plan-features">
+            <li class="feat ok">✅ تحميل من TikTok وInstagram وFacebook</li>
+            <li class="feat ok">✅ جميع الجودات المتاحة</li>
+            <li class="feat ok">✅ بدون تسجيل</li>
+            <li class="feat no">⏳ مشاهدة إعلان قصير قبل التحميل</li>
+            <li class="feat no">❌ تحميل متعدد بالتزامن</li>
+          </ul>
+          <button class="plan-btn free-btn" onclick="document.getElementById('urlInput').focus(); document.querySelector('.hero').scrollIntoView({behavior:'smooth'})">
+            ابدأ مجاناً
+          </button>
+        </div>
+
+        <!-- Premium Plan -->
+        <div class="plan-card premium">
+          <div class="plan-badge">الأكثر شيوعاً ⭐</div>
+          <div class="plan-header">
+            <h3>مميز</h3>
+            <div class="plan-price">
+              <span class="price-amount">$2</span>
+              <span class="price-period">/شهرياً</span>
+            </div>
+          </div>
+          <ul class="plan-features">
+            <li class="feat ok">✅ كل مميزات الخطة المجانية</li>
+            <li class="feat ok">✅ بدون إعلانات نهائياً</li>
+            <li class="feat ok">✅ تحميل فوري بدون انتظار</li>
+            <li class="feat ok">✅ تحميل متعدد بالتزامن</li>
+            <li class="feat ok">✅ أولوية في الدعم الفني</li>
+          </ul>
+          <a href="{{ stripe_link }}" class="plan-btn premium-btn" id="stripeBtn">
+            اشترك الآن — $2/شهر
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== How It Works ===== -->
     <section id="how" class="how-section">
       <h2 class="section-title">كيف يعمل؟</h2>
       <div class="steps-grid">
         <div class="step">
           <div class="step-num">١</div>
           <h3>انسخ الرابط</h3>
-          <p>انسخ رابط أي فيديو من منصات التواصل الاجتماعي</p>
+          <p>انسخ رابط الفيديو من TikTok أو Instagram أو Facebook</p>
         </div>
         <div class="step-arrow">←</div>
         <div class="step">
           <div class="step-num">٢</div>
           <h3>اختر الجودة</h3>
-          <p>اختر جودة الفيديو المناسبة لك من الخيارات المتاحة</p>
+          <p>اختر الجودة المناسبة أو حمّل الصوت فقط</p>
         </div>
         <div class="step-arrow">←</div>
         <div class="step">
           <div class="step-num">٣</div>
           <h3>حمّل الآن</h3>
-          <p>اضغط تحميل واحفظ الفيديو على جهازك مجاناً</p>
+          <p>شاهد إعلاناً قصيراً ثم احفظ الفيديو مجاناً</p>
         </div>
       </div>
     </section>
   </main>
 
+  <!-- ===== Footer Ad ===== -->
+  <div class="ad-banner footer-ad">
+    <span class="ad-label">إعلان</span>
+    <div class="ad-placeholder">مساحة إعلانية — 728×90</div>
+  </div>
+
   <footer class="footer">
-    <p>VIP Downloader &copy; 2025 — مجاني دائماً</p>
-    <p class="footer-note">للاستخدام الشخصي فقط. احترم حقوق الملكية الفكرية.</p>
+    <p>VIP Downloader &copy; 2026</p>
+    <div class="footer-links">
+      <a href="#pricing">الاشتراك المميز</a>
+      <a href="#how">كيف يعمل</a>
+    </div>
   </footer>
+
+  <!-- ===== Ad Interstitial Modal ===== -->
+  <div id="adModal" class="ad-modal hidden">
+    <div class="ad-modal-box">
+      <div class="ad-modal-header">
+        <span class="ad-modal-title">📢 إعلان قصير</span>
+        <span class="ad-skip-info">يمكنك التخطي بعد <strong id="adCountdown">10</strong> ثواني</span>
+      </div>
+
+      <!-- مساحة الإعلان الفعلية -->
+      <div class="ad-modal-content">
+        <!-- AdSense interstitial أو شبكة إعلانات أخرى -->
+        <div class="ad-placeholder large">
+          مساحة إعلانية<br/>
+          <small>ضع هنا كود AdSense أو أي شبكة إعلانات</small>
+        </div>
+      </div>
+
+      <div class="ad-modal-footer">
+        <div class="ad-progress-bar">
+          <div id="adProgressFill" class="ad-progress-fill"></div>
+        </div>
+        <button id="adSkipBtn" class="ad-skip-btn" disabled onclick="onAdFinished()">
+          تخطي والتحميل ⬇️
+        </button>
+        <a href="#pricing" class="ad-upgrade-link" onclick="closeAdModal()">
+          ⭐ اشترك بـ $2/شهر وتخلص من الإعلانات
+        </a>
+      </div>
+    </div>
+  </div>
+  <div id="adOverlay" class="ad-overlay hidden" onclick="return false;"></div>
 
   <script src="/static/js/main.js"></script>
 </body>

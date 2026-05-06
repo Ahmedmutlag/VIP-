@@ -27,7 +27,6 @@ document.getElementById('pasteBtn').addEventListener('click', async () => {
   }
 });
 
-// ===== Enter key =====
 document.getElementById('urlInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') fetchInfo();
 });
@@ -37,6 +36,13 @@ let currentUrl = '';
 let currentFormats = [];
 let selectedFormat = null;
 let pollInterval = null;
+let pendingTaskId = null;
+let pendingFilename = null;
+
+// Check premium status (stored after Stripe payment via URL token)
+function isPremium() {
+  return localStorage.getItem('vip_premium') === 'true';
+}
 
 function showError(msg) {
   const box = document.getElementById('errorBox');
@@ -51,11 +57,9 @@ function hideError() {
 function setLoading(loading) {
   const btn = document.getElementById('fetchBtn');
   btn.disabled = loading;
-  if (loading) {
-    btn.innerHTML = '<span class="btn-text">جاري الجلب...</span><span class="spinner"></span>';
-  } else {
-    btn.innerHTML = '<span class="btn-text">جلب معلومات الفيديو</span><span class="btn-icon">→</span>';
-  }
+  btn.innerHTML = loading
+    ? '<span class="btn-text">جاري الجلب...</span><span class="spinner"></span>'
+    : '<span class="btn-text">جلب معلومات الفيديو</span><span class="btn-icon">→</span>';
 }
 
 function formatDuration(sec) {
@@ -92,7 +96,6 @@ async function fetchInfo() {
       body: JSON.stringify({ url }),
     });
     const data = await res.json();
-
     if (!res.ok) { showError(data.error || 'حدث خطأ'); setLoading(false); return; }
 
     currentUrl = url;
@@ -109,7 +112,8 @@ function renderInfo(data) {
   const thumb = document.getElementById('thumbnail');
   if (data.thumbnail) {
     thumb.src = data.thumbnail;
-    thumb.onerror = () => { thumb.src = ''; thumb.style.display = 'none'; };
+    thumb.style.display = '';
+    thumb.onerror = () => { thumb.style.display = 'none'; };
   } else {
     thumb.style.display = 'none';
   }
@@ -140,30 +144,78 @@ function renderInfo(data) {
     grid.appendChild(btn);
   });
 
-  // Auto-select best
-  if (currentFormats.length > 0) {
-    grid.firstChild.click();
-  }
+  if (currentFormats.length > 0) grid.firstChild.click();
 
-  // Download button
   let dlBtn = document.getElementById('dlSelBtn');
   if (!dlBtn) {
     dlBtn = document.createElement('button');
     dlBtn.id = 'dlSelBtn';
     dlBtn.className = 'btn-download-sel';
-    dlBtn.textContent = '⬇️  تحميل';
-    dlBtn.addEventListener('click', startDownload);
+    dlBtn.addEventListener('click', handleDownloadClick);
   }
+  dlBtn.textContent = isPremium() ? '⬇️  تحميل فوري (مميز)' : '⬇️  تحميل (مجاني)';
   dlBtn.disabled = currentFormats.length === 0;
 
   const infoCard = document.querySelector('.info-card');
   if (!infoCard.contains(dlBtn)) infoCard.appendChild(dlBtn);
 }
 
+// ===== Download Flow =====
+function handleDownloadClick() {
+  if (!selectedFormat) return;
+  if (isPremium()) {
+    startDownload();
+  } else {
+    showAdModal();
+  }
+}
+
+// ===== Ad Modal =====
+let adTimer = null;
+
+function showAdModal() {
+  document.getElementById('adModal').classList.remove('hidden');
+  document.getElementById('adOverlay').classList.remove('hidden');
+
+  const countdownEl = document.getElementById('adCountdown');
+  const skipBtn = document.getElementById('adSkipBtn');
+  const progressFill = document.getElementById('adProgressFill');
+
+  let seconds = 10;
+  skipBtn.disabled = true;
+  countdownEl.textContent = seconds;
+  progressFill.style.width = '0%';
+  progressFill.style.transition = 'none';
+
+  setTimeout(() => {
+    progressFill.style.transition = `width ${seconds}s linear`;
+    progressFill.style.width = '100%';
+  }, 50);
+
+  adTimer = setInterval(() => {
+    seconds--;
+    countdownEl.textContent = seconds;
+    if (seconds <= 0) {
+      clearInterval(adTimer);
+      skipBtn.disabled = false;
+      countdownEl.textContent = '0';
+    }
+  }, 1000);
+}
+
+function closeAdModal() {
+  document.getElementById('adModal').classList.add('hidden');
+  document.getElementById('adOverlay').classList.add('hidden');
+  if (adTimer) clearInterval(adTimer);
+}
+
+function onAdFinished() {
+  closeAdModal();
+  startDownload();
+}
+
 // ===== Start Download =====
 async function startDownload() {
-  if (!selectedFormat) return;
-
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.remove('hidden');
   document.getElementById('progressBar').style.width = '0%';
@@ -176,8 +228,12 @@ async function startDownload() {
       body: JSON.stringify({ url: currentUrl, format_id: selectedFormat.format_id }),
     });
     const data = await res.json();
-    if (!res.ok) { showError(data.error || 'فشل التحميل'); return; }
-
+    if (!res.ok) {
+      showError(data.error || 'فشل التحميل');
+      document.getElementById('progressSection').classList.add('hidden');
+      document.getElementById('infoSection').classList.remove('hidden');
+      return;
+    }
     pollProgress(data.task_id);
   } catch {
     showError('تعذّر بدء التحميل');
@@ -194,18 +250,16 @@ function pollProgress(taskId) {
       const res = await fetch(`/api/progress/${taskId}`);
       const data = await res.json();
 
-      if (data.status === 'downloading' || data.status === 'processing' || data.status === 'starting') {
+      if (data.status === 'downloading') {
         const pct = data.percent || 0;
         document.getElementById('progressBar').style.width = pct + '%';
         document.getElementById('progressPercent').textContent = pct + '%';
         document.getElementById('progressSpeed').textContent = data.speed ? '⚡ ' + data.speed : '';
         document.getElementById('progressEta').textContent = data.eta ? '⏱ ' + data.eta : '';
-
-        if (data.status === 'processing') {
-          document.querySelector('.progress-label').textContent = 'جاري المعالجة...';
-          document.getElementById('progressBar').style.width = '95%';
-          document.getElementById('progressPercent').textContent = '95%';
-        }
+      } else if (data.status === 'processing' || data.status === 'starting') {
+        document.querySelector('.progress-label').textContent = 'جاري المعالجة...';
+        document.getElementById('progressBar').style.width = '90%';
+        document.getElementById('progressPercent').textContent = '90%';
       } else if (data.status === 'done') {
         clearInterval(pollInterval);
         document.getElementById('progressSection').classList.add('hidden');
@@ -225,8 +279,6 @@ function showSuccess(file, filename) {
   link.href = `/api/file/${file}?name=${encodeURIComponent(filename)}`;
   link.download = filename;
   document.getElementById('successSection').classList.remove('hidden');
-
-  // Auto-trigger download
   link.click();
 }
 
@@ -241,4 +293,29 @@ function resetPage() {
   currentFormats = [];
   selectedFormat = null;
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ===== Premium Token Check (after Stripe redirect) =====
+(function checkPremiumToken() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('premium');
+  if (token === 'success') {
+    localStorage.setItem('vip_premium', 'true');
+    window.history.replaceState({}, '', '/');
+    showPremiumWelcome();
+  }
+})();
+
+function showPremiumWelcome() {
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position:fixed; bottom:2rem; left:50%; transform:translateX(-50%);
+    background:linear-gradient(135deg,#f59e0b,#f97316);
+    color:#000; padding:.8rem 1.5rem; border-radius:999px;
+    font-weight:700; font-size:1rem; z-index:9999;
+    box-shadow:0 4px 20px rgba(245,158,11,.4);
+  `;
+  toast.textContent = '⭐ مرحباً بك في VIP المميز! لا إعلانات من الآن';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
 }

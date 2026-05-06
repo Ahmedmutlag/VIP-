@@ -14,23 +14,15 @@ CORS(app)
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-# Track download progress
 progress_store = {}
 
+STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
+
 SUPPORTED_DOMAINS = [
-    "youtube.com", "youtu.be",
-    "twitter.com", "x.com",
     "instagram.com",
     "tiktok.com",
     "facebook.com", "fb.watch",
-    "vimeo.com",
-    "dailymotion.com",
-    "reddit.com",
-    "twitch.tv",
-    "pinterest.com",
-    "linkedin.com",
-    "snapchat.com",
-    "soundcloud.com",
+    "vm.tiktok.com",
 ]
 
 
@@ -69,7 +61,7 @@ def make_progress_hook(task_id):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", stripe_link=STRIPE_PAYMENT_LINK)
 
 
 @app.route("/api/info", methods=["POST"])
