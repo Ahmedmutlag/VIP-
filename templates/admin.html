@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>لوحة تحكم VIP Downloader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0a0f; --bg2: #111118; --card: #16161f;
+      --border: #2a2a3a; --accent: #7c3aed; --accent2: #a855f7;
+      --green: #10b981; --red: #ef4444; --gold: #f59e0b;
+      --text: #f0f0f8; --muted: #8888aa; --radius: 14px;
+    }
+    body { font-family: 'Cairo', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* Header */
+    .header {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-logo { font-size: 1.2rem; font-weight: 900; }
+    .header-logo span { color: var(--accent2); }
+    .header-meta { color: var(--muted); font-size: .82rem; display: flex; gap: 1rem; align-items: center; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+
+    /* Layout */
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem; }
+
+    /* Cards Grid */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.2rem;
+      display: flex; flex-direction: column; gap: .4rem;
+    }
+    .stat-card.green { border-color: rgba(16,185,129,.3); }
+    .stat-card.red   { border-color: rgba(239,68,68,.3); }
+    .stat-card.gold  { border-color: rgba(245,158,11,.3); }
+    .stat-card.purple{ border-color: rgba(168,85,247,.3); }
+    .stat-icon { font-size: 1.5rem; }
+    .stat-label { font-size: .78rem; color: var(--muted); font-weight: 600; }
+    .stat-value { font-size: 1.8rem; font-weight: 900; line-height: 1; }
+    .stat-value.green  { color: var(--green); }
+    .stat-value.red    { color: var(--red); }
+    .stat-value.gold   { color: var(--gold); }
+    .stat-value.purple { color: var(--accent2); }
+
+    /* Server Card */
+    .server-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.3rem;
+      margin-bottom: 1.5rem;
+    }
+    .server-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: 1rem; color: var(--muted); }
+    .server-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .8rem; }
+    .server-item { display: flex; flex-direction: column; gap: .2rem; }
+    .server-item-label { font-size: .75rem; color: var(--muted); }
+    .server-item-value { font-size: .95rem; font-weight: 700; }
+
+    /* Platform Chart */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+    .chart-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.3rem;
+    }
+    .chart-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: 1rem; color: var(--muted); }
+    .platform-bars { display: flex; flex-direction: column; gap: .8rem; }
+    .platform-row { display: flex; flex-direction: column; gap: .3rem; }
+    .platform-meta { display: flex; justify-content: space-between; font-size: .85rem; }
+    .platform-name { font-weight: 700; }
+    .platform-count { color: var(--muted); }
+    .bar-bg { background: var(--bg2); border-radius: 999px; height: 8px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 999px; transition: width .6s ease; }
+    .bar-tk { background: linear-gradient(90deg, #010101, #69c9d0); }
+    .bar-ig { background: linear-gradient(90deg, #f09433, #bc1888); }
+    .bar-fb { background: linear-gradient(90deg, #1877f2, #42a5f5); }
+    .bar-ot { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+
+    /* Actions */
+    .actions-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.3rem; margin-bottom: 1.5rem;
+    }
+    .actions-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: 1rem; color: var(--muted); }
+    .actions-grid { display: flex; gap: .8rem; flex-wrap: wrap; }
+    .action-btn {
+      padding: .7rem 1.2rem; border-radius: 10px; border: none;
+      font-family: inherit; font-size: .9rem; font-weight: 700;
+      cursor: pointer; transition: opacity .2s, transform .15s; display: flex; align-items: center; gap: .4rem;
+    }
+    .action-btn:hover { opacity: .85; transform: translateY(-1px); }
+    .btn-update { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+    .btn-clear  { background: linear-gradient(135deg, #dc2626, var(--red)); color: #fff; }
+    .btn-refresh{ background: var(--bg2); color: var(--text); border: 1px solid var(--border); }
+    .action-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* Errors */
+    .errors-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.3rem;
+    }
+    .errors-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: 1rem; color: var(--muted); }
+    .error-list { display: flex; flex-direction: column; gap: .6rem; }
+    .error-item {
+      background: rgba(239,68,68,.07); border: 1px solid rgba(239,68,68,.2);
+      border-radius: 8px; padding: .7rem 1rem;
+      display: flex; gap: .8rem; align-items: flex-start;
+    }
+    .error-time { color: var(--muted); font-size: .78rem; white-space: nowrap; flex-shrink: 0; }
+    .error-platform { color: var(--accent2); font-size: .78rem; font-weight: 700; flex-shrink: 0; }
+    .error-msg { font-size: .82rem; color: #fca5a5; word-break: break-all; }
+    .no-errors { color: var(--muted); font-size: .9rem; text-align: center; padding: 1.5rem; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+      background: var(--green); color: #fff; padding: .7rem 1.5rem;
+      border-radius: 999px; font-weight: 700; font-size: .9rem;
+      z-index: 9999; opacity: 0; transition: opacity .3s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
+
+    /* Last updated */
+    .last-update { text-align: left; color: var(--muted); font-size: .75rem; margin-top: 1rem; }
+
+    @media (max-width: 600px) {
+      .charts-grid { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">⚙️ لوحة تحكم <span>VIP</span></div>
+  <div class="header-meta">
+    <span class="status-dot"></span>
+    <span id="serverTime">--</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Stats Cards -->
+  <div class="stats-grid">
+    <div class="stat-card green">
+      <span class="stat-icon">⬇️</span>
+      <span class="stat-label">إجمالي التحميلات</span>
+      <span class="stat-value green" id="totalDl">--</span>
+    </div>
+    <div class="stat-card purple">
+      <span class="stat-icon">📅</span>
+      <span class="stat-label">تحميلات اليوم</span>
+      <span class="stat-value purple" id="todayDl">--</span>
+    </div>
+    <div class="stat-card red">
+      <span class="stat-icon">❌</span>
+      <span class="stat-label">فشل التحميل</span>
+      <span class="stat-value red" id="failedDl">--</span>
+    </div>
+    <div class="stat-card gold">
+      <span class="stat-icon">⚡</span>
+      <span class="stat-label">مهام جارية</span>
+      <span class="stat-value gold" id="activeTasks">--</span>
+    </div>
+  </div>
+
+  <!-- Server Info -->
+  <div class="server-card">
+    <h3>🖥️ معلومات الخادم</h3>
+    <div class="server-grid">
+      <div class="server-item">
+        <span class="server-item-label">حالة الخادم</span>
+        <span class="server-item-value" id="serverStatus" style="color:var(--green)">🟢 يعمل</span>
+      </div>
+      <div class="server-item">
+        <span class="server-item-label">وقت التشغيل</span>
+        <span class="server-item-value" id="uptime">--</span>
+      </div>
+      <div class="server-item">
+        <span class="server-item-label">الملفات المؤقتة</span>
+        <span class="server-item-value" id="tempFiles">--</span>
+      </div>
+      <div class="server-item">
+        <span class="server-item-label">حجم التخزين المستخدم</span>
+        <span class="server-item-value" id="storageMb">--</span>
+      </div>
+      <div class="server-item">
+        <span class="server-item-label">إصدار yt-dlp</span>
+        <span class="server-item-value" id="ytdlpVer">--</span>
+      </div>
+      <div class="server-item">
+        <span class="server-item-label">آخر تحديث yt-dlp</span>
+        <span class="server-item-value" id="ytdlpUpdated">--</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>📱 توزيع المنصات</h3>
+      <div class="platform-bars" id="platformBars">
+        <div style="color:var(--muted);font-size:.85rem">لا توجد بيانات بعد</div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>📊 نسبة النجاح</h3>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:120px;gap:.5rem">
+        <div style="font-size:3rem;font-weight:900" id="successRate">--%</div>
+        <div style="color:var(--muted);font-size:.85rem">معدل نجاح التحميل</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions-card">
+    <h3>🔧 إجراءات سريعة</h3>
+    <div class="actions-grid">
+      <button class="action-btn btn-update" onclick="updateYtdlp()">🔄 تحديث yt-dlp الآن</button>
+      <button class="action-btn btn-clear"  onclick="clearFiles()">🗑️ مسح الملفات المؤقتة</button>
+      <button class="action-btn btn-refresh" onclick="loadStats()">↻ تحديث البيانات</button>
+      <a href="/" class="action-btn btn-refresh" style="text-decoration:none">🌐 عرض الموقع</a>
+    </div>
+  </div>
+
+  <!-- Error Log -->
+  <div class="errors-card">
+    <h3>🚨 سجل الأخطاء الأخيرة</h3>
+    <div class="error-list" id="errorList">
+      <div class="no-errors">لا توجد أخطاء 🎉</div>
+    </div>
+  </div>
+
+  <div class="last-update">آخر تحديث: <span id="lastUpdate">--</span> — يتحدث كل 30 ثانية</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg, color = 'var(--green)') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+async function loadStats() {
+  try {
+    const res = await fetch('/admin/api/stats');
+    if (!res.ok) return;
+    const d = await res.json();
+
+    document.getElementById('serverTime').textContent = d.server_time;
+    document.getElementById('totalDl').textContent = d.total_downloads;
+    document.getElementById('todayDl').textContent = d.today_downloads;
+    document.getElementById('failedDl').textContent = d.failed_downloads;
+    document.getElementById('activeTasks').textContent = d.active_tasks;
+    document.getElementById('uptime').textContent = d.uptime;
+    document.getElementById('tempFiles').textContent = d.temp_files + ' ملف';
+    document.getElementById('storageMb').textContent = d.storage_mb + ' MB';
+    document.getElementById('ytdlpVer').textContent = d.ytdlp_version;
+    document.getElementById('ytdlpUpdated').textContent = d.ytdlp_updated;
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('ar');
+
+    // Success rate
+    const total = d.total_downloads + d.failed_downloads;
+    const rate = total > 0 ? Math.round((d.total_downloads / total) * 100) : 100;
+    const rateEl = document.getElementById('successRate');
+    rateEl.textContent = rate + '%';
+    rateEl.style.color = rate >= 80 ? 'var(--green)' : rate >= 50 ? 'var(--gold)' : 'var(--red)';
+
+    // Platform bars
+    const p = d.platform_counts;
+    const maxVal = Math.max(...Object.values(p), 1);
+    const bars = [
+      { name: 'TikTok',    count: p.TikTok,    cls: 'bar-tk' },
+      { name: 'Instagram', count: p.Instagram,  cls: 'bar-ig' },
+      { name: 'Facebook',  count: p.Facebook,   cls: 'bar-fb' },
+      { name: 'أخرى',      count: p.Other,      cls: 'bar-ot' },
+    ];
+    document.getElementById('platformBars').innerHTML = bars.map(b => `
+      <div class="platform-row">
+        <div class="platform-meta">
+          <span class="platform-name">${b.name}</span>
+          <span class="platform-count">${b.count} تحميل</span>
+        </div>
+        <div class="bar-bg">
+          <div class="bar-fill ${b.cls}" style="width:${Math.round((b.count/maxVal)*100)}%"></div>
+        </div>
+      </div>
+    `).join('');
+
+    // Errors
+    const errList = document.getElementById('errorList');
+    if (d.recent_errors.length === 0) {
+      errList.innerHTML = '<div class="no-errors">لا توجد أخطاء 🎉</div>';
+    } else {
+      errList.innerHTML = d.recent_errors.map(e => `
+        <div class="error-item">
+          <span class="error-time">${e.time}</span>
+          <span class="error-platform">${e.platform}</span>
+          <span class="error-msg">${e.error}</span>
+        </div>
+      `).join('');
+    }
+
+  } catch {
+    document.getElementById('serverStatus').textContent = '🔴 غير متاح';
+    document.getElementById('serverStatus').style.color = 'var(--red)';
+  }
+}
+
+async function updateYtdlp() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '⏳ جاري التحديث...';
+  try {
+    await fetch('/admin/api/update-ytdlp', { method: 'POST' });
+    showToast('✅ بدأ التحديث، انتظر دقيقة ثم حدّث الصفحة');
+  } catch {
+    showToast('❌ فشل التحديث', 'var(--red)');
+  }
+  setTimeout(() => { btn.disabled = false; btn.textContent = '🔄 تحديث yt-dlp الآن'; }, 60000);
+}
+
+async function clearFiles() {
+  if (!confirm('هل تريد حذف جميع الملفات المؤقتة؟')) return;
+  try {
+    const res = await fetch('/admin/api/clear-files', { method: 'POST' });
+    const d = await res.json();
+    showToast('✅ ' + d.message);
+    loadStats();
+  } catch {
+    showToast('❌ فشل الحذف', 'var(--red)');
+  }
+}
+
+loadStats();
+setInterval(loadStats, 30000);
+</script>
+</body>
+</html>

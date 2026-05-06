@@ -4,18 +4,22 @@ import uuid
 import threading
 import time
 import subprocess
+import functools
 from pathlib import Path
-from flask import Flask, request, jsonify, send_file, render_template
+from datetime import datetime
+from flask import Flask, request, jsonify, send_file, render_template, Response
 from flask_cors import CORS
 import yt_dlp
 
 
+# ===== Auto-update yt-dlp =====
 def auto_update_ytdlp():
     try:
         subprocess.run(
             ["pip", "install", "-U", "yt-dlp", "--quiet", "--break-system-packages"],
             timeout=120, check=False
         )
+        stats["ytdlp_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     except Exception:
         pass
 
@@ -31,17 +35,79 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 progress_store = {}
 
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
+ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
+ADMIN_PASS = os.environ.get("ADMIN_PASS", "vip2026")
 
-SUPPORTED_DOMAINS = [
-    "instagram.com",
-    "tiktok.com",
-    "facebook.com", "fb.watch",
-    "vm.tiktok.com",
-]
+SERVER_START = datetime.now()
+
+# ===== Live Stats =====
+stats = {
+    "total_downloads": 0,
+    "today_downloads": 0,
+    "failed_downloads": 0,
+    "platform_counts": {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Other": 0},
+    "recent_errors": [],
+    "ytdlp_updated": "لم يتم بعد",
+    "last_reset_date": datetime.now().date().isoformat(),
+}
+
+stats_lock = threading.Lock()
+
+
+def record_download(platform, success, error_msg=""):
+    with stats_lock:
+        today = datetime.now().date().isoformat()
+        if stats["last_reset_date"] != today:
+            stats["today_downloads"] = 0
+            stats["last_reset_date"] = today
+
+        if success:
+            stats["total_downloads"] += 1
+            stats["today_downloads"] += 1
+            key = platform if platform in stats["platform_counts"] else "Other"
+            stats["platform_counts"][key] += 1
+        else:
+            stats["failed_downloads"] += 1
+            if error_msg:
+                stats["recent_errors"].insert(0, {
+                    "time": datetime.now().strftime("%H:%M:%S"),
+                    "error": error_msg[:120],
+                    "platform": platform,
+                })
+                stats["recent_errors"] = stats["recent_errors"][:10]
+
+
+def detect_platform(url):
+    url = url.lower()
+    if "tiktok.com" in url or "vm.tiktok.com" in url:
+        return "TikTok"
+    if "instagram.com" in url:
+        return "Instagram"
+    if "facebook.com" in url or "fb.watch" in url:
+        return "Facebook"
+    return "Other"
+
+
+# ===== Admin Auth =====
+def check_auth(username, password):
+    return username == ADMIN_USER and password == ADMIN_PASS
+
+
+def requires_auth(f):
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return Response(
+                "يجب تسجيل الدخول للوصول للوحة التحكم",
+                401,
+                {"WWW-Authenticate": 'Basic realm="VIP Admin"'}
+            )
+        return f(*args, **kwargs)
+    return decorated
 
 
 def clean_old_files():
-    """Delete files older than 30 minutes."""
     while True:
         now = time.time()
         for f in DOWNLOAD_DIR.iterdir():
@@ -73,6 +139,7 @@ def make_progress_hook(task_id):
     return hook
 
 
+# ===== Routes =====
 @app.route("/ads.txt")
 def ads_txt():
     return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
@@ -83,6 +150,79 @@ def index():
     return render_template("index.html", stripe_link=STRIPE_PAYMENT_LINK)
 
 
+# ===== Admin Dashboard =====
+@app.route("/admin")
+@requires_auth
+def admin():
+    return render_template("admin.html")
+
+
+@app.route("/admin/api/stats")
+@requires_auth
+def admin_stats():
+    uptime_sec = int((datetime.now() - SERVER_START).total_seconds())
+    hours = uptime_sec // 3600
+    minutes = (uptime_sec % 3600) // 60
+    uptime_str = f"{hours} ساعة و {minutes} دقيقة"
+
+    dl_files = list(DOWNLOAD_DIR.glob("*"))
+    storage_mb = round(sum(f.stat().st_size for f in dl_files if f.is_file()) / 1024 / 1024, 2)
+
+    try:
+        ytdlp_ver = yt_dlp.version.__version__
+    except Exception:
+        ytdlp_ver = "غير معروف"
+
+    active = sum(1 for v in progress_store.values() if v.get("status") in ("downloading", "processing", "starting"))
+
+    return jsonify({
+        "status": "online",
+        "uptime": uptime_str,
+        "total_downloads": stats["total_downloads"],
+        "today_downloads": stats["today_downloads"],
+        "failed_downloads": stats["failed_downloads"],
+        "platform_counts": stats["platform_counts"],
+        "active_tasks": active,
+        "storage_mb": storage_mb,
+        "temp_files": len(dl_files),
+        "ytdlp_version": ytdlp_ver,
+        "ytdlp_updated": stats["ytdlp_updated"],
+        "recent_errors": stats["recent_errors"],
+        "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    })
+
+
+@app.route("/admin/api/update-ytdlp", methods=["POST"])
+@requires_auth
+def admin_update_ytdlp():
+    def do_update():
+        try:
+            result = subprocess.run(
+                ["pip", "install", "-U", "yt-dlp", "--break-system-packages"],
+                capture_output=True, text=True, timeout=120
+            )
+            stats["ytdlp_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            pass
+    threading.Thread(target=do_update, daemon=True).start()
+    return jsonify({"message": "جاري التحديث..."})
+
+
+@app.route("/admin/api/clear-files", methods=["POST"])
+@requires_auth
+def admin_clear_files():
+    count = 0
+    for f in DOWNLOAD_DIR.iterdir():
+        if f.is_file():
+            try:
+                f.unlink()
+                count += 1
+            except Exception:
+                pass
+    return jsonify({"message": f"تم حذف {count} ملف"})
+
+
+# ===== Public API =====
 @app.route("/api/info", methods=["POST"])
 def get_info():
     data = request.get_json()
@@ -146,7 +286,6 @@ def get_info():
             )
         )
 
-        # Add best quality shortcut if not present
         has_best = any(f["label"] == "أفضل جودة" for f in formats)
         if not has_best and formats:
             formats.insert(0, {
@@ -173,7 +312,7 @@ def get_info():
         if "Private video" in msg or "login" in msg.lower():
             return jsonify({"error": "الفيديو خاص أو يتطلب تسجيل دخول"}), 403
         return jsonify({"error": "تعذّر جلب معلومات الفيديو، تحقق من الرابط"}), 400
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "حدث خطأ غير متوقع"}), 500
 
 
@@ -187,6 +326,7 @@ def start_download():
         return jsonify({"error": "الرابط مطلوب"}), 400
 
     task_id = str(uuid.uuid4())
+    platform = detect_platform(url)
     progress_store[task_id] = {"status": "starting", "percent": 0}
 
     def do_download():
@@ -200,31 +340,23 @@ def start_download():
             "noplaylist": True,
             "nocheckcertificate": True,
             "progress_hooks": [make_progress_hook(task_id)],
-            "postprocessors": [{
-                "key": "FFmpegVideoConvertor",
-                "preferedformat": "mp4",
-            }],
+            "postprocessors": [{"key": "FFmpegVideoConvertor", "preferedformat": "mp4"}],
         }
 
-        # For audio-only
         if format_id in ("bestaudio", "bestaudio/best"):
             ydl_opts["format"] = "bestaudio/best"
-            ydl_opts["nocheckcertificate"] = True
             ydl_opts["postprocessors"] = [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
                 "preferredquality": "192",
             }]
-            ydl_opts["outtmpl"] = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 title = info.get("title", "video")
-                # Sanitize title for filename
                 safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:60]
 
-            # Find downloaded file
             found = list(DOWNLOAD_DIR.glob(f"{task_id}.*"))
             if found:
                 ext = found[0].suffix
@@ -234,10 +366,14 @@ def start_download():
                     "file": task_id + ext,
                     "filename": safe_title + ext,
                 }
+                record_download(platform, True)
             else:
                 progress_store[task_id] = {"status": "error", "error": "الملف لم يُوجد"}
+                record_download(platform, False, "الملف لم يُوجد")
         except Exception as e:
-            progress_store[task_id] = {"status": "error", "error": str(e)[:200]}
+            err = str(e)[:200]
+            progress_store[task_id] = {"status": "error", "error": err}
+            record_download(platform, False, err)
 
     threading.Thread(target=do_download, daemon=True).start()
     return jsonify({"task_id": task_id})
@@ -245,13 +381,11 @@ def start_download():
 
 @app.route("/api/progress/<task_id>")
 def get_progress(task_id):
-    data = progress_store.get(task_id, {"status": "not_found"})
-    return jsonify(data)
+    return jsonify(progress_store.get(task_id, {"status": "not_found"}))
 
 
 @app.route("/api/file/<filename>")
 def serve_file(filename):
-    # Security: only allow files that match uuid pattern
     name = Path(filename).stem
     try:
         uuid.UUID(name)
