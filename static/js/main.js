@@ -1,3 +1,57 @@
+// ===== PWA Install =====
+let deferredPrompt = null;
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw.js');
+}
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // Show banner after 3 seconds if not dismissed before
+  if (!localStorage.getItem('pwa_dismissed')) {
+    setTimeout(() => {
+      document.getElementById('installBanner').classList.remove('hidden');
+    }, 3000);
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('installBanner').classList.add('hidden');
+  deferredPrompt = null;
+});
+
+document.getElementById('installBtn').addEventListener('click', async () => {
+  if (!deferredPrompt) {
+    // iOS fallback instructions
+    showIOSInstallHint();
+    return;
+  }
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('installBanner').classList.add('hidden');
+});
+
+function dismissInstall() {
+  document.getElementById('installBanner').classList.add('hidden');
+  localStorage.setItem('pwa_dismissed', '1');
+}
+
+function showIOSInstallHint() {
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position:fixed; bottom:5rem; left:50%; transform:translateX(-50%);
+    background:var(--card); border:1px solid var(--accent);
+    color:var(--text); padding:1rem 1.5rem; border-radius:14px;
+    font-size:.9rem; z-index:9999; text-align:center; width:280px;
+    box-shadow:0 8px 30px rgba(0,0,0,.5);
+  `;
+  toast.innerHTML = `اضغط <strong>مشاركة</strong> ثم <strong>"إضافة إلى الشاشة الرئيسية"</strong>`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
 // ===== Particles =====
 (function createParticles() {
   const container = document.getElementById('particles');

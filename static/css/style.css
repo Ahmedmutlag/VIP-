@@ -373,6 +373,32 @@ main { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding
 }
 .ad-upgrade-link:hover { opacity: .8; }
 
+/* ===== Install PWA Banner ===== */
+.install-banner {
+  position: fixed; bottom: 1rem; left: 1rem; right: 1rem; z-index: 500;
+  background: linear-gradient(135deg, #1e1a2e, #16161f);
+  border: 1px solid var(--accent);
+  border-radius: 16px; padding: 1rem 1.2rem;
+  display: flex; align-items: center; gap: .8rem;
+  box-shadow: 0 8px 32px rgba(124,58,237,.3);
+  animation: slideUp .4s ease;
+}
+@keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.install-icon { font-size: 2rem; flex-shrink: 0; }
+.install-text { flex: 1; display: flex; flex-direction: column; gap: .1rem; }
+.install-text strong { font-size: .95rem; font-weight: 800; }
+.install-text span { font-size: .78rem; color: var(--muted); }
+.install-confirm {
+  padding: .5rem 1rem; border-radius: 10px; border: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff; font-family: inherit; font-size: .85rem; font-weight: 700;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+}
+.install-dismiss {
+  background: none; border: none; color: var(--muted);
+  font-size: 1rem; cursor: pointer; flex-shrink: 0; padding: .2rem;
+}
+
 /* ===== Spinner ===== */
 .spinner {
   display: inline-block; width: 18px; height: 18px;

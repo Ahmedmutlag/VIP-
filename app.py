@@ -140,6 +140,19 @@ def make_progress_hook(task_id):
 
 
 # ===== Routes =====
+@app.route("/static/icons/<size>")
+def app_icon(size):
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="100" fill="#7c3aed"/>
+  <text x="256" y="300" font-size="260" text-anchor="middle" font-family="Arial">⬇️</text>
+  <text x="256" y="420" font-size="72" text-anchor="middle" font-family="Arial" font-weight="bold" fill="white">VIP</text>
+</svg>'''
+    from flask import make_response
+    resp = make_response(svg)
+    resp.headers['Content-Type'] = 'image/svg+xml'
+    return resp
+
+
 @app.route("/ads.txt")
 def ads_txt():
     return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
