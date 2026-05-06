@@ -3,10 +3,24 @@ import re
 import uuid
 import threading
 import time
+import subprocess
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file, render_template
 from flask_cors import CORS
 import yt_dlp
+
+
+def auto_update_ytdlp():
+    try:
+        subprocess.run(
+            ["pip", "install", "-U", "yt-dlp", "--quiet", "--break-system-packages"],
+            timeout=120, check=False
+        )
+    except Exception:
+        pass
+
+
+threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 
 app = Flask(__name__)
 CORS(app)
