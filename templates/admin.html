@@ -234,6 +234,31 @@
     </div>
   </div>
 
+  <!-- Change Password -->
+  <div class="server-card" style="margin-bottom:1.5rem">
+    <h3>🔐 تغيير بيانات الدخول</h3>
+    <div style="display:flex;flex-direction:column;gap:.8rem;margin-top:.5rem">
+      <div style="display:flex;flex-direction:column;gap:.3rem">
+        <label style="font-size:.78rem;color:var(--muted)">اسم المستخدم الجديد (اختياري)</label>
+        <input id="newUser" type="text" placeholder="اتركه فارغاً للإبقاء على الحالي"
+          style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:inherit;font-size:.9rem;outline:none" />
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.3rem">
+        <label style="font-size:.78rem;color:var(--muted)">كلمة السر الحالية</label>
+        <input id="currentPass" type="password" placeholder="••••••••"
+          style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:inherit;font-size:.9rem;outline:none" />
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.3rem">
+        <label style="font-size:.78rem;color:var(--muted)">كلمة السر الجديدة (6 أحرف على الأقل)</label>
+        <input id="newPass" type="password" placeholder="••••••••"
+          style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:inherit;font-size:.9rem;outline:none" />
+      </div>
+      <button onclick="changePassword()" class="action-btn btn-update" style="width:fit-content">
+        🔐 حفظ التغييرات
+      </button>
+    </div>
+  </div>
+
   <!-- Error Log -->
   <div class="errors-card">
     <h3>🚨 سجل الأخطاء الأخيرة</h3>
@@ -344,6 +369,37 @@ async function clearFiles() {
     loadStats();
   } catch {
     showToast('❌ فشل الحذف', 'var(--red)');
+  }
+}
+
+async function changePassword() {
+  const current = document.getElementById('currentPass').value;
+  const newPass  = document.getElementById('newPass').value;
+  const newUser  = document.getElementById('newUser').value;
+
+  if (!current || !newPass) {
+    showToast('❌ أدخل كلمة السر الحالية والجديدة', 'var(--red)');
+    return;
+  }
+
+  try {
+    const res = await fetch('/admin/api/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current, new_pass: newPass, new_user: newUser }),
+    });
+    const d = await res.json();
+    if (res.ok) {
+      showToast('✅ ' + d.message);
+      document.getElementById('currentPass').value = '';
+      document.getElementById('newPass').value = '';
+      document.getElementById('newUser').value = '';
+      setTimeout(() => location.reload(), 2000);
+    } else {
+      showToast('❌ ' + d.error, 'var(--red)');
+    }
+  } catch {
+    showToast('❌ فشل الاتصال بالخادم', 'var(--red)');
   }
 }
 

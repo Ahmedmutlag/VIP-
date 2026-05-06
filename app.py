@@ -5,6 +5,7 @@ import threading
 import time
 import subprocess
 import functools
+import json
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, request, jsonify, send_file, render_template, Response
@@ -37,6 +38,26 @@ progress_store = {}
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "vip2026")
+
+CONFIG_FILE = Path("data/config.json")
+CONFIG_FILE.parent.mkdir(exist_ok=True)
+
+def load_config():
+    if CONFIG_FILE.exists():
+        try:
+            return json.loads(CONFIG_FILE.read_text())
+        except Exception:
+            pass
+    return {}
+
+def save_config(data):
+    CONFIG_FILE.write_text(json.dumps(data))
+
+config = load_config()
+if "admin_pass" in config:
+    ADMIN_PASS = config["admin_pass"]
+if "admin_user" in config:
+    ADMIN_USER = config["admin_user"]
 
 SERVER_START = datetime.now()
 
@@ -91,6 +112,32 @@ def detect_platform(url):
 # ===== Admin Auth =====
 def check_auth(username, password):
     return username == ADMIN_USER and password == ADMIN_PASS
+
+
+@app.route("/admin/api/change-password", methods=["POST"])
+@requires_auth
+def change_password():
+    global ADMIN_USER, ADMIN_PASS
+    data = request.get_json()
+    current = (data or {}).get("current", "")
+    new_pass = (data or {}).get("new_pass", "")
+    new_user = (data or {}).get("new_user", "").strip()
+
+    if current != ADMIN_PASS:
+        return jsonify({"error": "كلمة السر الحالية غير صحيحة"}), 401
+    if len(new_pass) < 6:
+        return jsonify({"error": "كلمة السر الجديدة يجب أن تكون 6 أحرف على الأقل"}), 400
+
+    ADMIN_PASS = new_pass
+    if new_user:
+        ADMIN_USER = new_user
+
+    cfg = load_config()
+    cfg["admin_pass"] = ADMIN_PASS
+    cfg["admin_user"] = ADMIN_USER
+    save_config(cfg)
+
+    return jsonify({"message": "تم تغيير بيانات الدخول بنجاح ✅"})
 
 
 def requires_auth(f):
