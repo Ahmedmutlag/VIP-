@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>لوحة تحكم VIP Downloader</title>
+  <title>لوحة تحكم VIP</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <style>
@@ -12,343 +12,547 @@
       --bg: #0a0a0f; --bg2: #111118; --card: #16161f;
       --border: #2a2a3a; --accent: #7c3aed; --accent2: #a855f7;
       --green: #10b981; --red: #ef4444; --gold: #f59e0b;
-      --text: #f0f0f8; --muted: #8888aa; --radius: 14px;
+      --text: #f0f0f8; --muted: #8888aa;
+      --sw: 220px;
     }
-    body { font-family: 'Cairo', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
-    /* Header */
-    .header {
-      background: var(--card); border-bottom: 1px solid var(--border);
-      padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between;
-      position: sticky; top: 0; z-index: 100;
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex;
     }
-    .header-logo { font-size: 1.2rem; font-weight: 900; }
-    .header-logo span { color: var(--accent2); }
-    .header-meta { color: var(--muted); font-size: .82rem; display: flex; gap: 1rem; align-items: center; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
 
-    /* Layout */
-    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem; }
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      width: var(--sw); background: var(--card);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      position: fixed; top: 0; right: 0;
+      height: 100vh; z-index: 200;
+    }
+    .sb-logo {
+      padding: 1.4rem 1.2rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.05rem; font-weight: 900;
+    }
+    .sb-logo span { color: var(--accent2); }
 
-    /* Cards Grid */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-    .stat-card {
+    .sb-nav {
+      flex: 1; padding: .8rem .5rem;
+      display: flex; flex-direction: column; gap: .25rem;
+      overflow-y: auto;
+    }
+    .nav-btn {
+      display: flex; align-items: center; gap: .65rem;
+      padding: .72rem 1rem; border-radius: 10px;
+      cursor: pointer; font-size: .88rem; font-weight: 600;
+      color: var(--muted); transition: background .2s, color .15s;
+      border: none; background: none;
+      font-family: inherit; width: 100%; text-align: right;
+    }
+    .nav-btn:hover { background: rgba(124,58,237,.08); color: var(--text); }
+    .nav-btn.active { background: rgba(124,58,237,.18); color: var(--accent2); }
+    .nav-btn .ni { font-size: 1rem; flex-shrink: 0; }
+
+    .sb-footer {
+      padding: 1rem; border-top: 1px solid var(--border);
+    }
+    .status-row {
+      display: flex; align-items: center; gap: .45rem;
+      font-size: .75rem; color: var(--muted); margin-bottom: .65rem;
+    }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green); flex-shrink: 0;
+      animation: blink 2s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+    .btn-logout {
+      width: 100%; padding: .6rem;
+      background: rgba(239,68,68,.1);
+      border: 1px solid rgba(239,68,68,.25);
+      border-radius: 8px; color: #fca5a5;
+      font-family: inherit; font-size: .82rem; font-weight: 700;
+      cursor: pointer; transition: background .2s;
+    }
+    .btn-logout:hover { background: rgba(239,68,68,.2); }
+
+    /* ===== MAIN ===== */
+    .main { margin-right: var(--sw); flex: 1; display: flex; flex-direction: column; }
+
+    .topbar {
+      padding: .9rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; background: var(--bg); z-index: 100;
+    }
+    .topbar-title { font-size: 1.05rem; font-weight: 900; }
+    .topbar-right { display: flex; align-items: center; gap: .7rem; }
+    #topTime { font-size: .75rem; color: var(--muted); }
+    .btn-refresh {
+      padding: .38rem .85rem; background: var(--bg2);
+      border: 1px solid var(--border); border-radius: 8px;
+      color: var(--muted); font-family: inherit; font-size: .8rem;
+      cursor: pointer; transition: color .2s, border-color .2s;
+    }
+    .btn-refresh:hover { color: var(--text); border-color: var(--accent); }
+
+    .content { padding: 1.4rem; }
+
+    /* ===== SECTIONS ===== */
+    .sec { display: none; }
+    .sec.active { display: block; }
+
+    /* ===== ALERTS ===== */
+    #alerts { display: flex; flex-direction: column; gap: .55rem; margin-bottom: 1rem; }
+    .alert-box {
+      border-radius: 10px; padding: .75rem 1rem;
+      font-size: .83rem; font-weight: 600;
+      display: flex; justify-content: space-between;
+      align-items: center; gap: .5rem; flex-wrap: wrap;
+    }
+
+    /* ===== STAT CARDS ===== */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: .9rem; margin-bottom: 1.2rem;
+    }
+    .sc {
       background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 1.2rem;
-      display: flex; flex-direction: column; gap: .4rem;
+      border-radius: 14px; padding: 1.1rem;
+      display: flex; flex-direction: column; gap: .3rem;
     }
-    .stat-card.green { border-color: rgba(16,185,129,.3); }
-    .stat-card.red   { border-color: rgba(239,68,68,.3); }
-    .stat-card.gold  { border-color: rgba(245,158,11,.3); }
-    .stat-card.purple{ border-color: rgba(168,85,247,.3); }
-    .stat-icon { font-size: 1.5rem; }
-    .stat-label { font-size: .78rem; color: var(--muted); font-weight: 600; }
-    .stat-value { font-size: 1.8rem; font-weight: 900; line-height: 1; }
-    .stat-value.green  { color: var(--green); }
-    .stat-value.red    { color: var(--red); }
-    .stat-value.gold   { color: var(--gold); }
-    .stat-value.purple { color: var(--accent2); }
+    .sc.g { border-color: rgba(16,185,129,.25); }
+    .sc.p { border-color: rgba(168,85,247,.25); }
+    .sc.r { border-color: rgba(239,68,68,.25); }
+    .sc.o { border-color: rgba(245,158,11,.25); }
+    .sc-icon { font-size: 1.3rem; }
+    .sc-lbl { font-size: .72rem; color: var(--muted); font-weight: 600; }
+    .sc-val { font-size: 1.9rem; font-weight: 900; line-height: 1.1; }
+    .cv-g { color: var(--green); }
+    .cv-p { color: var(--accent2); }
+    .cv-r { color: var(--red); }
+    .cv-o { color: var(--gold); }
 
-    /* Server Card */
-    .server-card {
+    /* ===== CARD ===== */
+    .card {
       background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 1.3rem;
-      margin-bottom: 1.5rem;
+      border-radius: 14px; padding: 1.2rem; margin-bottom: 1.1rem;
     }
-    .server-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: 1rem; color: var(--muted); }
-    .server-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .8rem; }
-    .server-item { display: flex; flex-direction: column; gap: .2rem; }
-    .server-item-label { font-size: .75rem; color: var(--muted); }
-    .server-item-value { font-size: .95rem; font-weight: 700; }
+    .card-title {
+      font-size: .88rem; font-weight: 700;
+      color: var(--muted); margin-bottom: .9rem;
+    }
 
-    /* Platform Chart */
-    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
-    .chart-card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 1.3rem;
+    /* ===== GRID 2 ===== */
+    .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.1rem; }
+
+    /* ===== VISITOR MINI ===== */
+    .vis-row { display: grid; grid-template-columns: repeat(3,1fr); gap: .7rem; margin-bottom: .9rem; }
+    .vis-mini {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 10px; padding: .8rem; text-align: center;
     }
-    .chart-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: 1rem; color: var(--muted); }
-    .platform-bars { display: flex; flex-direction: column; gap: .8rem; }
-    .platform-row { display: flex; flex-direction: column; gap: .3rem; }
-    .platform-meta { display: flex; justify-content: space-between; font-size: .85rem; }
-    .platform-name { font-weight: 700; }
-    .platform-count { color: var(--muted); }
-    .bar-bg { background: var(--bg2); border-radius: 999px; height: 8px; overflow: hidden; }
+    .vis-mini-val { font-size: 1.7rem; font-weight: 900; }
+    .vis-mini-lbl { font-size: .7rem; color: var(--muted); margin-top: .1rem; }
+
+    /* ===== PLATFORM BARS ===== */
+    .prow { display: flex; flex-direction: column; gap: .25rem; margin-bottom: .7rem; }
+    .pmeta { display: flex; justify-content: space-between; font-size: .82rem; }
+    .pname { font-weight: 700; }
+    .pcnt { color: var(--muted); }
+    .bar-bg { background: var(--bg2); border-radius: 999px; height: 6px; overflow: hidden; }
     .bar-fill { height: 100%; border-radius: 999px; transition: width .6s ease; }
-    .bar-tk { background: linear-gradient(90deg, #010101, #69c9d0); }
-    .bar-ig { background: linear-gradient(90deg, #f09433, #bc1888); }
-    .bar-fb { background: linear-gradient(90deg, #1877f2, #42a5f5); }
-    .bar-pt { background: linear-gradient(90deg, #ad081b, #e60023); }
-    .bar-ot { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+    .bar-tk { background: linear-gradient(90deg,#010101,#69c9d0); }
+    .bar-ig { background: linear-gradient(90deg,#f09433,#bc1888); }
+    .bar-fb { background: linear-gradient(90deg,#1877f2,#42a5f5); }
+    .bar-pt { background: linear-gradient(90deg,#ad081b,#e60023); }
+    .bar-ot { background: linear-gradient(90deg,var(--accent),var(--accent2)); }
 
-    /* Actions */
-    .actions-card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 1.3rem; margin-bottom: 1.5rem;
+    /* ===== SUB SUMMARY ===== */
+    .sub-row {
+      display: flex; justify-content: space-between;
+      align-items: center; padding: .6rem 0;
+      border-bottom: 1px solid var(--border);
     }
-    .actions-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: 1rem; color: var(--muted); }
-    .actions-grid { display: flex; gap: .8rem; flex-wrap: wrap; }
-    .action-btn {
-      padding: .7rem 1.2rem; border-radius: 10px; border: none;
-      font-family: inherit; font-size: .9rem; font-weight: 700;
-      cursor: pointer; transition: opacity .2s, transform .15s; display: flex; align-items: center; gap: .4rem;
-    }
-    .action-btn:hover { opacity: .85; transform: translateY(-1px); }
-    .btn-update { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
-    .btn-clear  { background: linear-gradient(135deg, #dc2626, var(--red)); color: #fff; }
-    .btn-refresh{ background: var(--bg2); color: var(--text); border: 1px solid var(--border); }
-    .action-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .sub-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .sub-lbl { font-size: .84rem; color: var(--muted); }
+    .sub-val { font-size: 1.5rem; font-weight: 900; }
 
-    /* Errors */
-    .errors-card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 1.3rem;
+    /* ===== SERVER GRID ===== */
+    .srv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px,1fr));
+      gap: .8rem;
     }
-    .errors-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: 1rem; color: var(--muted); }
-    .error-list { display: flex; flex-direction: column; gap: .6rem; }
-    .error-item {
+    .srv-item { display: flex; flex-direction: column; gap: .2rem; }
+    .srv-lbl { font-size: .72rem; color: var(--muted); }
+    .srv-val { font-size: .92rem; font-weight: 700; }
+
+    /* ===== ACTIONS ===== */
+    .act-row { display: flex; gap: .65rem; flex-wrap: wrap; }
+    .abtn {
+      padding: .62rem 1.1rem; border-radius: 10px; border: none;
+      font-family: inherit; font-size: .86rem; font-weight: 700;
+      cursor: pointer; transition: opacity .2s, transform .15s;
+      display: flex; align-items: center; gap: .4rem;
+      text-decoration: none;
+    }
+    .abtn:hover { opacity: .85; transform: translateY(-1px); }
+    .abtn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    .abtn-purple { background: linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; }
+    .abtn-red { background: linear-gradient(135deg,#dc2626,var(--red)); color:#fff; }
+    .abtn-ghost { background: var(--bg2); color: var(--text); border: 1px solid var(--border); }
+
+    /* ===== ERRORS ===== */
+    .err-item {
       background: rgba(239,68,68,.07); border: 1px solid rgba(239,68,68,.2);
-      border-radius: 8px; padding: .7rem 1rem;
-      display: flex; gap: .8rem; align-items: flex-start;
+      border-radius: 8px; padding: .6rem .9rem;
+      display: flex; gap: .7rem; align-items: flex-start;
+      font-size: .8rem; margin-bottom: .45rem;
     }
-    .error-time { color: var(--muted); font-size: .78rem; white-space: nowrap; flex-shrink: 0; }
-    .error-platform { color: var(--accent2); font-size: .78rem; font-weight: 700; flex-shrink: 0; }
-    .error-msg { font-size: .82rem; color: #fca5a5; word-break: break-all; }
-    .no-errors { color: var(--muted); font-size: .9rem; text-align: center; padding: 1.5rem; }
+    .err-time { color: var(--muted); font-size: .72rem; white-space: nowrap; flex-shrink: 0; }
+    .err-plat { color: var(--accent2); font-size: .72rem; font-weight: 700; flex-shrink: 0; }
+    .err-msg { color: #fca5a5; word-break: break-all; }
+    .no-data { color: var(--muted); font-size: .85rem; text-align: center; padding: 1.5rem; }
 
-    /* Toast */
+    /* ===== CODES ===== */
+    .gen-row { display: flex; gap: .7rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: .9rem; }
+    .field { display: flex; flex-direction: column; gap: .28rem; flex: 1; min-width: 140px; }
+    .field label { font-size: .72rem; color: var(--muted); }
+    .field input, .field select {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 8px; padding: .58rem .85rem;
+      color: var(--text); font-family: inherit; font-size: .88rem;
+      outline: none; transition: border-color .2s;
+    }
+    .field input:focus, .field select:focus { border-color: var(--accent); }
+    .new-code-box {
+      background: var(--bg2); border: 1px solid var(--accent);
+      border-radius: 10px; padding: 1rem;
+      margin-bottom: .9rem; text-align: center; display: none;
+    }
+    .new-code-val {
+      font-size: 1.6rem; font-weight: 900; color: var(--accent2);
+      letter-spacing: 4px; direction: ltr; margin: .35rem 0;
+    }
+    .code-list { display: flex; flex-direction: column; gap: .45rem; max-height: 380px; overflow-y: auto; }
+    .code-item {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 9px; padding: .65rem .9rem;
+      display: flex; align-items: center; gap: .65rem; flex-wrap: wrap;
+    }
+    .code-val { font-family: monospace; font-size: .98rem; font-weight: 700; direction: ltr; flex-shrink: 0; }
+    .code-note { font-size: .76rem; color: var(--muted); flex: 1; min-width: 60px; }
+    .badge {
+      font-size: .7rem; padding: .18rem .55rem;
+      border-radius: 999px; font-weight: 700; flex-shrink: 0;
+    }
+    .bg-g { background: rgba(16,185,129,.15); color: var(--green); }
+    .bg-r { background: rgba(239,68,68,.15); color: var(--red); }
+    .bg-p { background: rgba(168,85,247,.15); color: var(--accent2); }
+    .code-exp { font-size: .7rem; color: var(--muted); flex-shrink: 0; }
+    .ibtn {
+      background: none; border: 1px solid var(--border);
+      border-radius: 6px; padding: .18rem .5rem;
+      color: var(--muted); cursor: pointer; font-size: .76rem;
+      font-family: inherit; transition: color .15s, border-color .15s;
+      flex-shrink: 0;
+    }
+    .ibtn:hover { color: var(--text); border-color: var(--accent); }
+    .ibtn.d:hover { color: var(--red); border-color: var(--red); }
+
+    /* ===== SETTINGS ===== */
+    .set-form { display: flex; flex-direction: column; gap: .85rem; max-width: 400px; }
+
+    /* ===== TOAST ===== */
     .toast {
       position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
-      background: var(--green); color: #fff; padding: .7rem 1.5rem;
-      border-radius: 999px; font-weight: 700; font-size: .9rem;
+      background: var(--green); color: #fff;
+      padding: .65rem 1.4rem; border-radius: 999px;
+      font-weight: 700; font-size: .85rem;
       z-index: 9999; opacity: 0; transition: opacity .3s;
-      pointer-events: none;
+      pointer-events: none; white-space: nowrap;
     }
     .toast.show { opacity: 1; }
 
-    /* Last updated */
-    .last-update { text-align: left; color: var(--muted); font-size: .75rem; margin-top: 1rem; }
+    .last-upd { font-size: .7rem; color: var(--muted); margin-top: 1rem; }
 
-    @media (max-width: 600px) {
-      .charts-grid { grid-template-columns: 1fr; }
-      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 680px) {
+      .sidebar {
+        width: 100%; height: auto;
+        position: sticky; flex-direction: row;
+        border-left: none; border-bottom: 1px solid var(--border);
+      }
+      .sb-logo { padding: .75rem 1rem; border-bottom: none; border-left: 1px solid var(--border); white-space: nowrap; }
+      .sb-nav { flex-direction: row; padding: .35rem; overflow-x: auto; gap: .2rem; flex: 1; }
+      .nav-btn { padding: .5rem .7rem; font-size: .78rem; gap: .25rem; white-space: nowrap; }
+      .sb-footer { display: none; }
+      .main { margin-right: 0; }
+      body { flex-direction: column; }
+      .g2 { grid-template-columns: 1fr; }
+      .stats-row { grid-template-columns: repeat(2,1fr); }
+      .vis-row { grid-template-columns: repeat(3,1fr); }
     }
   </style>
 </head>
 <body>
 
-<div class="header">
-  <div class="header-logo">⚙️ لوحة تحكم <span>VIP</span></div>
-  <div class="header-meta">
-    <span class="status-dot"></span>
-    <span id="serverTime">--</span>
+<!-- ===== SIDEBAR ===== -->
+<aside class="sidebar">
+  <div class="sb-logo">⚡ لوحة <span>VIP</span></div>
+  <nav class="sb-nav">
+    <button class="nav-btn active" onclick="showSec('stats')" data-sec="stats">
+      <span class="ni">📊</span> الإحصائيات
+    </button>
+    <button class="nav-btn" onclick="showSec('codes')" data-sec="codes">
+      <span class="ni">🔑</span> الأكواد
+    </button>
+    <button class="nav-btn" onclick="showSec('server')" data-sec="server">
+      <span class="ni">🖥️</span> الخادم
+    </button>
+    <button class="nav-btn" onclick="showSec('settings')" data-sec="settings">
+      <span class="ni">⚙️</span> الإعدادات
+    </button>
+  </nav>
+  <div class="sb-footer">
+    <div class="status-row">
+      <span class="dot"></span>
+      <span id="topTime">--</span>
+    </div>
+    <button class="btn-logout" onclick="doLogout()">🚪 تسجيل الخروج</button>
   </div>
-</div>
+</aside>
 
-<div class="container">
-
-  <!-- Alerts Section -->
-  <div id="alertsSection" style="display:flex;flex-direction:column;gap:.7rem;margin-bottom:1.2rem"></div>
-
-  <!-- Stats Cards -->
-  <div class="stats-grid">
-    <div class="stat-card green">
-      <span class="stat-icon">⬇️</span>
-      <span class="stat-label">إجمالي التحميلات</span>
-      <span class="stat-value green" id="totalDl">--</span>
-    </div>
-    <div class="stat-card purple">
-      <span class="stat-icon">📅</span>
-      <span class="stat-label">تحميلات اليوم</span>
-      <span class="stat-value purple" id="todayDl">--</span>
-    </div>
-    <div class="stat-card red">
-      <span class="stat-icon">❌</span>
-      <span class="stat-label">فشل التحميل</span>
-      <span class="stat-value red" id="failedDl">--</span>
-    </div>
-    <div class="stat-card gold">
-      <span class="stat-icon">⚡</span>
-      <span class="stat-label">مهام جارية</span>
-      <span class="stat-value gold" id="activeTasks">--</span>
-    </div>
-    <div class="stat-card green">
-      <span class="stat-icon">👑</span>
-      <span class="stat-label">مشتركون فعّالون</span>
-      <span class="stat-value green" id="activeSubs">--</span>
-    </div>
-    <div class="stat-card purple">
-      <span class="stat-icon">🔑</span>
-      <span class="stat-label">أكواد غير مستخدمة</span>
-      <span class="stat-value purple" id="unusedCodes">--</span>
-    </div>
-    <div class="stat-card red">
-      <span class="stat-icon">⌛</span>
-      <span class="stat-label">اشتراكات منتهية</span>
-      <span class="stat-value red" id="expiredSubs">--</span>
+<!-- ===== MAIN ===== -->
+<main class="main">
+  <div class="topbar">
+    <span class="topbar-title" id="secTitle">الإحصائيات</span>
+    <div class="topbar-right">
+      <span id="lastUpdText" style="font-size:.72rem;color:var(--muted)"></span>
+      <button class="btn-refresh" onclick="loadAll()">↻ تحديث</button>
     </div>
   </div>
 
-  <!-- Server Info -->
-  <div class="server-card">
-    <h3>🖥️ معلومات الخادم</h3>
-    <div class="server-grid">
-      <div class="server-item">
-        <span class="server-item-label">حالة الخادم</span>
-        <span class="server-item-value" id="serverStatus" style="color:var(--green)">🟢 يعمل</span>
-      </div>
-      <div class="server-item">
-        <span class="server-item-label">الدومين الرسمي</span>
-        <span class="server-item-value" style="color:var(--accent2)">🌐 www.vip-dl.com</span>
-      </div>
-      <div class="server-item">
-        <span class="server-item-label">وقت التشغيل</span>
-        <span class="server-item-value" id="uptime">--</span>
-      </div>
-      <div class="server-item">
-        <span class="server-item-label">الملفات المؤقتة</span>
-        <span class="server-item-value" id="tempFiles">--</span>
-      </div>
-      <div class="server-item">
-        <span class="server-item-label">حجم التخزين المستخدم</span>
-        <span class="server-item-value" id="storageMb">--</span>
-      </div>
-      <div class="server-item">
-        <span class="server-item-label">إصدار yt-dlp</span>
-        <span class="server-item-value" id="ytdlpVer">--</span>
-      </div>
-      <div class="server-item">
-        <span class="server-item-label">آخر تحديث yt-dlp</span>
-        <span class="server-item-value" id="ytdlpUpdated">--</span>
-      </div>
-    </div>
-  </div>
+  <div class="content">
 
-  <!-- Charts -->
-  <div class="charts-grid">
-    <div class="chart-card">
-      <h3>📱 توزيع المنصات</h3>
-      <div class="platform-bars" id="platformBars">
-        <div style="color:var(--muted);font-size:.85rem">لا توجد بيانات بعد</div>
-      </div>
-    </div>
-    <div class="chart-card">
-      <h3>📊 نسبة النجاح</h3>
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:120px;gap:.5rem">
-        <div style="font-size:3rem;font-weight:900" id="successRate">--%</div>
-        <div style="color:var(--muted);font-size:.85rem">معدل نجاح التحميل</div>
-      </div>
-    </div>
-  </div>
+    <!-- Alerts -->
+    <div id="alerts"></div>
 
-  <!-- Actions -->
-  <div class="actions-card">
-    <h3>🔧 إجراءات سريعة</h3>
-    <div class="actions-grid">
-      <button class="action-btn btn-update" onclick="updateYtdlp()">🔄 تحديث yt-dlp الآن</button>
-      <button class="action-btn btn-clear"  onclick="clearFiles()">🗑️ مسح الملفات المؤقتة</button>
-      <button class="action-btn btn-refresh" onclick="loadStats()">↻ تحديث البيانات</button>
-      <a href="https://www.vip-dl.com" target="_blank" class="action-btn btn-refresh" style="text-decoration:none">🌐 www.vip-dl.com</a>
-    </div>
-  </div>
+    <!-- =========== STATS =========== -->
+    <div class="sec active" id="sec-stats">
 
-  <!-- Visitor Stats -->
-  <div class="server-card" style="margin-bottom:1.5rem">
-    <h3>👥 إحصائية الزوار اليومية</h3>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin-bottom:1.2rem">
-      <div style="background:var(--bg2);border-radius:10px;padding:.8rem;text-align:center;border:1px solid rgba(16,185,129,.2)">
-        <div style="font-size:1.8rem;font-weight:900;color:var(--green)" id="visToday">--</div>
-        <div style="font-size:.75rem;color:var(--muted)">اليوم</div>
+      <div class="stats-row">
+        <div class="sc g">
+          <span class="sc-icon">⬇️</span>
+          <span class="sc-lbl">إجمالي التحميلات</span>
+          <span class="sc-val cv-g" id="totalDl">--</span>
+        </div>
+        <div class="sc p">
+          <span class="sc-icon">📅</span>
+          <span class="sc-lbl">تحميلات اليوم</span>
+          <span class="sc-val cv-p" id="todayDl">--</span>
+        </div>
+        <div class="sc o">
+          <span class="sc-icon">⚡</span>
+          <span class="sc-lbl">مهام جارية</span>
+          <span class="sc-val cv-o" id="activeTasks">--</span>
+        </div>
+        <div class="sc g">
+          <span class="sc-icon">✅</span>
+          <span class="sc-lbl">نسبة النجاح</span>
+          <span class="sc-val cv-g" id="successRate">--%</span>
+        </div>
       </div>
-      <div style="background:var(--bg2);border-radius:10px;padding:.8rem;text-align:center;border:1px solid var(--border)">
-        <div style="font-size:1.8rem;font-weight:900;color:var(--accent2)" id="visYesterday">--</div>
-        <div style="font-size:.75rem;color:var(--muted)">أمس</div>
-      </div>
-      <div style="background:var(--bg2);border-radius:10px;padding:.8rem;text-align:center;border:1px solid rgba(245,158,11,.2)">
-        <div style="font-size:1.8rem;font-weight:900;color:var(--gold)" id="visWeek">--</div>
-        <div style="font-size:.75rem;color:var(--muted)">هذا الأسبوع</div>
-      </div>
-    </div>
-    <div style="font-size:.78rem;color:var(--muted);margin-bottom:.6rem">آخر 30 يوم (زوار فريدون يومياً)</div>
-    <div id="visitorChart" style="display:flex;align-items:flex-end;gap:3px;height:80px;padding:0 2px"></div>
-    <div style="display:flex;justify-content:space-between;margin-top:.3rem;font-size:.68rem;color:var(--muted)" id="visitorChartLabels"></div>
-  </div>
 
-  <!-- Subscription Codes -->
-  <div class="server-card" style="margin-bottom:1.5rem">
-    <h3>🔑 أكواد الاشتراك المميز</h3>
-    <div style="display:flex;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap;align-items:flex-end">
-      <div style="display:flex;flex-direction:column;gap:.3rem;flex:1;min-width:160px">
-        <label style="font-size:.78rem;color:var(--muted)">اسم المشترك (اختياري)</label>
-        <input id="codeNote" type="text" placeholder="مثال: أحمد علي"
-          style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:inherit;font-size:.9rem;outline:none" />
+      <!-- Visitors -->
+      <div class="card">
+        <div class="card-title">👥 الزوار اليوميون (فريدون)</div>
+        <div class="vis-row">
+          <div class="vis-mini" style="border-color:rgba(16,185,129,.25)">
+            <div class="vis-mini-val cv-g" id="visToday">--</div>
+            <div class="vis-mini-lbl">اليوم</div>
+          </div>
+          <div class="vis-mini" style="border-color:rgba(168,85,247,.25)">
+            <div class="vis-mini-val cv-p" id="visYesterday">--</div>
+            <div class="vis-mini-lbl">أمس</div>
+          </div>
+          <div class="vis-mini" style="border-color:rgba(245,158,11,.25)">
+            <div class="vis-mini-val cv-o" id="visWeek">--</div>
+            <div class="vis-mini-lbl">هذا الأسبوع</div>
+          </div>
+        </div>
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:.45rem">آخر 30 يوم</div>
+        <div id="visitorChart" style="display:flex;align-items:flex-end;gap:3px;height:65px"></div>
+        <div id="visitorLabels" style="display:flex;justify-content:space-between;margin-top:.3rem;font-size:.62rem;color:var(--muted)"></div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:.3rem">
-        <label style="font-size:.78rem;color:var(--muted)">مدة الاشتراك</label>
-        <select id="codeDays" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:inherit;font-size:.9rem;outline:none">
-          <option value="30">30 يوم (شهر)</option>
-          <option value="90">90 يوم (3 أشهر)</option>
-          <option value="180">180 يوم (6 أشهر)</option>
-          <option value="365">365 يوم (سنة)</option>
-        </select>
-      </div>
-      <button onclick="generateCode()" class="action-btn btn-update">➕ إنشاء كود</button>
-    </div>
-    <div id="newCodeBox" style="display:none;background:var(--bg2);border:1px solid var(--accent);border-radius:10px;padding:1rem;margin-bottom:1rem;text-align:center">
-      <div style="font-size:.8rem;color:var(--muted);margin-bottom:.4rem">الكود الجديد — أعطه للمشترك</div>
-      <div id="newCodeVal" style="font-size:1.6rem;font-weight:900;color:var(--accent2);letter-spacing:3px;direction:ltr"></div>
-      <button onclick="copyCode()" style="margin-top:.6rem;background:none;border:1px solid var(--border);border-radius:8px;padding:.3rem .8rem;color:var(--muted);font-family:inherit;font-size:.8rem;cursor:pointer">📋 نسخ</button>
-    </div>
-    <div id="codesList" style="display:flex;flex-direction:column;gap:.5rem;max-height:320px;overflow-y:auto"></div>
-  </div>
 
-  <!-- Change Password -->
-  <div class="server-card" style="margin-bottom:1.5rem">
-    <h3>🔐 تغيير بيانات الدخول</h3>
-    <div style="display:flex;flex-direction:column;gap:.8rem;margin-top:.5rem">
-      <div style="display:flex;flex-direction:column;gap:.3rem">
-        <label style="font-size:.78rem;color:var(--muted)">اسم المستخدم الجديد (اختياري)</label>
-        <input id="newUser" type="text" placeholder="اتركه فارغاً للإبقاء على الحالي"
-          style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:inherit;font-size:.9rem;outline:none" />
+      <!-- Platform + Subs -->
+      <div class="g2">
+        <div class="card" style="margin:0">
+          <div class="card-title">📱 توزيع المنصات</div>
+          <div id="platformBars">
+            <div class="no-data">لا توجد بيانات بعد</div>
+          </div>
+        </div>
+        <div class="card" style="margin:0">
+          <div class="card-title">🔑 ملخص الاشتراكات</div>
+          <div class="sub-row">
+            <span class="sub-lbl">مشتركون فعّالون</span>
+            <span class="sub-val cv-g" id="activeSubs">--</span>
+          </div>
+          <div class="sub-row">
+            <span class="sub-lbl">أكواد غير مستخدمة</span>
+            <span class="sub-val cv-p" id="unusedCodes">--</span>
+          </div>
+          <div class="sub-row">
+            <span class="sub-lbl">اشتراكات منتهية</span>
+            <span class="sub-val cv-r" id="expiredSubs">--</span>
+          </div>
+        </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:.3rem">
-        <label style="font-size:.78rem;color:var(--muted)">كلمة السر الحالية</label>
-        <input id="currentPass" type="password" placeholder="••••••••"
-          style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:inherit;font-size:.9rem;outline:none" />
-      </div>
-      <div style="display:flex;flex-direction:column;gap:.3rem">
-        <label style="font-size:.78rem;color:var(--muted)">كلمة السر الجديدة (6 أحرف على الأقل)</label>
-        <input id="newPass" type="password" placeholder="••••••••"
-          style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:inherit;font-size:.9rem;outline:none" />
-      </div>
-      <button onclick="changePassword()" class="action-btn btn-update" style="width:fit-content">
-        🔐 حفظ التغييرات
-      </button>
-      <button onclick="testSmtp()" class="action-btn btn-refresh" style="width:fit-content;margin-top:.5rem">
-        📧 اختبار إرسال الإيميل
-      </button>
-      <button onclick="doLogout()" class="action-btn btn-clear" style="width:fit-content;margin-top:.5rem">
-        🚪 تسجيل الخروج
-      </button>
-      <a href="/admin/forgot" style="font-size:.8rem;color:var(--muted);margin-top:.5rem;display:inline-block">نسيت كلمة السر؟</a>
-    </div>
-  </div>
 
-  <!-- Error Log -->
-  <div class="errors-card">
-    <h3>🚨 سجل الأخطاء الأخيرة</h3>
-    <div class="error-list" id="errorList">
-      <div class="no-errors">لا توجد أخطاء 🎉</div>
+      <div class="last-upd">آخر تحديث: <span id="lastUpdStats">--</span> — يتجدد كل 30 ثانية</div>
     </div>
-  </div>
 
-  <div class="last-update">آخر تحديث: <span id="lastUpdate">--</span> — يتحدث كل 30 ثانية</div>
-</div>
+    <!-- =========== CODES =========== -->
+    <div class="sec" id="sec-codes">
+      <div class="card">
+        <div class="card-title">➕ إنشاء كود جديد</div>
+        <div class="gen-row">
+          <div class="field">
+            <label>اسم المشترك (اختياري)</label>
+            <input id="codeNote" type="text" placeholder="مثال: أحمد علي" />
+          </div>
+          <div class="field" style="flex:0;min-width:155px">
+            <label>مدة الاشتراك</label>
+            <select id="codeDays">
+              <option value="30">30 يوم — شهر</option>
+              <option value="90">90 يوم — 3 أشهر</option>
+              <option value="180">180 يوم — 6 أشهر</option>
+              <option value="365">365 يوم — سنة</option>
+            </select>
+          </div>
+          <button onclick="generateCode()" class="abtn abtn-purple">➕ إنشاء</button>
+        </div>
+        <div class="new-code-box" id="newCodeBox">
+          <div style="font-size:.75rem;color:var(--muted)">الكود الجديد — أعطه للمشترك</div>
+          <div class="new-code-val" id="newCodeVal"></div>
+          <button onclick="copyCode()" class="ibtn">📋 نسخ الكود</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">📋 جميع الأكواد</div>
+        <div class="code-list" id="codesList">
+          <div class="no-data">جاري التحميل...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =========== SERVER =========== -->
+    <div class="sec" id="sec-server">
+      <div class="card">
+        <div class="card-title">🖥️ معلومات الخادم</div>
+        <div class="srv-grid">
+          <div class="srv-item">
+            <span class="srv-lbl">حالة الخادم</span>
+            <span class="srv-val" id="serverStatus" style="color:var(--green)">🟢 يعمل</span>
+          </div>
+          <div class="srv-item">
+            <span class="srv-lbl">الدومين</span>
+            <span class="srv-val" style="color:var(--accent2)">www.vip-dl.com</span>
+          </div>
+          <div class="srv-item">
+            <span class="srv-lbl">وقت التشغيل</span>
+            <span class="srv-val" id="uptime">--</span>
+          </div>
+          <div class="srv-item">
+            <span class="srv-lbl">الملفات المؤقتة</span>
+            <span class="srv-val" id="tempFiles">--</span>
+          </div>
+          <div class="srv-item">
+            <span class="srv-lbl">التخزين المستخدم</span>
+            <span class="srv-val" id="storageMb">--</span>
+          </div>
+          <div class="srv-item">
+            <span class="srv-lbl">إصدار yt-dlp</span>
+            <span class="srv-val" id="ytdlpVer">--</span>
+          </div>
+          <div class="srv-item">
+            <span class="srv-lbl">آخر تحديث yt-dlp</span>
+            <span class="srv-val" id="ytdlpUpdated">--</span>
+          </div>
+          <div class="srv-item">
+            <span class="srv-lbl">تحميلات فاشلة</span>
+            <span class="srv-val cv-r" id="failedDl">--</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🔧 إجراءات سريعة</div>
+        <div class="act-row">
+          <button class="abtn abtn-purple" onclick="updateYtdlp()">🔄 تحديث yt-dlp</button>
+          <button class="abtn abtn-red" onclick="clearFiles()">🗑️ مسح الملفات المؤقتة</button>
+          <button class="abtn abtn-ghost" onclick="loadAll()">↻ تحديث البيانات</button>
+          <a href="https://www.vip-dl.com" target="_blank" class="abtn abtn-ghost">🌐 الموقع</a>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🚨 سجل الأخطاء الأخيرة</div>
+        <div id="errorList">
+          <div class="no-data">لا توجد أخطاء 🎉</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =========== SETTINGS =========== -->
+    <div class="sec" id="sec-settings">
+      <div class="card">
+        <div class="card-title">🔐 تغيير بيانات الدخول</div>
+        <div class="set-form">
+          <div class="field">
+            <label>اسم المستخدم الجديد (اختياري)</label>
+            <input id="newUser" type="text" placeholder="اتركه فارغاً للإبقاء على الحالي" />
+          </div>
+          <div class="field">
+            <label>كلمة السر الحالية</label>
+            <input id="currentPass" type="password" placeholder="••••••••" />
+          </div>
+          <div class="field">
+            <label>كلمة السر الجديدة</label>
+            <input id="newPass" type="password" placeholder="••••••••" />
+          </div>
+          <div class="act-row">
+            <button onclick="changePassword()" class="abtn abtn-purple">🔐 حفظ</button>
+            <button onclick="testSmtp()" class="abtn abtn-ghost">📧 اختبار الإيميل</button>
+            <button onclick="doLogout()" class="abtn abtn-red">🚪 خروج</button>
+          </div>
+          <a href="/admin/forgot" style="font-size:.78rem;color:var(--muted)">نسيت كلمة السر؟</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
 
 <div class="toast" id="toast"></div>
 
 <script>
+// ===== NAV =====
+const titles = { stats:'الإحصائيات', codes:'إدارة الأكواد', server:'الخادم والأخطاء', settings:'الإعدادات' };
+
+function showSec(name) {
+  document.querySelectorAll('.sec').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sec-' + name).classList.add('active');
+  document.querySelector(`[data-sec="${name}"]`).classList.add('active');
+  document.getElementById('secTitle').textContent = titles[name];
+  if (name === 'codes') loadCodes();
+}
+
+// ===== TOAST =====
 function showToast(msg, color = 'var(--green)') {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -357,13 +561,14 @@ function showToast(msg, color = 'var(--green)') {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
+// ===== STATS =====
 async function loadStats() {
   try {
     const res = await fetch('/admin/api/stats');
     if (!res.ok) return;
     const d = await res.json();
 
-    document.getElementById('serverTime').textContent = d.server_time;
+    document.getElementById('topTime').textContent = d.server_time;
     document.getElementById('totalDl').textContent = d.total_downloads;
     document.getElementById('todayDl').textContent = d.today_downloads;
     document.getElementById('failedDl').textContent = d.failed_downloads;
@@ -373,179 +578,50 @@ async function loadStats() {
     document.getElementById('storageMb').textContent = d.storage_mb + ' MB';
     document.getElementById('ytdlpVer').textContent = d.ytdlp_version;
     document.getElementById('ytdlpUpdated').textContent = d.ytdlp_updated;
-    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('ar');
 
-    checkAlerts(d);
+    const now = new Date().toLocaleTimeString('ar');
+    document.getElementById('lastUpdText').textContent = now;
+    document.getElementById('lastUpdStats').textContent = now;
 
     // Success rate
     const total = d.total_downloads + d.failed_downloads;
     const rate = total > 0 ? Math.round((d.total_downloads / total) * 100) : 100;
-    const rateEl = document.getElementById('successRate');
-    rateEl.textContent = rate + '%';
-    rateEl.style.color = rate >= 80 ? 'var(--green)' : rate >= 50 ? 'var(--gold)' : 'var(--red)';
+    const rEl = document.getElementById('successRate');
+    rEl.textContent = rate + '%';
+    rEl.style.color = rate >= 80 ? 'var(--green)' : rate >= 50 ? 'var(--gold)' : 'var(--red)';
 
     // Platform bars
     const p = d.platform_counts;
-    const maxVal = Math.max(...Object.values(p), 1);
+    const mx = Math.max(...Object.values(p), 1);
     const bars = [
-      { name: 'TikTok',    count: p.TikTok,    cls: 'bar-tk' },
-      { name: 'Instagram', count: p.Instagram,  cls: 'bar-ig' },
-      { name: 'Facebook',  count: p.Facebook,   cls: 'bar-fb' },
-      { name: 'Pinterest', count: p.Pinterest || 0, cls: 'bar-pt' },
-      { name: 'أخرى',      count: p.Other,      cls: 'bar-ot' },
+      { name:'TikTok',    n: p.TikTok||0,    c:'bar-tk' },
+      { name:'Instagram', n: p.Instagram||0,  c:'bar-ig' },
+      { name:'Facebook',  n: p.Facebook||0,   c:'bar-fb' },
+      { name:'Pinterest', n: p.Pinterest||0,  c:'bar-pt' },
+      { name:'أخرى',      n: p.Other||0,      c:'bar-ot' },
     ];
     document.getElementById('platformBars').innerHTML = bars.map(b => `
-      <div class="platform-row">
-        <div class="platform-meta">
-          <span class="platform-name">${b.name}</span>
-          <span class="platform-count">${b.count} تحميل</span>
-        </div>
-        <div class="bar-bg">
-          <div class="bar-fill ${b.cls}" style="width:${Math.round((b.count/maxVal)*100)}%"></div>
-        </div>
-      </div>
-    `).join('');
+      <div class="prow">
+        <div class="pmeta"><span class="pname">${b.name}</span><span class="pcnt">${b.n}</span></div>
+        <div class="bar-bg"><div class="bar-fill ${b.c}" style="width:${Math.round((b.n/mx)*100)}%"></div></div>
+      </div>`).join('');
 
-    // Errors
-    const errList = document.getElementById('errorList');
-    if (d.recent_errors.length === 0) {
-      errList.innerHTML = '<div class="no-errors">لا توجد أخطاء 🎉</div>';
-    } else {
-      errList.innerHTML = d.recent_errors.map(e => `
-        <div class="error-item">
-          <span class="error-time">${e.time}</span>
-          <span class="error-platform">${e.platform}</span>
-          <span class="error-msg">${e.error}</span>
-        </div>
-      `).join('');
-    }
+    // Error log
+    const el = document.getElementById('errorList');
+    el.innerHTML = d.recent_errors.length === 0
+      ? '<div class="no-data">لا توجد أخطاء 🎉</div>'
+      : d.recent_errors.map(e => `
+        <div class="err-item">
+          <span class="err-time">${e.time}</span>
+          <span class="err-plat">${e.platform}</span>
+          <span class="err-msg">${e.error}</span>
+        </div>`).join('');
 
+    checkAlerts(d);
   } catch {
-    document.getElementById('serverStatus').textContent = '🔴 غير متاح';
-    document.getElementById('serverStatus').style.color = 'var(--red)';
+    const s = document.getElementById('serverStatus');
+    if (s) { s.textContent = '🔴 غير متاح'; s.style.color = 'var(--red)'; }
   }
-}
-
-async function updateYtdlp() {
-  const btn = event.target;
-  btn.disabled = true;
-  btn.textContent = '⏳ جاري التحديث...';
-  try {
-    await fetch('/admin/api/update-ytdlp', { method: 'POST' });
-    showToast('✅ بدأ التحديث، انتظر دقيقة ثم حدّث الصفحة');
-  } catch {
-    showToast('❌ فشل التحديث', 'var(--red)');
-  }
-  setTimeout(() => { btn.disabled = false; btn.textContent = '🔄 تحديث yt-dlp الآن'; }, 60000);
-}
-
-async function clearFiles() {
-  if (!confirm('هل تريد حذف جميع الملفات المؤقتة؟')) return;
-  try {
-    const res = await fetch('/admin/api/clear-files', { method: 'POST' });
-    const d = await res.json();
-    showToast('✅ ' + d.message);
-    loadStats();
-  } catch {
-    showToast('❌ فشل الحذف', 'var(--red)');
-  }
-}
-
-async function changePassword() {
-  const current = document.getElementById('currentPass').value;
-  const newPass  = document.getElementById('newPass').value;
-  const newUser  = document.getElementById('newUser').value;
-
-  if (!current || !newPass) {
-    showToast('❌ أدخل كلمة السر الحالية والجديدة', 'var(--red)');
-    return;
-  }
-
-  try {
-    const res = await fetch('/admin/api/change-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ current, new_pass: newPass, new_user: newUser }),
-    });
-    const d = await res.json();
-    if (res.ok) {
-      showToast('✅ ' + d.message);
-      document.getElementById('currentPass').value = '';
-      document.getElementById('newPass').value = '';
-      document.getElementById('newUser').value = '';
-      setTimeout(() => location.reload(), 2000);
-    } else {
-      showToast('❌ ' + d.error, 'var(--red)');
-    }
-  } catch {
-    showToast('❌ فشل الاتصال بالخادم', 'var(--red)');
-  }
-}
-
-function doLogout() {
-  window.location.href = '/admin/logout';
-}
-
-async function testSmtp() {
-  const btn = event.target;
-  const orig = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '⏳ جاري الإرسال...';
-  try {
-    const res = await fetch('/admin/api/test-smtp', { method: 'POST' });
-    const d = await res.json();
-    const msg = res.ok ? d.message : (d.error || 'خطأ غير معروف');
-    const color = res.ok ? 'var(--green)' : 'var(--red)';
-    // Show in alert so user can't miss it
-    alert(msg);
-    showToast(msg, color);
-  } catch(e) {
-    alert('❌ فشل الاتصال: ' + e.message);
-  }
-  btn.disabled = false;
-  btn.textContent = orig;
-}
-
-function checkAlerts(d) {
-  const alerts = [];
-
-  const total = d.total_downloads + d.failed_downloads;
-  const rate = total > 5 ? Math.round((d.total_downloads / total) * 100) : 100;
-  if (rate < 60) {
-    alerts.push({ color: '#ef4444', bg: 'rgba(239,68,68,.1)', border: 'rgba(239,68,68,.3)',
-      msg: `🚨 معدل نجاح التحميل منخفض جداً (${rate}%) — يُنصح بتحديث yt-dlp` });
-  }
-
-  if (d.recent_errors.length >= 5) {
-    alerts.push({ color: '#fca5a5', bg: 'rgba(239,68,68,.08)', border: 'rgba(239,68,68,.25)',
-      msg: `⚠️ يوجد ${d.recent_errors.length} أخطاء حديثة — تحقق من سجل الأخطاء أدناه` });
-  }
-
-  if (d.active_tasks > 8) {
-    alerts.push({ color: '#fcd34d', bg: 'rgba(245,158,11,.08)', border: 'rgba(245,158,11,.25)',
-      msg: `⚡ ${d.active_tasks} مهام تعمل بالتزامن — السيرفر تحت ضغط` });
-  }
-
-  const section = document.getElementById('alertsSection');
-  section.innerHTML = alerts.map(a => `
-    <div style="background:${a.bg};border:1px solid ${a.border};border-radius:10px;padding:.85rem 1.1rem;font-size:.88rem;color:${a.color};font-weight:600">
-      ${a.msg}
-    </div>`).join('');
-}
-
-async function checkYtdlpUpdate() {
-  try {
-    const res = await fetch('/admin/api/check-updates');
-    const d = await res.json();
-    if (d.needs_update && d.latest) {
-      const section = document.getElementById('alertsSection');
-      const div = document.createElement('div');
-      div.style.cssText = 'background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:.85rem 1.1rem;font-size:.88rem;color:#fcd34d;font-weight:600;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem';
-      div.innerHTML = `<span>🔄 إصدار جديد من yt-dlp (${d.latest}) — الحالي (${d.current}) — التحديث التلقائي سيعمل عند إعادة تشغيل السيرفر</span>
-        <button onclick="updateYtdlp()" style="background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.4);color:#fcd34d;border-radius:8px;padding:.3rem .8rem;font-family:inherit;font-size:.82rem;font-weight:700;cursor:pointer">تحديث الآن</button>`;
-      section.prepend(div);
-    }
-  } catch {}
 }
 
 async function loadVisitorStats() {
@@ -556,29 +632,23 @@ async function loadVisitorStats() {
     document.getElementById('visYesterday').textContent = d.yesterday;
     document.getElementById('visWeek').textContent = d.week;
 
-    const maxVal = Math.max(...d.days.map(x => x.count), 1);
+    const mx = Math.max(...d.days.map(x => x.count), 1);
     const chart = document.getElementById('visitorChart');
-    const labels = document.getElementById('visitorChartLabels');
-    chart.innerHTML = '';
-    labels.innerHTML = '';
+    const lbls = document.getElementById('visitorLabels');
+    chart.innerHTML = ''; lbls.innerHTML = '';
 
     d.days.forEach((day, i) => {
-      const pct = Math.max((day.count / maxVal) * 100, day.count > 0 ? 4 : 1);
+      const pct = Math.max((day.count / mx) * 100, day.count > 0 ? 4 : 1);
       const isToday = i === d.days.length - 1;
       const bar = document.createElement('div');
       bar.style.cssText = `flex:1;height:${pct}%;border-radius:3px 3px 0 0;
         background:${isToday ? 'var(--green)' : 'var(--accent)'};
-        opacity:${isToday ? 1 : .6};transition:height .4s ease;cursor:default;position:relative`;
+        opacity:${isToday ? 1 : .55};transition:height .4s;cursor:default`;
       bar.title = `${day.date}: ${day.count} زائر`;
       chart.appendChild(bar);
-
-      if (i % 7 === 0 || isToday) {
-        const lbl = document.createElement('span');
-        lbl.textContent = isToday ? 'اليوم' : day.date.slice(5);
-        labels.appendChild(lbl);
-      } else {
-        labels.appendChild(document.createElement('span'));
-      }
+      const lbl = document.createElement('span');
+      if (i % 7 === 0 || isToday) lbl.textContent = isToday ? 'اليوم' : day.date.slice(5);
+      lbls.appendChild(lbl);
     });
   } catch {}
 }
@@ -593,16 +663,92 @@ async function loadSubscriberStats() {
   } catch {}
 }
 
-loadStats();
-loadSubscriberStats();
-loadVisitorStats();
-setInterval(loadStats, 30000);
-setInterval(loadSubscriberStats, 60000);
-setInterval(loadVisitorStats, 60000);
-setTimeout(checkYtdlpUpdate, 2000);
+function checkAlerts(d) {
+  const alerts = [];
+  const total = d.total_downloads + d.failed_downloads;
+  const rate = total > 5 ? Math.round((d.total_downloads / total) * 100) : 100;
+  if (rate < 60) alerts.push({ c:'#ef4444', bg:'rgba(239,68,68,.1)', b:'rgba(239,68,68,.3)',
+    msg:`🚨 معدل نجاح التحميل منخفض (${rate}%) — يُنصح بتحديث yt-dlp` });
+  if (d.recent_errors.length >= 5) alerts.push({ c:'#fca5a5', bg:'rgba(239,68,68,.08)', b:'rgba(239,68,68,.2)',
+    msg:`⚠️ ${d.recent_errors.length} أخطاء حديثة — تحقق من قسم الخادم` });
+  if (d.active_tasks > 8) alerts.push({ c:'#fcd34d', bg:'rgba(245,158,11,.08)', b:'rgba(245,158,11,.2)',
+    msg:`⚡ ${d.active_tasks} مهام بالتزامن — الخادم تحت ضغط` });
+  document.getElementById('alerts').innerHTML = alerts.map(a =>
+    `<div class="alert-box" style="background:${a.bg};border:1px solid ${a.b};color:${a.c}">${a.msg}</div>`
+  ).join('');
+}
 
-// ===== Codes =====
-let lastNewCode = '';
+async function checkYtdlpUpdate() {
+  try {
+    const res = await fetch('/admin/api/check-updates');
+    const d = await res.json();
+    if (!d.needs_update || !d.latest) return;
+    const div = document.createElement('div');
+    div.className = 'alert-box';
+    div.style.cssText = 'background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);color:#fcd34d';
+    div.innerHTML = `<span>🔄 إصدار جديد من yt-dlp (${d.latest}) — الحالي (${d.current})</span>
+      <button onclick="updateYtdlp()" style="background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.4);color:#fcd34d;border-radius:8px;padding:.28rem .75rem;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer">تحديث الآن</button>`;
+    document.getElementById('alerts').prepend(div);
+  } catch {}
+}
+
+// ===== ACTIONS =====
+async function updateYtdlp() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '⏳ جاري...';
+  try {
+    await fetch('/admin/api/update-ytdlp', { method: 'POST' });
+    showToast('✅ بدأ التحديث، انتظر دقيقة ثم حدّث الصفحة');
+  } catch { showToast('❌ فشل التحديث', 'var(--red)'); }
+  setTimeout(() => { btn.disabled = false; btn.textContent = '🔄 تحديث yt-dlp'; }, 60000);
+}
+
+async function clearFiles() {
+  if (!confirm('هل تريد حذف جميع الملفات المؤقتة؟')) return;
+  try {
+    const res = await fetch('/admin/api/clear-files', { method: 'POST' });
+    const d = await res.json();
+    showToast('✅ ' + d.message);
+    loadStats();
+  } catch { showToast('❌ فشل الحذف', 'var(--red)'); }
+}
+
+async function changePassword() {
+  const current = document.getElementById('currentPass').value;
+  const newPass = document.getElementById('newPass').value;
+  const newUser = document.getElementById('newUser').value;
+  if (!current || !newPass) { showToast('❌ أدخل كلمة السر الحالية والجديدة', 'var(--red)'); return; }
+  try {
+    const res = await fetch('/admin/api/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current, new_pass: newPass, new_user: newUser }),
+    });
+    const d = await res.json();
+    if (res.ok) {
+      showToast('✅ ' + d.message);
+      ['currentPass','newPass','newUser'].forEach(id => document.getElementById(id).value = '');
+      setTimeout(() => location.reload(), 2000);
+    } else { showToast('❌ ' + d.error, 'var(--red)'); }
+  } catch { showToast('❌ فشل الاتصال', 'var(--red)'); }
+}
+
+function doLogout() { window.location.href = '/admin/logout'; }
+
+async function testSmtp() {
+  const btn = event.target;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ جاري الإرسال...';
+  try {
+    const res = await fetch('/admin/api/test-smtp', { method: 'POST' });
+    const d = await res.json();
+    alert(res.ok ? d.message : (d.error || 'خطأ'));
+  } catch(e) { alert('❌ فشل: ' + e.message); }
+  btn.disabled = false; btn.textContent = orig;
+}
+
+// ===== CODES =====
+let lastCode = '';
 
 async function generateCode() {
   const note = document.getElementById('codeNote').value.trim();
@@ -614,19 +760,17 @@ async function generateCode() {
       body: JSON.stringify({ note, days }),
     });
     const d = await res.json();
-    lastNewCode = d.code;
+    lastCode = d.code;
     document.getElementById('newCodeVal').textContent = d.code;
     document.getElementById('newCodeBox').style.display = 'block';
     document.getElementById('codeNote').value = '';
     showToast('✅ تم إنشاء الكود');
     loadCodes();
-  } catch {
-    showToast('❌ فشل الإنشاء', 'var(--red)');
-  }
+  } catch { showToast('❌ فشل الإنشاء', 'var(--red)'); }
 }
 
 function copyCode() {
-  navigator.clipboard.writeText(lastNewCode).then(() => showToast('✅ تم النسخ'));
+  navigator.clipboard.writeText(lastCode).then(() => showToast('✅ تم النسخ'));
 }
 
 async function loadCodes() {
@@ -635,35 +779,29 @@ async function loadCodes() {
     const codes = await res.json();
     const el = document.getElementById('codesList');
     if (codes.length === 0) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1rem">لا توجد أكواد بعد</div>';
-      return;
+      el.innerHTML = '<div class="no-data">لا توجد أكواد بعد</div>'; return;
     }
     el.innerHTML = codes.map(c => {
-      let statusColor, statusBg, statusText;
-      if (!c.used) {
-        statusColor = 'var(--accent2)'; statusBg = 'rgba(168,85,247,.15)'; statusText = '⏳ لم يُستخدم';
-      } else if (c.expired) {
-        statusColor = 'var(--red)'; statusBg = 'rgba(239,68,68,.15)'; statusText = '❌ منتهي';
-      } else {
-        statusColor = 'var(--green)'; statusBg = 'rgba(16,185,129,.15)';
-        statusText = c.days_left !== null ? `✅ ${c.days_left} يوم متبقي` : '✅ فعّال';
-      }
-      const borderColor = !c.used ? 'var(--border)' : c.expired ? 'rgba(239,68,68,.3)' : 'rgba(16,185,129,.3)';
+      let bc, bt, valColor;
+      if (!c.used) { bc='bg-p'; bt='⏳ لم يُستخدم'; valColor='var(--accent2)'; }
+      else if (c.expired) { bc='bg-r'; bt='❌ منتهي'; valColor='var(--red)'; }
+      else { bc='bg-g'; bt = c.days_left !== null ? `✅ ${c.days_left} يوم` : '✅ فعّال'; valColor='var(--green)'; }
+      const border = !c.used ? 'var(--border)' : c.expired ? 'rgba(239,68,68,.3)' : 'rgba(16,185,129,.3)';
       return `
-      <div style="background:var(--bg2);border:1px solid ${borderColor};border-radius:8px;padding:.7rem 1rem;display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
-        <span style="font-family:monospace;font-size:1rem;font-weight:700;color:${statusColor};direction:ltr;flex-shrink:0">${c.code}</span>
-        <span style="font-size:.78rem;color:var(--muted);flex:1">${c.note ? '👤 ' + c.note : ''} ${c.days ? '· ' + c.days + ' يوم' : ''}</span>
-        <span style="font-size:.75rem;padding:.2rem .6rem;border-radius:999px;background:${statusBg};color:${statusColor}">${statusText}</span>
-        <span style="font-size:.72rem;color:var(--muted)">${c.expires_at ? '⏰ ' + c.expires_at : c.created_at}</span>
-        <button onclick="extendCode('${c.code}')" style="background:none;border:1px solid rgba(16,185,129,.3);border-radius:6px;color:var(--green);cursor:pointer;font-size:.78rem;padding:.15rem .5rem;flex-shrink:0">+تمديد</button>
-        <button onclick="deleteCode('${c.code}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:.85rem;flex-shrink:0">🗑️</button>
+      <div class="code-item" style="border-color:${border}">
+        <span class="code-val" style="color:${valColor}">${c.code}</span>
+        <span class="code-note">${c.note ? '👤 '+c.note : ''}${c.days ? ' · '+c.days+' يوم' : ''}</span>
+        <span class="badge ${bc}">${bt}</span>
+        <span class="code-exp">${c.expires_at ? '⏰ '+c.expires_at : c.created_at}</span>
+        <button class="ibtn" onclick="extendCode('${c.code}')">+تمديد</button>
+        <button class="ibtn d" onclick="deleteCode('${c.code}')">🗑️</button>
       </div>`;
     }).join('');
   } catch {}
 }
 
 async function extendCode(code) {
-  const days = prompt(`تمديد الكود: ${code}\nأدخل عدد الأيام للتمديد:`, '30');
+  const days = prompt(`تمديد الكود: ${code}\nأدخل عدد الأيام:`, '30');
   if (!days || isNaN(days)) return;
   try {
     const res = await fetch('/admin/api/extend-code', {
@@ -672,11 +810,9 @@ async function extendCode(code) {
       body: JSON.stringify({ code, days: parseInt(days) }),
     });
     const d = await res.json();
-    showToast(res.ok ? '✅ ' + d.message : '❌ ' + d.error, res.ok ? 'var(--green)' : 'var(--red)');
+    showToast(res.ok ? '✅ '+d.message : '❌ '+d.error, res.ok ? 'var(--green)' : 'var(--red)');
     loadCodes();
-  } catch {
-    showToast('❌ فشل الاتصال', 'var(--red)');
-  }
+  } catch { showToast('❌ فشل الاتصال', 'var(--red)'); }
 }
 
 async function deleteCode(code) {
@@ -690,12 +826,21 @@ async function deleteCode(code) {
     const d = await res.json();
     showToast('✅ ' + d.message);
     loadCodes();
-  } catch {
-    showToast('❌ فشل الحذف', 'var(--red)');
-  }
+  } catch { showToast('❌ فشل الحذف', 'var(--red)'); }
 }
 
+function loadAll() {
+  loadStats();
+  loadVisitorStats();
+  loadSubscriberStats();
+}
+
+loadAll();
 loadCodes();
+setInterval(loadStats, 30000);
+setInterval(loadVisitorStats, 60000);
+setInterval(loadSubscriberStats, 60000);
+setTimeout(checkYtdlpUpdate, 2000);
 </script>
 </body>
 </html>
