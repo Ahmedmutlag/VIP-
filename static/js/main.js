@@ -360,6 +360,50 @@ function resetPage() {
   }
 })();
 
+// ===== Redeem Code =====
+function openRedeemModal() {
+  document.getElementById('redeemModal').classList.remove('hidden');
+  document.getElementById('redeemOverlay').classList.remove('hidden');
+  document.getElementById('redeemInput').value = '';
+  document.getElementById('redeemMsg').textContent = '';
+  setTimeout(() => document.getElementById('redeemInput').focus(), 100);
+}
+
+function closeRedeemModal() {
+  document.getElementById('redeemModal').classList.add('hidden');
+  document.getElementById('redeemOverlay').classList.add('hidden');
+}
+
+async function submitRedeemCode() {
+  const code = document.getElementById('redeemInput').value.trim();
+  const msgEl = document.getElementById('redeemMsg');
+  if (!code) { msgEl.style.color = '#fca5a5'; msgEl.textContent = 'أدخل الكود أولاً'; return; }
+
+  msgEl.style.color = 'var(--muted)';
+  msgEl.textContent = 'جاري التحقق...';
+
+  try {
+    const res = await fetch('/api/redeem-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      localStorage.setItem('vip_premium', 'true');
+      msgEl.style.color = '#10b981';
+      msgEl.textContent = data.message;
+      setTimeout(() => { closeRedeemModal(); showPremiumWelcome(); }, 1500);
+    } else {
+      msgEl.style.color = '#fca5a5';
+      msgEl.textContent = data.error || 'خطأ غير معروف';
+    }
+  } catch {
+    msgEl.style.color = '#fca5a5';
+    msgEl.textContent = 'تعذّر الاتصال بالخادم';
+  }
+}
+
 function showPremiumWelcome() {
   const toast = document.createElement('div');
   toast.style.cssText = `

@@ -40,6 +40,7 @@ ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "vip2026")
 
 CONFIG_FILE = Path("data/config.json")
+CODES_FILE = Path("data/codes.json")
 CONFIG_FILE.parent.mkdir(exist_ok=True)
 
 def load_config():
@@ -52,6 +53,17 @@ def load_config():
 
 def save_config(data):
     CONFIG_FILE.write_text(json.dumps(data))
+
+def load_codes():
+    if CODES_FILE.exists():
+        try:
+            return json.loads(CODES_FILE.read_text())
+        except Exception:
+            pass
+    return {}
+
+def save_codes(data):
+    CODES_FILE.write_text(json.dumps(data, ensure_ascii=False))
 
 config = load_config()
 if "admin_pass" in config:
@@ -254,6 +266,68 @@ def admin_clear_files():
             except Exception:
                 pass
     return jsonify({"message": f"تم حذف {count} ملف"})
+
+
+@app.route("/admin/api/generate-code", methods=["POST"])
+@requires_auth
+def generate_code():
+    import secrets
+    data = request.get_json() or {}
+    note = data.get("note", "").strip()[:50]
+
+    raw = secrets.token_hex(4).upper()
+    code = f"VIP-{raw[:4]}-{raw[4:]}"
+
+    codes = load_codes()
+    codes[code] = {
+        "used": False,
+        "note": note,
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "used_at": None,
+    }
+    save_codes(codes)
+    return jsonify({"code": code})
+
+
+@app.route("/admin/api/codes")
+@requires_auth
+def list_codes():
+    codes = load_codes()
+    result = [
+        {"code": k, **v}
+        for k, v in sorted(codes.items(), key=lambda x: x[1]["created_at"], reverse=True)
+    ]
+    return jsonify(result)
+
+
+@app.route("/admin/api/delete-code", methods=["POST"])
+@requires_auth
+def delete_code():
+    code = ((request.get_json() or {}).get("code", "")).strip()
+    codes = load_codes()
+    if code in codes:
+        del codes[code]
+        save_codes(codes)
+        return jsonify({"message": "تم الحذف"})
+    return jsonify({"error": "الكود غير موجود"}), 404
+
+
+@app.route("/api/redeem-code", methods=["POST"])
+def redeem_code():
+    code = ((request.get_json() or {}).get("code", "")).strip().upper()
+    if not code:
+        return jsonify({"error": "أدخل الكود"}), 400
+
+    codes = load_codes()
+    if code not in codes:
+        return jsonify({"error": "الكود غير صحيح"}), 404
+    if codes[code]["used"]:
+        return jsonify({"error": "هذا الكود مستخدم مسبقاً"}), 409
+
+    codes[code]["used"] = True
+    codes[code]["used_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    save_codes(codes)
+    return jsonify({"message": "تم تفعيل الاشتراك المميز ✅"})
 
 
 @app.route("/admin/api/change-password", methods=["POST"])

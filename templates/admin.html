@@ -234,6 +234,25 @@
     </div>
   </div>
 
+  <!-- Subscription Codes -->
+  <div class="server-card" style="margin-bottom:1.5rem">
+    <h3>🔑 أكواد الاشتراك المميز</h3>
+    <div style="display:flex;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap;align-items:flex-end">
+      <div style="display:flex;flex-direction:column;gap:.3rem;flex:1;min-width:180px">
+        <label style="font-size:.78rem;color:var(--muted)">ملاحظة (اختياري — اسم المشترك)</label>
+        <input id="codeNote" type="text" placeholder="مثال: أحمد علي"
+          style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:inherit;font-size:.9rem;outline:none" />
+      </div>
+      <button onclick="generateCode()" class="action-btn btn-update">➕ إنشاء كود جديد</button>
+    </div>
+    <div id="newCodeBox" style="display:none;background:var(--bg2);border:1px solid var(--accent);border-radius:10px;padding:1rem;margin-bottom:1rem;text-align:center">
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:.4rem">الكود الجديد — أعطه للمشترك</div>
+      <div id="newCodeVal" style="font-size:1.6rem;font-weight:900;color:var(--accent2);letter-spacing:3px;direction:ltr"></div>
+      <button onclick="copyCode()" style="margin-top:.6rem;background:none;border:1px solid var(--border);border-radius:8px;padding:.3rem .8rem;color:var(--muted);font-family:inherit;font-size:.8rem;cursor:pointer">📋 نسخ</button>
+    </div>
+    <div id="codesList" style="display:flex;flex-direction:column;gap:.5rem;max-height:320px;overflow-y:auto"></div>
+  </div>
+
   <!-- Change Password -->
   <div class="server-card" style="margin-bottom:1.5rem">
     <h3>🔐 تغيير بيانات الدخول</h3>
@@ -405,6 +424,74 @@ async function changePassword() {
 
 loadStats();
 setInterval(loadStats, 30000);
+
+// ===== Codes =====
+let lastNewCode = '';
+
+async function generateCode() {
+  const note = document.getElementById('codeNote').value.trim();
+  try {
+    const res = await fetch('/admin/api/generate-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note }),
+    });
+    const d = await res.json();
+    lastNewCode = d.code;
+    document.getElementById('newCodeVal').textContent = d.code;
+    document.getElementById('newCodeBox').style.display = 'block';
+    document.getElementById('codeNote').value = '';
+    showToast('✅ تم إنشاء الكود');
+    loadCodes();
+  } catch {
+    showToast('❌ فشل الإنشاء', 'var(--red)');
+  }
+}
+
+function copyCode() {
+  navigator.clipboard.writeText(lastNewCode).then(() => showToast('✅ تم النسخ'));
+}
+
+async function loadCodes() {
+  try {
+    const res = await fetch('/admin/api/codes');
+    const codes = await res.json();
+    const el = document.getElementById('codesList');
+    if (codes.length === 0) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1rem">لا توجد أكواد بعد</div>';
+      return;
+    }
+    el.innerHTML = codes.map(c => `
+      <div style="background:var(--bg2);border:1px solid ${c.used ? 'rgba(16,185,129,.3)' : 'var(--border)'};border-radius:8px;padding:.7rem 1rem;display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
+        <span style="font-family:monospace;font-size:1rem;font-weight:700;color:${c.used ? 'var(--green)' : 'var(--accent2)'};direction:ltr;flex-shrink:0">${c.code}</span>
+        <span style="font-size:.78rem;color:var(--muted);flex:1">${c.note ? '👤 ' + c.note : ''}</span>
+        <span style="font-size:.75rem;padding:.2rem .6rem;border-radius:999px;background:${c.used ? 'rgba(16,185,129,.15)' : 'rgba(168,85,247,.15)'};color:${c.used ? 'var(--green)' : 'var(--accent2)'}">
+          ${c.used ? '✅ مستخدم' : '⏳ لم يُستخدم'}
+        </span>
+        <span style="font-size:.72rem;color:var(--muted)">${c.used ? c.used_at : c.created_at}</span>
+        <button onclick="deleteCode('${c.code}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:.85rem;flex-shrink:0">🗑️</button>
+      </div>
+    `).join('');
+  } catch {}
+}
+
+async function deleteCode(code) {
+  if (!confirm('حذف هذا الكود؟')) return;
+  try {
+    const res = await fetch('/admin/api/delete-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const d = await res.json();
+    showToast('✅ ' + d.message);
+    loadCodes();
+  } catch {
+    showToast('❌ فشل الحذف', 'var(--red)');
+  }
+}
+
+loadCodes();
 </script>
 </body>
 </html>
