@@ -14,6 +14,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_file, render_template, Response, session, redirect, url_for
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import yt_dlp
 
 
@@ -34,6 +36,37 @@ threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "vip-secret-2026-xk9z")
 CORS(app)
+
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri="memory://",
+)
+
+# ===== Brute Force Protection =====
+login_attempts = {}  # ip -> {"count": int, "locked_until": datetime | None}
+
+def is_locked(ip):
+    entry = login_attempts.get(ip)
+    if not entry:
+        return False, 0
+    locked_until = entry.get("locked_until")
+    if locked_until and datetime.now() < locked_until:
+        mins = max(1, int((locked_until - datetime.now()).total_seconds() // 60) + 1)
+        return True, mins
+    return False, 0
+
+def record_failed_login(ip):
+    if ip not in login_attempts:
+        login_attempts[ip] = {"count": 0, "locked_until": None}
+    login_attempts[ip]["count"] += 1
+    if login_attempts[ip]["count"] >= 5:
+        login_attempts[ip]["locked_until"] = datetime.now() + timedelta(minutes=15)
+        login_attempts[ip]["count"] = 0
+
+def clear_login_attempts(ip):
+    login_attempts.pop(ip, None)
 
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
@@ -222,6 +255,7 @@ def public_stats():
 
 
 @app.route("/api/rate", methods=["POST"])
+@limiter.limit("5 per minute")
 def submit_rating():
     data = request.get_json() or {}
     stars = int(data.get("stars", 0))
@@ -283,15 +317,28 @@ def admin_stats():
 
 
 @app.route("/admin/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def admin_login():
+    ip = get_remote_address()
     error = ""
     if request.method == "POST":
-        u = request.form.get("username", "")
-        p = request.form.get("password", "")
-        if check_auth(u, p):
-            session["admin_logged_in"] = True
-            return redirect("/admin")
-        error = "اسم المستخدم أو كلمة السر غير صحيحة"
+        locked, mins = is_locked(ip)
+        if locked:
+            error = f"تم تجميد تسجيل الدخول لمدة {mins} دقيقة بسبب محاولات متعددة"
+        else:
+            u = request.form.get("username", "")
+            p = request.form.get("password", "")
+            if check_auth(u, p):
+                clear_login_attempts(ip)
+                session["admin_logged_in"] = True
+                return redirect("/admin")
+            record_failed_login(ip)
+            locked2, mins2 = is_locked(ip)
+            if locked2:
+                error = f"تم تجميد الحساب لمدة {mins2} دقيقة بسبب محاولات متعددة"
+            else:
+                attempts_left = 5 - login_attempts.get(ip, {}).get("count", 0)
+                error = f"اسم المستخدم أو كلمة السر غير صحيحة ({attempts_left} محاولات متبقية)"
 
     return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -337,6 +384,7 @@ def admin_logout():
 
 
 @app.route("/admin/emergency")
+@limiter.limit("5 per hour")
 def admin_emergency():
     secret = request.args.get("secret", "")
     new_pass = request.args.get("new_pass", "")
@@ -682,6 +730,7 @@ def test_smtp():
 
 
 @app.route("/api/redeem-code", methods=["POST"])
+@limiter.limit("10 per minute")
 def redeem_code():
     code = ((request.get_json() or {}).get("code", "")).strip().upper()
     if not code:
@@ -761,6 +810,7 @@ def change_password():
 
 # ===== Public API =====
 @app.route("/api/info", methods=["POST"])
+@limiter.limit("30 per minute")
 def get_info():
     data = request.get_json()
     url = (data or {}).get("url", "").strip()
@@ -854,6 +904,7 @@ def get_info():
 
 
 @app.route("/api/download", methods=["POST"])
+@limiter.limit("10 per minute")
 def start_download():
     data = request.get_json()
     url = (data or {}).get("url", "").strip()
