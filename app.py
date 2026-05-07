@@ -249,10 +249,26 @@ def make_progress_hook(task_id):
 # ===== Routes =====
 @app.route("/static/icons/<size>")
 def app_icon(size):
-    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="100" fill="#7c3aed"/>
-  <text x="256" y="300" font-size="260" text-anchor="middle" font-family="Arial">⬇️</text>
-  <text x="256" y="420" font-size="72" text-anchor="middle" font-family="Arial" font-weight="bold" fill="white">VIP</text>
+    svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e0a3c"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="gld" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fb923c"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="224" y="76" width="64" height="208" rx="32" fill="white" filter="url(#glow)"/>
+  <path d="M 120,240 L 392,240 L 256,382 Z" fill="white" filter="url(#glow)"/>
+  <rect x="88" y="404" width="336" height="76" rx="38" fill="url(#gld)"/>
+  <text x="256" y="458" font-size="54" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" fill="white" letter-spacing="6">VIP</text>
 </svg>'''
     from flask import make_response
     resp = make_response(svg)
