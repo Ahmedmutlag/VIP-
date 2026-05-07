@@ -351,7 +351,7 @@ function onAdFinished() {
 async function startDownload() {
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.remove('hidden');
-  document.getElementById('progressBar').style.width = '0%';
+  setCircularProgress(0);
   document.getElementById('progressPercent').textContent = '0%';
 
   try {
