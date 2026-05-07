@@ -284,6 +284,9 @@
       <button onclick="changePassword()" class="action-btn btn-update" style="width:fit-content">
         🔐 حفظ التغييرات
       </button>
+      <button onclick="testSmtp()" class="action-btn btn-refresh" style="width:fit-content;margin-top:.5rem">
+        📧 اختبار إرسال الإيميل
+      </button>
       <button onclick="doLogout()" class="action-btn btn-clear" style="width:fit-content;margin-top:.5rem">
         🚪 تسجيل الخروج
       </button>
@@ -437,6 +440,17 @@ async function changePassword() {
 
 function doLogout() {
   window.location.href = '/admin/logout';
+}
+
+async function testSmtp() {
+  showToast('📧 جاري الاختبار...', 'var(--accent)');
+  try {
+    const res = await fetch('/admin/api/test-smtp', { method: 'POST' });
+    const d = await res.json();
+    showToast(res.ok ? d.message : d.error, res.ok ? 'var(--green)' : 'var(--red)');
+  } catch {
+    showToast('❌ فشل الاتصال', 'var(--red)');
+  }
 }
 
 loadStats();

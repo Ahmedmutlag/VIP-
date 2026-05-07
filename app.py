@@ -552,6 +552,31 @@ def delete_code():
     return jsonify({"error": "الكود غير موجود"}), 404
 
 
+@app.route("/admin/api/test-smtp", methods=["POST"])
+@requires_auth
+def test_smtp():
+    if not SMTP_USER or not SMTP_PASS:
+        return jsonify({"error": f"المتغيرات غير مضبوطة — SMTP_USER='{SMTP_USER}' SMTP_PASS={'مضبوط' if SMTP_PASS else 'فارغ'}"}), 500
+    try:
+        token = "TEST-TOKEN"
+        reset_url = f"https://www.vip-dl.com/admin/reset?token={token}"
+        msg = MIMEMultipart()
+        msg["Subject"] = "🔐 اختبار إرسال إيميل VIP Admin"
+        msg["From"] = SMTP_USER
+        msg["To"] = ADMIN_EMAIL
+        msg.attach(MIMEText(f"هذا إيميل اختبار — الإرسال يعمل بشكل صحيح ✅\n\n{reset_url}", "plain", "utf-8"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+        return jsonify({"message": f"✅ تم الإرسال بنجاح إلى {ADMIN_EMAIL}"})
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({"error": "❌ خطأ في المصادقة — تحقق من SMTP_USER و SMTP_PASS"}), 500
+    except smtplib.SMTPConnectError:
+        return jsonify({"error": "❌ فشل الاتصال بـ Gmail"}), 500
+    except Exception as e:
+        return jsonify({"error": f"❌ {str(e)}"}), 500
+
+
 @app.route("/api/redeem-code", methods=["POST"])
 def redeem_code():
     code = ((request.get_json() or {}).get("code", "")).strip().upper()
