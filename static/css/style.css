@@ -74,6 +74,8 @@ body {
   backdrop-filter: blur(14px);
 }
 .logo { display: flex; align-items: center; gap: .6rem; font-size: 1.4rem; font-weight: 900; }
+.logo-name { color: #ffffff; }
+[data-theme="light"] .logo-name { color: #1a1a2e; }
 .logo-icon { font-size: 1.6rem; }
 .accent { color: var(--accent2); }
 .nav-links { display: flex; gap: 1.5rem; }
