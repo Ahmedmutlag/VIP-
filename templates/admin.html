@@ -79,6 +79,7 @@
     .bar-tk { background: linear-gradient(90deg, #010101, #69c9d0); }
     .bar-ig { background: linear-gradient(90deg, #f09433, #bc1888); }
     .bar-fb { background: linear-gradient(90deg, #1877f2, #42a5f5); }
+    .bar-pt { background: linear-gradient(90deg, #ad081b, #e60023); }
     .bar-ot { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
 
     /* Actions */
@@ -353,6 +354,7 @@ async function loadStats() {
       { name: 'TikTok',    count: p.TikTok,    cls: 'bar-tk' },
       { name: 'Instagram', count: p.Instagram,  cls: 'bar-ig' },
       { name: 'Facebook',  count: p.Facebook,   cls: 'bar-fb' },
+      { name: 'Pinterest', count: p.Pinterest || 0, cls: 'bar-pt' },
       { name: 'أخرى',      count: p.Other,      cls: 'bar-ot' },
     ];
     document.getElementById('platformBars').innerHTML = bars.map(b => `
