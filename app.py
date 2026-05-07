@@ -615,6 +615,23 @@ def do_reset():
     return jsonify({"message": "✅ تم تغيير كلمة السر، جاري تحويلك..."})
 
 
+@app.route("/admin/api/check-updates")
+@requires_auth
+def check_updates():
+    import urllib.request
+    try:
+        current = yt_dlp.version.__version__
+    except Exception:
+        current = "غير معروف"
+    try:
+        with urllib.request.urlopen("https://pypi.org/pypi/yt-dlp/json", timeout=6) as resp:
+            latest = json.loads(resp.read())["info"]["version"]
+        needs_update = latest != current
+        return jsonify({"current": current, "latest": latest, "needs_update": needs_update})
+    except Exception:
+        return jsonify({"current": current, "latest": None, "needs_update": False})
+
+
 @app.route("/admin/api/update-ytdlp", methods=["POST"])
 @requires_auth
 def admin_update_ytdlp():

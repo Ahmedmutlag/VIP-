@@ -147,6 +147,9 @@
 
 <div class="container">
 
+  <!-- Alerts Section -->
+  <div id="alertsSection" style="display:flex;flex-direction:column;gap:.7rem;margin-bottom:1.2rem"></div>
+
   <!-- Stats Cards -->
   <div class="stats-grid">
     <div class="stat-card green">
@@ -334,6 +337,8 @@ async function loadStats() {
     document.getElementById('ytdlpUpdated').textContent = d.ytdlp_updated;
     document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('ar');
 
+    checkAlerts(d);
+
     // Success rate
     const total = d.total_downloads + d.failed_downloads;
     const rate = total > 0 ? Math.round((d.total_downloads / total) * 100) : 100;
@@ -462,8 +467,51 @@ async function testSmtp() {
   btn.textContent = orig;
 }
 
+function checkAlerts(d) {
+  const alerts = [];
+
+  const total = d.total_downloads + d.failed_downloads;
+  const rate = total > 5 ? Math.round((d.total_downloads / total) * 100) : 100;
+  if (rate < 60) {
+    alerts.push({ color: '#ef4444', bg: 'rgba(239,68,68,.1)', border: 'rgba(239,68,68,.3)',
+      msg: `🚨 معدل نجاح التحميل منخفض جداً (${rate}%) — يُنصح بتحديث yt-dlp` });
+  }
+
+  if (d.recent_errors.length >= 5) {
+    alerts.push({ color: '#fca5a5', bg: 'rgba(239,68,68,.08)', border: 'rgba(239,68,68,.25)',
+      msg: `⚠️ يوجد ${d.recent_errors.length} أخطاء حديثة — تحقق من سجل الأخطاء أدناه` });
+  }
+
+  if (d.active_tasks > 8) {
+    alerts.push({ color: '#fcd34d', bg: 'rgba(245,158,11,.08)', border: 'rgba(245,158,11,.25)',
+      msg: `⚡ ${d.active_tasks} مهام تعمل بالتزامن — السيرفر تحت ضغط` });
+  }
+
+  const section = document.getElementById('alertsSection');
+  section.innerHTML = alerts.map(a => `
+    <div style="background:${a.bg};border:1px solid ${a.border};border-radius:10px;padding:.85rem 1.1rem;font-size:.88rem;color:${a.color};font-weight:600">
+      ${a.msg}
+    </div>`).join('');
+}
+
+async function checkYtdlpUpdate() {
+  try {
+    const res = await fetch('/admin/api/check-updates');
+    const d = await res.json();
+    if (d.needs_update) {
+      const section = document.getElementById('alertsSection');
+      const div = document.createElement('div');
+      div.style.cssText = 'background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:.85rem 1.1rem;font-size:.88rem;color:#fcd34d;font-weight:600;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem';
+      div.innerHTML = `<span>🔄 يوجد إصدار جديد من yt-dlp (${d.latest}) — الإصدار الحالي (${d.current})</span>
+        <button onclick="updateYtdlp()" style="background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.4);color:#fcd34d;border-radius:8px;padding:.3rem .8rem;font-family:inherit;font-size:.82rem;font-weight:700;cursor:pointer">تحديث الآن</button>`;
+      section.prepend(div);
+    }
+  } catch {}
+}
+
 loadStats();
 setInterval(loadStats, 30000);
+setTimeout(checkYtdlpUpdate, 2000);
 
 // ===== Codes =====
 let lastNewCode = '';
