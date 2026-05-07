@@ -291,6 +291,17 @@ function renderInfo(data) {
 
   const infoCard = document.querySelector('.info-card');
   if (!infoCard.contains(dlBtn)) infoCard.appendChild(dlBtn);
+
+  let subHint = document.getElementById('subHint');
+  if (!subHint && !isPremium()) {
+    subHint = document.createElement('p');
+    subHint.id = 'subHint';
+    subHint.className = 'sub-hint hidden';
+    subHint.innerHTML = '✨ اشترك بـ<strong>٢ دولار</strong> — حمّل فوراً بدون إعلانات أو انتظار';
+    subHint.style.cursor = 'pointer';
+    subHint.addEventListener('click', openRedeemModal);
+    infoCard.appendChild(subHint);
+  }
 }
 
 // ===== Download Flow =====
@@ -299,6 +310,11 @@ function handleDownloadClick() {
   if (isPremium()) {
     startDownload();
   } else {
+    const hint = document.getElementById('subHint');
+    if (hint) {
+      hint.classList.remove('hidden');
+      hint.classList.add('sub-hint-show');
+    }
     showAdModal();
   }
 }
