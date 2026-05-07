@@ -114,32 +114,6 @@ def check_auth(username, password):
     return username == ADMIN_USER and password == ADMIN_PASS
 
 
-@app.route("/admin/api/change-password", methods=["POST"])
-@requires_auth
-def change_password():
-    global ADMIN_USER, ADMIN_PASS
-    data = request.get_json()
-    current = (data or {}).get("current", "")
-    new_pass = (data or {}).get("new_pass", "")
-    new_user = (data or {}).get("new_user", "").strip()
-
-    if current != ADMIN_PASS:
-        return jsonify({"error": "كلمة السر الحالية غير صحيحة"}), 401
-    if len(new_pass) < 6:
-        return jsonify({"error": "كلمة السر الجديدة يجب أن تكون 6 أحرف على الأقل"}), 400
-
-    ADMIN_PASS = new_pass
-    if new_user:
-        ADMIN_USER = new_user
-
-    cfg = load_config()
-    cfg["admin_pass"] = ADMIN_PASS
-    cfg["admin_user"] = ADMIN_USER
-    save_config(cfg)
-
-    return jsonify({"message": "تم تغيير بيانات الدخول بنجاح ✅"})
-
-
 def requires_auth(f):
     @functools.wraps(f)
     def decorated(*args, **kwargs):
@@ -280,6 +254,32 @@ def admin_clear_files():
             except Exception:
                 pass
     return jsonify({"message": f"تم حذف {count} ملف"})
+
+
+@app.route("/admin/api/change-password", methods=["POST"])
+@requires_auth
+def change_password():
+    global ADMIN_USER, ADMIN_PASS
+    data = request.get_json()
+    current = (data or {}).get("current", "")
+    new_pass = (data or {}).get("new_pass", "")
+    new_user = (data or {}).get("new_user", "").strip()
+
+    if current != ADMIN_PASS:
+        return jsonify({"error": "كلمة السر الحالية غير صحيحة"}), 401
+    if len(new_pass) < 6:
+        return jsonify({"error": "كلمة السر الجديدة يجب أن تكون 6 أحرف على الأقل"}), 400
+
+    ADMIN_PASS = new_pass
+    if new_user:
+        ADMIN_USER = new_user
+
+    cfg = load_config()
+    cfg["admin_pass"] = ADMIN_PASS
+    cfg["admin_user"] = ADMIN_USER
+    save_config(cfg)
+
+    return jsonify({"message": "تم تغيير بيانات الدخول بنجاح ✅"})
 
 
 # ===== Public API =====
