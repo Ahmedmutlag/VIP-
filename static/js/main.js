@@ -394,6 +394,17 @@ function resetPage() {
   }
 })();
 
+// ===== Pay Modal =====
+function openPayModal() {
+  document.getElementById('payModal').classList.remove('hidden');
+  document.getElementById('payOverlay').classList.remove('hidden');
+}
+
+function closePayModal() {
+  document.getElementById('payModal').classList.add('hidden');
+  document.getElementById('payOverlay').classList.add('hidden');
+}
+
 // ===== Redeem Code =====
 function openRedeemModal() {
   document.getElementById('redeemModal').classList.remove('hidden');
