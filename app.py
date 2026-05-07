@@ -380,36 +380,12 @@ def make_progress_hook(task_id):
 # ===== Routes =====
 @app.route("/static/icons/<size>")
 def app_icon(size):
-    svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1a0533"/>
-      <stop offset="100%" stop-color="#6d28d9"/>
-    </linearGradient>
-    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#fcd34d"/>
-      <stop offset="100%" stop-color="#f59e0b"/>
-    </linearGradient>
-    <linearGradient id="diamond" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#e9d5ff"/>
-      <stop offset="60%" stop-color="#a855f7"/>
-    </linearGradient>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="8" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-  </defs>
-  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
-  <polygon points="256,80 380,200 256,420 132,200" fill="url(#diamond)" opacity=".15"/>
-  <polygon points="256,80 380,200 256,420 132,200" fill="none" stroke="url(#gold)" stroke-width="6" filter="url(#glow)"/>
-  <rect x="232" y="160" width="48" height="140" rx="24" fill="white" filter="url(#glow)"/>
-  <polygon points="185,270 256,360 327,270" fill="white" filter="url(#glow)"/>
-  <rect x="80" y="418" width="352" height="62" rx="31" fill="url(#gold)"/>
-  <text x="256" y="464" font-size="40" text-anchor="middle" font-family="Cairo,Arial" font-weight="900" fill="#1a0533" letter-spacing="2">نزلها+</text>
-</svg>'''
+    icon_path = Path("static/images/app-icon.png")
+    if icon_path.exists():
+        return send_file(str(icon_path), mimetype="image/png")
     from flask import make_response
-    resp = make_response(svg)
-    resp.headers['Content-Type'] = 'image/svg+xml'
+    resp = make_response(b"")
+    resp.status_code = 404
     return resp
 
 
