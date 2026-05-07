@@ -515,11 +515,11 @@ async function checkYtdlpUpdate() {
   try {
     const res = await fetch('/admin/api/check-updates');
     const d = await res.json();
-    if (d.needs_update) {
+    if (d.needs_update && d.latest) {
       const section = document.getElementById('alertsSection');
       const div = document.createElement('div');
       div.style.cssText = 'background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:.85rem 1.1rem;font-size:.88rem;color:#fcd34d;font-weight:600;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem';
-      div.innerHTML = `<span>🔄 يوجد إصدار جديد من yt-dlp (${d.latest}) — الإصدار الحالي (${d.current})</span>
+      div.innerHTML = `<span>🔄 إصدار جديد من yt-dlp (${d.latest}) — الحالي (${d.current}) — التحديث التلقائي سيعمل عند إعادة تشغيل السيرفر</span>
         <button onclick="updateYtdlp()" style="background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.4);color:#fcd34d;border-radius:8px;padding:.3rem .8rem;font-family:inherit;font-size:.82rem;font-weight:700;cursor:pointer">تحديث الآن</button>`;
       section.prepend(div);
     }
