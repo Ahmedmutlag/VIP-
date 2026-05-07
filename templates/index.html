@@ -30,6 +30,7 @@
       <a href="#pricing">الاشتراك</a>
       <a href="#how">كيف تعمل</a>
     </nav>
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="تبديل الوضع">🌙</button>
   </header>
 
   <!-- ===== Ad Banner Top ===== -->
@@ -121,17 +122,46 @@
       </div>
     </section>
 
+    <!-- ===== Skeleton ===== -->
+    <section id="skeletonSection" class="hidden">
+      <div class="card" style="padding:1.5rem">
+        <div style="display:flex;gap:1rem;margin-bottom:1.2rem">
+          <div class="skeleton-box" style="width:140px;height:90px;flex-shrink:0"></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:.6rem;padding-top:.3rem">
+            <div class="skeleton-box" style="height:14px;width:55%"></div>
+            <div class="skeleton-box" style="height:18px;width:90%"></div>
+            <div class="skeleton-box" style="height:14px;width:70%"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem">
+          <div class="skeleton-box" style="height:68px"></div>
+          <div class="skeleton-box" style="height:68px"></div>
+          <div class="skeleton-box" style="height:68px"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== Progress ===== -->
     <section id="progressSection" class="hidden">
       <div class="card progress-card">
-        <div class="progress-header">
-          <span class="progress-label">جاري التحميل...</span>
-          <span id="progressPercent" class="progress-pct">0%</span>
-        </div>
-        <div class="progress-bar-wrap">
-          <div id="progressBar" class="progress-bar"></div>
-        </div>
-        <div class="progress-meta">
+        <svg width="150" height="150" viewBox="0 0 150 150" style="display:block;margin:0 auto .8rem">
+          <defs>
+            <linearGradient id="circGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#7c3aed"/>
+              <stop offset="100%" stop-color="#06b6d4"/>
+            </linearGradient>
+          </defs>
+          <circle cx="75" cy="75" r="60" fill="none" stroke="var(--border)" stroke-width="10"/>
+          <circle id="progressCircle" cx="75" cy="75" r="60" fill="none"
+                  stroke="url(#circGrad)" stroke-width="10" stroke-linecap="round"
+                  stroke-dasharray="377" stroke-dashoffset="377"
+                  transform="rotate(-90 75 75)"/>
+          <text id="progressPercent" x="75" y="82" text-anchor="middle"
+                font-family="Cairo,sans-serif" font-size="24" font-weight="900"
+                fill="var(--text)">0%</text>
+        </svg>
+        <div class="progress-label" style="font-weight:700;font-size:1rem;margin-bottom:.4rem">جاري التحميل...</div>
+        <div class="progress-meta" style="display:flex;justify-content:center;gap:1.5rem;color:var(--muted);font-size:.85rem">
           <span id="progressSpeed"></span>
           <span id="progressEta"></span>
         </div>
@@ -473,6 +503,22 @@
     </div>
   </div>
   <div id="adOverlay" class="ad-overlay hidden" onclick="return false;"></div>
+
+  <!-- ===== Bottom Navigation (mobile) ===== -->
+  <nav class="bottom-nav">
+    <button class="bottom-nav-item" onclick="document.querySelector('.hero').scrollIntoView({behavior:'smooth'})">
+      <span>⬇️</span><span>تحميل</span>
+    </button>
+    <a class="bottom-nav-item" href="#platforms">
+      <span>📱</span><span>المنصات</span>
+    </a>
+    <a class="bottom-nav-item" href="#pricing">
+      <span>👑</span><span>الاشتراك</span>
+    </a>
+    <button class="bottom-nav-item" onclick="shareNative()">
+      <span>🔗</span><span>مشاركة</span>
+    </button>
+  </nav>
 
   <script src="/static/js/main.js"></script>
 </body>

@@ -142,6 +142,48 @@ function hideError() {
   document.getElementById('errorBox').classList.add('hidden');
 }
 
+// ===== Theme Toggle =====
+function toggleTheme() {
+  const html = document.documentElement;
+  const isLight = html.getAttribute('data-theme') === 'light';
+  const next = isLight ? 'dark' : 'light';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  document.getElementById('themeToggle').textContent = next === 'light' ? '🌙' : '☀️';
+}
+(function initTheme() {
+  const saved = localStorage.getItem('theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.textContent = saved === 'light' ? '🌙' : '☀️';
+})();
+
+// ===== Confetti =====
+function launchConfetti() {
+  const colors = ['#7c3aed','#a855f7','#f59e0b','#10b981','#06b6d4','#f97316','#fff'];
+  for (let i = 0; i < 90; i++) {
+    const el = document.createElement('div');
+    const size = Math.random() * 10 + 6;
+    el.style.cssText = `
+      position:fixed; top:-20px; left:${Math.random()*100}%;
+      width:${size}px; height:${size}px;
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      border-radius:${Math.random()>.5?'50%':'3px'};
+      animation: confettiFall ${Math.random()*2+1.5}s ease forwards;
+      animation-delay:${Math.random()*.6}s;
+      z-index:9998; pointer-events:none;
+    `;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+}
+
+// ===== Circular Progress =====
+function setCircularProgress(pct) {
+  const circle = document.getElementById('progressCircle');
+  if (circle) circle.style.strokeDashoffset = 377 - (pct / 100) * 377;
+}
+
 function setLoading(loading) {
   const btn = document.getElementById('fetchBtn');
   btn.disabled = loading;
@@ -176,6 +218,7 @@ async function fetchInfo() {
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.add('hidden');
   document.getElementById('successSection').classList.add('hidden');
+  document.getElementById('skeletonSection').classList.remove('hidden');
 
   try {
     const res = await fetch('/api/info', {
@@ -184,6 +227,7 @@ async function fetchInfo() {
       body: JSON.stringify({ url }),
     });
     const data = await res.json();
+    document.getElementById('skeletonSection').classList.add('hidden');
     if (!res.ok) { showError(data.error || 'حدث خطأ'); setLoading(false); return; }
 
     currentUrl = url;
@@ -191,6 +235,7 @@ async function fetchInfo() {
     renderInfo(data);
     document.getElementById('infoSection').classList.remove('hidden');
   } catch {
+    document.getElementById('skeletonSection').classList.add('hidden');
     showError('تعذّر الاتصال بالخادم، حاول مرة أخرى');
   }
   setLoading(false);
@@ -340,13 +385,13 @@ function pollProgress(taskId) {
 
       if (data.status === 'downloading') {
         const pct = data.percent || 0;
-        document.getElementById('progressBar').style.width = pct + '%';
+        setCircularProgress(pct);
         document.getElementById('progressPercent').textContent = pct + '%';
         document.getElementById('progressSpeed').textContent = data.speed ? '⚡ ' + data.speed : '';
         document.getElementById('progressEta').textContent = data.eta ? '⏱ ' + data.eta : '';
       } else if (data.status === 'processing' || data.status === 'starting') {
         document.querySelector('.progress-label').textContent = 'جاري المعالجة...';
-        document.getElementById('progressBar').style.width = '90%';
+        setCircularProgress(90);
         document.getElementById('progressPercent').textContent = '90%';
       } else if (data.status === 'done') {
         clearInterval(pollInterval);
@@ -371,6 +416,7 @@ function showSuccess(file, filename) {
   link.download = filename;
   document.getElementById('successSection').classList.remove('hidden');
   link.click();
+  launchConfetti();
   saveToHistory(filename, currentUrl);
 }
 
@@ -503,6 +549,9 @@ function resetPage() {
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.add('hidden');
   document.getElementById('successSection').classList.add('hidden');
+  document.getElementById('skeletonSection').classList.add('hidden');
+  setCircularProgress(0);
+  document.getElementById('progressPercent').textContent = '0%';
   hideError();
   currentUrl = '';
   currentFormats = [];
