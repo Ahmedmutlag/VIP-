@@ -363,23 +363,29 @@ def app_icon(size):
     svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1e0a3c"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
+      <stop offset="0%" stop-color="#1a0533"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
     </linearGradient>
-    <linearGradient id="gld" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#fb923c"/>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fcd34d"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="diamond" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e9d5ff"/>
+      <stop offset="60%" stop-color="#a855f7"/>
     </linearGradient>
     <filter id="glow">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      <feGaussianBlur stdDeviation="8" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <rect x="224" y="76" width="64" height="208" rx="32" fill="white" filter="url(#glow)"/>
-  <path d="M 120,240 L 392,240 L 256,382 Z" fill="white" filter="url(#glow)"/>
-  <rect x="88" y="404" width="336" height="76" rx="38" fill="url(#gld)"/>
-  <text x="256" y="458" font-size="54" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" fill="white" letter-spacing="6">VIP</text>
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+  <polygon points="256,80 380,200 256,420 132,200" fill="url(#diamond)" opacity=".15"/>
+  <polygon points="256,80 380,200 256,420 132,200" fill="none" stroke="url(#gold)" stroke-width="6" filter="url(#glow)"/>
+  <rect x="232" y="160" width="48" height="140" rx="24" fill="white" filter="url(#glow)"/>
+  <polygon points="185,270 256,360 327,270" fill="white" filter="url(#glow)"/>
+  <rect x="80" y="418" width="352" height="62" rx="31" fill="url(#gold)"/>
+  <text x="256" y="464" font-size="46" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" fill="#1a0533" letter-spacing="8">VIP</text>
 </svg>'''
     from flask import make_response
     resp = make_response(svg)
