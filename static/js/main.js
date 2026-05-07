@@ -93,10 +93,44 @@ let pollInterval = null;
 let pendingTaskId = null;
 let pendingFilename = null;
 
-// Check premium status (stored after Stripe payment via URL token)
+// ===== Premium Status =====
 function isPremium() {
-  return localStorage.getItem('vip_premium') === 'true';
+  if (localStorage.getItem('vip_premium') !== 'true') return false;
+  const exp = localStorage.getItem('vip_expires');
+  if (exp && Date.now() > parseInt(exp)) {
+    localStorage.removeItem('vip_premium');
+    localStorage.removeItem('vip_code');
+    localStorage.removeItem('vip_expires');
+    return false;
+  }
+  return true;
 }
+
+async function verifyPremiumWithServer() {
+  const code = localStorage.getItem('vip_code');
+  if (!code) return;
+  try {
+    const res = await fetch('/api/check-premium', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+    if (data.valid) {
+      localStorage.setItem('vip_premium', 'true');
+      if (data.expires_at) {
+        const ms = new Date(data.expires_at).getTime();
+        localStorage.setItem('vip_expires', ms);
+      }
+    } else {
+      localStorage.removeItem('vip_premium');
+      localStorage.removeItem('vip_code');
+      localStorage.removeItem('vip_expires');
+    }
+  } catch {}
+}
+
+verifyPremiumWithServer();
 
 function showError(msg) {
   const box = document.getElementById('errorBox');
@@ -391,6 +425,10 @@ async function submitRedeemCode() {
     const data = await res.json();
     if (res.ok) {
       localStorage.setItem('vip_premium', 'true');
+      localStorage.setItem('vip_code', code);
+      if (data.expires_at) {
+        localStorage.setItem('vip_expires', new Date(data.expires_at).getTime());
+      }
       msgEl.style.color = '#10b981';
       msgEl.textContent = data.message;
       setTimeout(() => { closeRedeemModal(); showPremiumWelcome(); }, 1500);

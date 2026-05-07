@@ -274,6 +274,7 @@ def generate_code():
     import secrets
     data = request.get_json() or {}
     note = data.get("note", "").strip()[:50]
+    days = int(data.get("days", 30))
 
     raw = secrets.token_hex(4).upper()
     code = f"VIP-{raw[:4]}-{raw[4:]}"
@@ -282,8 +283,10 @@ def generate_code():
     codes[code] = {
         "used": False,
         "note": note,
+        "days": days,
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "used_at": None,
+        "expires_at": None,
     }
     save_codes(codes)
     return jsonify({"code": code})
@@ -293,10 +296,22 @@ def generate_code():
 @requires_auth
 def list_codes():
     codes = load_codes()
-    result = [
-        {"code": k, **v}
-        for k, v in sorted(codes.items(), key=lambda x: x[1]["created_at"], reverse=True)
-    ]
+    now = datetime.now()
+    result = []
+    for k, v in sorted(codes.items(), key=lambda x: x[1]["created_at"], reverse=True):
+        entry = {"code": k, **v}
+        if v["used"] and v.get("expires_at"):
+            try:
+                exp = datetime.strptime(v["expires_at"], "%Y-%m-%d %H:%M")
+                entry["expired"] = now > exp
+                entry["days_left"] = max(0, (exp - now).days)
+            except Exception:
+                entry["expired"] = False
+                entry["days_left"] = 0
+        else:
+            entry["expired"] = False
+            entry["days_left"] = None
+        result.append(entry)
     return jsonify(result)
 
 
@@ -324,10 +339,44 @@ def redeem_code():
     if codes[code]["used"]:
         return jsonify({"error": "هذا الكود مستخدم مسبقاً"}), 409
 
+    days = codes[code].get("days", 30)
+    now = datetime.now()
+    from datetime import timedelta
+    expires_at = (now + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+
     codes[code]["used"] = True
-    codes[code]["used_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    codes[code]["used_at"] = now.strftime("%Y-%m-%d %H:%M")
+    codes[code]["expires_at"] = expires_at
     save_codes(codes)
-    return jsonify({"message": "تم تفعيل الاشتراك المميز ✅"})
+    return jsonify({
+        "message": f"تم تفعيل الاشتراك المميز ✅ صالح لـ {days} يوم",
+        "expires_at": expires_at,
+    })
+
+
+@app.route("/api/check-premium", methods=["POST"])
+def check_premium():
+    code = ((request.get_json() or {}).get("code", "")).strip().upper()
+    if not code:
+        return jsonify({"valid": False}), 400
+
+    codes = load_codes()
+    if code not in codes:
+        return jsonify({"valid": False, "reason": "not_found"})
+
+    entry = codes[code]
+    if not entry["used"]:
+        return jsonify({"valid": False, "reason": "not_used"})
+
+    if entry.get("expires_at"):
+        try:
+            exp = datetime.strptime(entry["expires_at"], "%Y-%m-%d %H:%M")
+            if datetime.now() > exp:
+                return jsonify({"valid": False, "reason": "expired"})
+        except Exception:
+            pass
+
+    return jsonify({"valid": True, "expires_at": entry.get("expires_at")})
 
 
 @app.route("/admin/api/change-password", methods=["POST"])

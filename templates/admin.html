@@ -238,12 +238,21 @@
   <div class="server-card" style="margin-bottom:1.5rem">
     <h3>🔑 أكواد الاشتراك المميز</h3>
     <div style="display:flex;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap;align-items:flex-end">
-      <div style="display:flex;flex-direction:column;gap:.3rem;flex:1;min-width:180px">
-        <label style="font-size:.78rem;color:var(--muted)">ملاحظة (اختياري — اسم المشترك)</label>
+      <div style="display:flex;flex-direction:column;gap:.3rem;flex:1;min-width:160px">
+        <label style="font-size:.78rem;color:var(--muted)">اسم المشترك (اختياري)</label>
         <input id="codeNote" type="text" placeholder="مثال: أحمد علي"
           style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:inherit;font-size:.9rem;outline:none" />
       </div>
-      <button onclick="generateCode()" class="action-btn btn-update">➕ إنشاء كود جديد</button>
+      <div style="display:flex;flex-direction:column;gap:.3rem">
+        <label style="font-size:.78rem;color:var(--muted)">مدة الاشتراك</label>
+        <select id="codeDays" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:inherit;font-size:.9rem;outline:none">
+          <option value="30">30 يوم (شهر)</option>
+          <option value="90">90 يوم (3 أشهر)</option>
+          <option value="180">180 يوم (6 أشهر)</option>
+          <option value="365">365 يوم (سنة)</option>
+        </select>
+      </div>
+      <button onclick="generateCode()" class="action-btn btn-update">➕ إنشاء كود</button>
     </div>
     <div id="newCodeBox" style="display:none;background:var(--bg2);border:1px solid var(--accent);border-radius:10px;padding:1rem;margin-bottom:1rem;text-align:center">
       <div style="font-size:.8rem;color:var(--muted);margin-bottom:.4rem">الكود الجديد — أعطه للمشترك</div>
@@ -430,11 +439,12 @@ let lastNewCode = '';
 
 async function generateCode() {
   const note = document.getElementById('codeNote').value.trim();
+  const days = parseInt(document.getElementById('codeDays').value);
   try {
     const res = await fetch('/admin/api/generate-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ note }),
+      body: JSON.stringify({ note, days }),
     });
     const d = await res.json();
     lastNewCode = d.code;
@@ -461,17 +471,26 @@ async function loadCodes() {
       el.innerHTML = '<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1rem">لا توجد أكواد بعد</div>';
       return;
     }
-    el.innerHTML = codes.map(c => `
-      <div style="background:var(--bg2);border:1px solid ${c.used ? 'rgba(16,185,129,.3)' : 'var(--border)'};border-radius:8px;padding:.7rem 1rem;display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
-        <span style="font-family:monospace;font-size:1rem;font-weight:700;color:${c.used ? 'var(--green)' : 'var(--accent2)'};direction:ltr;flex-shrink:0">${c.code}</span>
-        <span style="font-size:.78rem;color:var(--muted);flex:1">${c.note ? '👤 ' + c.note : ''}</span>
-        <span style="font-size:.75rem;padding:.2rem .6rem;border-radius:999px;background:${c.used ? 'rgba(16,185,129,.15)' : 'rgba(168,85,247,.15)'};color:${c.used ? 'var(--green)' : 'var(--accent2)'}">
-          ${c.used ? '✅ مستخدم' : '⏳ لم يُستخدم'}
-        </span>
-        <span style="font-size:.72rem;color:var(--muted)">${c.used ? c.used_at : c.created_at}</span>
+    el.innerHTML = codes.map(c => {
+      let statusColor, statusBg, statusText;
+      if (!c.used) {
+        statusColor = 'var(--accent2)'; statusBg = 'rgba(168,85,247,.15)'; statusText = '⏳ لم يُستخدم';
+      } else if (c.expired) {
+        statusColor = 'var(--red)'; statusBg = 'rgba(239,68,68,.15)'; statusText = '❌ منتهي';
+      } else {
+        statusColor = 'var(--green)'; statusBg = 'rgba(16,185,129,.15)';
+        statusText = c.days_left !== null ? `✅ ${c.days_left} يوم متبقي` : '✅ فعّال';
+      }
+      const borderColor = !c.used ? 'var(--border)' : c.expired ? 'rgba(239,68,68,.3)' : 'rgba(16,185,129,.3)';
+      return `
+      <div style="background:var(--bg2);border:1px solid ${borderColor};border-radius:8px;padding:.7rem 1rem;display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
+        <span style="font-family:monospace;font-size:1rem;font-weight:700;color:${statusColor};direction:ltr;flex-shrink:0">${c.code}</span>
+        <span style="font-size:.78rem;color:var(--muted);flex:1">${c.note ? '👤 ' + c.note : ''} ${c.days ? '· ' + c.days + ' يوم' : ''}</span>
+        <span style="font-size:.75rem;padding:.2rem .6rem;border-radius:999px;background:${statusBg};color:${statusColor}">${statusText}</span>
+        <span style="font-size:.72rem;color:var(--muted)">${c.expires_at ? '⏰ ' + c.expires_at : c.created_at}</span>
         <button onclick="deleteCode('${c.code}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:.85rem;flex-shrink:0">🗑️</button>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   } catch {}
 }
 
