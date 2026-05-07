@@ -681,13 +681,13 @@ function closePremiumModal() {
 }
 
 function shareWhatsApp() {
-  const text = 'جربت موقع VIP Downloader — يحمّل فيديوهات TikTok وInstagram وFacebook وPinterest بجودة عالية وبدون واترمارك 🔥\n\nwww.vip-dl.com';
+  const text = 'جربت موقع نزلها بلس — يحمّل فيديوهات TikTok وInstagram وFacebook وPinterest بجودة عالية وبدون واترمارك 🔥\n\nwww.vip-dl.com';
   window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }
 
 function shareNative() {
   const data = {
-    title: 'VIP Downloader',
+    title: 'نزلها بلس',
     text: 'حمّل فيديوهاتك بدون واترمارك من TikTok وInstagram وFacebook وPinterest',
     url: 'https://www.vip-dl.com',
   };

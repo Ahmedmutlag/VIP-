@@ -405,7 +405,7 @@ def app_icon(size):
   <rect x="232" y="160" width="48" height="140" rx="24" fill="white" filter="url(#glow)"/>
   <polygon points="185,270 256,360 327,270" fill="white" filter="url(#glow)"/>
   <rect x="80" y="418" width="352" height="62" rx="31" fill="url(#gold)"/>
-  <text x="256" y="464" font-size="46" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" fill="#1a0533" letter-spacing="8">VIP</text>
+  <text x="256" y="464" font-size="40" text-anchor="middle" font-family="Cairo,Arial" font-weight="900" fill="#1a0533" letter-spacing="2">نزلها+</text>
 </svg>'''
     from flask import make_response
     resp = make_response(svg)
@@ -587,7 +587,7 @@ def admin_login():
 
     return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>تسجيل دخول — VIP Admin</title>
+<title>تسجيل دخول — نزلها بلس</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
@@ -607,7 +607,7 @@ input:focus{{border-color:#7c3aed}}
 </style></head>
 <body>
 <div class="card">
-  <div class="logo">⚙️ لوحة تحكم <span>VIP</span></div>
+  <div class="logo">⚙️ لوحة تحكم <span>نزلها بلس</span></div>
   <div class="sub">تسجيل دخول المدير</div>
   {'<div class="error">⚠️ ' + error + '</div>' if error else ''}
   <form method="POST">
@@ -700,7 +700,7 @@ def send_reset_email(token):
     reset_url = f"https://www.vip-dl.com/admin/reset?token={token}"
     body = f"""مرحباً،
 
-طُلب إعادة تعيين كلمة سر لوحة تحكم VIP Downloader.
+طُلب إعادة تعيين كلمة سر لوحة تحكم نزلها بلس.
 
 اضغط على الرابط التالي لإعادة تعيين كلمة السر:
 {reset_url}
@@ -708,7 +708,7 @@ def send_reset_email(token):
 الرابط صالح لمدة 30 دقيقة فقط.
 إذا لم تطلب ذلك، تجاهل هذا الإيميل.
 
-— VIP Downloader
+— نزلها بلس
 """
     msg = MIMEMultipart()
     msg["Subject"] = "🔐 إعادة تعيين كلمة سر لوحة التحكم"
@@ -1001,7 +1001,7 @@ def test_smtp():
         token = "TEST-TOKEN"
         reset_url = f"https://www.vip-dl.com/admin/reset?token={token}"
         msg = MIMEMultipart()
-        msg["Subject"] = "🔐 اختبار إرسال إيميل VIP Admin"
+        msg["Subject"] = "🔐 اختبار إرسال إيميل نزلها بلس"
         msg["From"] = SMTP_USER
         msg["To"] = ADMIN_EMAIL
         msg.attach(MIMEText(f"هذا إيميل اختبار — الإرسال يعمل بشكل صحيح ✅\n\n{reset_url}", "plain", "utf-8"))
