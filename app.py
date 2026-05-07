@@ -12,7 +12,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, send_file, render_template, Response
+from flask import Flask, request, jsonify, send_file, render_template, Response, session, redirect, url_for
 from flask_cors import CORS
 import yt_dlp
 
@@ -32,6 +32,7 @@ def auto_update_ytdlp():
 threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "vip-secret-2026-xk9z")
 CORS(app)
 
 DOWNLOAD_DIR = Path("downloads")
@@ -138,13 +139,10 @@ def check_auth(username, password):
 def requires_auth(f):
     @functools.wraps(f)
     def decorated(*args, **kwargs):
-        auth = request.authorization
-        if not auth or not check_auth(auth.username, auth.password):
-            return Response(
-                "يجب تسجيل الدخول للوصول للوحة التحكم",
-                401,
-                {"WWW-Authenticate": 'Basic realm="VIP Admin"'}
-            )
+        if not session.get("admin_logged_in"):
+            if request.path.startswith("/admin/api"):
+                return jsonify({"error": "غير مصرح"}), 401
+            return redirect("/admin/login")
         return f(*args, **kwargs)
     return decorated
 
@@ -247,13 +245,58 @@ def admin_stats():
     })
 
 
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    error = ""
+    if request.method == "POST":
+        u = request.form.get("username", "")
+        p = request.form.get("password", "")
+        if check_auth(u, p):
+            session["admin_logged_in"] = True
+            return redirect("/admin")
+        error = "اسم المستخدم أو كلمة السر غير صحيحة"
+
+    return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>تسجيل دخول — VIP Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}}
+.card{{background:#16161f;border:1px solid #2a2a3a;border-radius:20px;padding:2.5rem 2rem;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.6)}}
+.logo{{text-align:center;font-size:1.5rem;font-weight:900;margin-bottom:.4rem}}
+.logo span{{color:#a855f7}}
+.sub{{text-align:center;color:#8888aa;font-size:.85rem;margin-bottom:2rem}}
+label{{font-size:.8rem;color:#8888aa;display:block;margin-bottom:.3rem}}
+input{{width:100%;background:#111118;border:1.5px solid #2a2a3a;border-radius:10px;padding:.8rem 1rem;color:#f0f0f8;font-family:inherit;font-size:1rem;outline:none;margin-bottom:1rem;transition:border-color .2s}}
+input:focus{{border-color:#7c3aed}}
+.btn{{width:100%;padding:.9rem;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer;transition:opacity .2s}}
+.btn:hover{{opacity:.9}}
+.error{{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:.6rem 1rem;color:#fca5a5;font-size:.85rem;margin-bottom:1rem;text-align:center}}
+.forgot{{display:block;text-align:center;margin-top:1rem;color:#8888aa;font-size:.82rem;text-decoration:none}}
+.forgot:hover{{color:#f0f0f8}}
+</style></head>
+<body>
+<div class="card">
+  <div class="logo">⚙️ لوحة تحكم <span>VIP</span></div>
+  <div class="sub">تسجيل دخول المدير</div>
+  {'<div class="error">⚠️ ' + error + '</div>' if error else ''}
+  <form method="POST">
+    <label>اسم المستخدم</label>
+    <input type="text" name="username" placeholder="admin" autocomplete="username" required />
+    <label>كلمة السر</label>
+    <input type="password" name="password" placeholder="••••••••" autocomplete="current-password" required />
+    <button type="submit" class="btn">تسجيل الدخول</button>
+  </form>
+  <a href="/admin/forgot" class="forgot">🔑 نسيت كلمة السر؟</a>
+</div>
+</body></html>""", mimetype="text/html")
+
+
 @app.route("/admin/logout")
 def admin_logout():
-    return Response(
-        "تم تسجيل الخروج",
-        401,
-        {"WWW-Authenticate": 'Basic realm="VIP Admin"'}
-    )
+    session.clear()
+    return redirect("/admin/login")
 
 
 def send_reset_email(token):

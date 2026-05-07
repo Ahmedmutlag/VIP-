@@ -436,11 +436,7 @@ async function changePassword() {
 }
 
 function doLogout() {
-  fetch('/admin/logout', {
-    headers: { 'Authorization': 'Basic ' + btoa('__out__:__out__') }
-  }).catch(() => {}).finally(() => {
-    window.location.replace('/');
-  });
+  window.location.href = '/admin/logout';
 }
 
 loadStats();
