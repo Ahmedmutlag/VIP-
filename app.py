@@ -87,6 +87,7 @@ reset_tokens = {}  # token -> {"expires": datetime}
 CONFIG_FILE  = Path("data/config.json")
 CODES_FILE   = Path("data/codes.json")
 RATINGS_FILE = Path("data/ratings.json")
+STATS_FILE   = Path("data/stats.json")
 CONFIG_FILE.parent.mkdir(exist_ok=True)
 
 def load_ratings():
@@ -97,6 +98,18 @@ def load_ratings():
 
 def save_ratings(data):
     RATINGS_FILE.write_text(json.dumps(data))
+
+def load_stats_file():
+    if STATS_FILE.exists():
+        try: return json.loads(STATS_FILE.read_text())
+        except: pass
+    return {"total_downloads": 0, "failed_downloads": 0, "platform_counts": {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Other": 0}}
+
+def save_stats_file(data):
+    try:
+        STATS_FILE.write_text(json.dumps(data))
+    except Exception:
+        pass
 
 def load_config():
     if CONFIG_FILE.exists():
@@ -129,11 +142,12 @@ if "admin_user" in config:
 SERVER_START = datetime.now()
 
 # ===== Live Stats =====
+_saved = load_stats_file()
 stats = {
-    "total_downloads": 0,
+    "total_downloads": _saved.get("total_downloads", 0),
     "today_downloads": 0,
-    "failed_downloads": 0,
-    "platform_counts": {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Other": 0},
+    "failed_downloads": _saved.get("failed_downloads", 0),
+    "platform_counts": _saved.get("platform_counts", {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Other": 0}),
     "recent_errors": [],
     "ytdlp_updated": "لم يتم بعد",
     "last_reset_date": datetime.now().date().isoformat(),
@@ -163,6 +177,12 @@ def record_download(platform, success, error_msg=""):
                     "platform": platform,
                 })
                 stats["recent_errors"] = stats["recent_errors"][:10]
+
+        save_stats_file({
+            "total_downloads": stats["total_downloads"],
+            "failed_downloads": stats["failed_downloads"],
+            "platform_counts": stats["platform_counts"],
+        })
 
 
 def detect_platform(url):
