@@ -443,33 +443,57 @@ renderHistory();
 
 // ===== Rating =====
 const stars = document.querySelectorAll('.star');
+let selectedStars = 0;
 
-function highlightStars(n) {
-  stars.forEach((s, i) => s.classList.toggle('active', i < n));
+function highlightStars(n, cls) {
+  stars.forEach((s, i) => {
+    s.classList.remove('active', 'hover-active');
+    if (i < n) s.classList.add(cls || 'active');
+  });
 }
 
 stars.forEach((s, idx) => {
-  s.addEventListener('mouseenter', () => { if (!localStorage.getItem('vip_rated')) highlightStars(idx + 1); });
-  s.addEventListener('mouseleave', () => { if (!localStorage.getItem('vip_rated')) highlightStars(0); });
+  s.addEventListener('mouseenter', () => {
+    if (!localStorage.getItem('vip_rated')) highlightStars(idx + 1, 'hover-active');
+  });
+  s.addEventListener('mouseleave', () => {
+    if (!localStorage.getItem('vip_rated')) highlightStars(selectedStars, 'active');
+  });
+  s.addEventListener('click', () => {
+    if (localStorage.getItem('vip_rated')) return;
+    selectedStars = idx + 1;
+    highlightStars(selectedStars, 'active');
+    document.getElementById('submitRatingBtn').style.display = 'inline-block';
+    document.getElementById('ratingMsg').textContent = '';
+  });
 });
 
 const userRated = localStorage.getItem('vip_rated');
 if (userRated) {
-  highlightStars(parseInt(userRated));
+  selectedStars = parseInt(userRated);
+  highlightStars(selectedStars, 'active');
   document.getElementById('ratingMsg').textContent = 'شكراً على تقييمك السابق ❤️';
 }
 
-function rate(n) {
-  if (localStorage.getItem('vip_rated')) return;
-  highlightStars(n);
+function submitRating() {
+  if (!selectedStars || localStorage.getItem('vip_rated')) return;
+  const btn = document.getElementById('submitRatingBtn');
+  btn.disabled = true;
+  btn.textContent = 'جاري الإرسال...';
   fetch('/api/rate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stars: n }),
+    body: JSON.stringify({ stars: selectedStars }),
   }).then(r => r.json()).then(d => {
-    localStorage.setItem('vip_rated', n);
-    document.getElementById('ratingMsg').textContent = d.message + ' — متوسط: ' + d.avg + ' ⭐ (' + d.count + ' تقييم)';
+    localStorage.setItem('vip_rated', selectedStars);
+    const msg = document.getElementById('ratingMsg');
+    msg.textContent = d.message + ' — متوسط: ' + d.avg + ' ⭐ (' + d.count + ' تقييم)';
+    msg.style.color = '#10b981';
+    btn.style.display = 'none';
     loadPublicStats();
+  }).catch(() => {
+    btn.disabled = false;
+    btn.textContent = 'إرسال التقييم ★';
   });
 }
 

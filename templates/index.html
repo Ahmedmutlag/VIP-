@@ -153,7 +153,7 @@
     <!-- ===== Platforms ===== -->
     <section id="platforms" class="platforms-section">
       <h2 class="section-title">المنصات المدعومة</h2>
-      <div class="platforms-grid" style="grid-template-columns:repeat(2,1fr);max-width:420px;margin:0 auto">
+      <div class="platforms-grid" style="grid-template-columns:repeat(3,1fr);max-width:500px;margin:0 auto">
         <div class="platform-card featured">
           <div class="p-icon tk">♪</div>
           <span>TikTok</span>
@@ -165,10 +165,6 @@
         <div class="platform-card featured">
           <div class="p-icon fb">f</div>
           <span>Facebook</span>
-        </div>
-        <div class="platform-card featured">
-          <div class="p-icon yt">▶</div>
-          <span>YouTube</span>
         </div>
       </div>
     </section>
@@ -244,13 +240,16 @@
         <h3 style="font-size:1.1rem;font-weight:800;margin-bottom:.4rem">كيف تجد الموقع؟</h3>
         <p style="color:var(--muted);font-size:.85rem;margin-bottom:1.2rem">ساعدنا بتقييمك لنحسّن الخدمة</p>
         <div id="starRow" style="display:flex;gap:.6rem;justify-content:center;margin-bottom:.8rem;font-size:2.2rem;direction:ltr">
-          <span class="star" onclick="rate(1)">★</span>
-          <span class="star" onclick="rate(2)">★</span>
-          <span class="star" onclick="rate(3)">★</span>
-          <span class="star" onclick="rate(4)">★</span>
-          <span class="star" onclick="rate(5)">★</span>
+          <span class="star" data-val="1">★</span>
+          <span class="star" data-val="2">★</span>
+          <span class="star" data-val="3">★</span>
+          <span class="star" data-val="4">★</span>
+          <span class="star" data-val="5">★</span>
         </div>
-        <div id="ratingMsg" style="font-size:.85rem;color:var(--muted);min-height:1.2rem"></div>
+        <div id="ratingMsg" style="font-size:.85rem;color:var(--muted);min-height:1.2rem;margin-bottom:.8rem"></div>
+        <button id="submitRatingBtn" onclick="submitRating()" style="display:none;background:linear-gradient(135deg,#f59e0b,#f97316);color:#000;border:none;border-radius:10px;padding:.55rem 1.4rem;font-family:inherit;font-size:.92rem;font-weight:700;cursor:pointer">
+          إرسال التقييم ★
+        </button>
       </div>
     </section>
 
