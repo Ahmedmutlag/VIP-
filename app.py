@@ -6,8 +6,12 @@ import time
 import subprocess
 import functools
 import json
+import smtplib
+import secrets
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_file, render_template, Response
 from flask_cors import CORS
 import yt_dlp
@@ -38,6 +42,11 @@ progress_store = {}
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "vip2026")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "ahmed.alabdan2@gmail.com")
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
+
+reset_tokens = {}  # token -> {"expires": datetime}
 
 CONFIG_FILE = Path("data/config.json")
 CODES_FILE = Path("data/codes.json")
@@ -236,6 +245,179 @@ def admin_stats():
         "recent_errors": stats["recent_errors"],
         "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     })
+
+
+@app.route("/admin/logout")
+def admin_logout():
+    return Response(
+        "تم تسجيل الخروج",
+        401,
+        {"WWW-Authenticate": 'Basic realm="VIP Admin"'}
+    )
+
+
+def send_reset_email(token):
+    reset_url = f"https://www.vip-dl.com/admin/reset?token={token}"
+    body = f"""مرحباً،
+
+طُلب إعادة تعيين كلمة سر لوحة تحكم VIP Downloader.
+
+اضغط على الرابط التالي لإعادة تعيين كلمة السر:
+{reset_url}
+
+الرابط صالح لمدة 30 دقيقة فقط.
+إذا لم تطلب ذلك، تجاهل هذا الإيميل.
+
+— VIP Downloader
+"""
+    msg = MIMEMultipart()
+    msg["Subject"] = "🔐 إعادة تعيين كلمة سر لوحة التحكم"
+    msg["From"] = SMTP_USER
+    msg["To"] = ADMIN_EMAIL
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
+        server.login(SMTP_USER, SMTP_PASS)
+        server.send_message(msg)
+
+
+@app.route("/admin/forgot")
+def admin_forgot():
+    return Response("""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>نسيت كلمة السر</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+.card{background:#16161f;border:1px solid #2a2a3a;border-radius:16px;padding:2rem;width:100%;max-width:400px;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+h2{font-size:1.3rem;margin-bottom:.5rem}
+p{color:#8888aa;font-size:.9rem;margin-bottom:1.5rem}
+input{width:100%;background:#111118;border:1.5px solid #2a2a3a;border-radius:10px;padding:.8rem 1rem;color:#f0f0f8;font-family:inherit;font-size:1rem;outline:none;margin-bottom:1rem;direction:ltr}
+button{width:100%;padding:.9rem;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer}
+#msg{text-align:center;font-size:.9rem;margin-top:.8rem;min-height:1.2rem}
+a{color:#8888aa;font-size:.85rem;display:block;text-align:center;margin-top:1rem;text-decoration:none}
+</style></head>
+<body>
+<div class="card">
+  <h2>🔐 نسيت كلمة السر؟</h2>
+  <p>سنرسل رابط إعادة التعيين إلى إيميلك المسجل حصراً</p>
+  <input id="email" type="email" placeholder="أدخل إيميلك" />
+  <button onclick="sendReset()">إرسال رابط الإعادة</button>
+  <div id="msg"></div>
+  <a href="/admin">← العودة لتسجيل الدخول</a>
+</div>
+<script>
+async function sendReset() {
+  const email = document.getElementById('email').value.trim();
+  const msg = document.getElementById('msg');
+  if (!email) { msg.style.color='#fca5a5'; msg.textContent='أدخل الإيميل'; return; }
+  msg.style.color='#8888aa'; msg.textContent='جاري الإرسال...';
+  try {
+    const res = await fetch('/admin/api/send-reset', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email})
+    });
+    const d = await res.json();
+    if (res.ok) { msg.style.color='#10b981'; msg.textContent=d.message; }
+    else { msg.style.color='#fca5a5'; msg.textContent=d.error; }
+  } catch { msg.style.color='#fca5a5'; msg.textContent='خطأ في الاتصال'; }
+}
+</script>
+</body></html>""", mimetype="text/html")
+
+
+@app.route("/admin/api/send-reset", methods=["POST"])
+def send_reset():
+    email = ((request.get_json() or {}).get("email", "")).strip().lower()
+    if email != ADMIN_EMAIL.lower():
+        return jsonify({"error": "هذا الإيميل غير مسجل"}), 403
+
+    if not SMTP_USER or not SMTP_PASS:
+        return jsonify({"error": "لم يتم إعداد خدمة الإيميل بعد"}), 500
+
+    token = secrets.token_urlsafe(32)
+    reset_tokens[token] = {"expires": datetime.now() + timedelta(minutes=30)}
+
+    try:
+        send_reset_email(token)
+        return jsonify({"message": "✅ تم إرسال الرابط إلى إيميلك"})
+    except Exception as e:
+        del reset_tokens[token]
+        return jsonify({"error": "فشل إرسال الإيميل، تحقق من إعدادات SMTP"}), 500
+
+
+@app.route("/admin/reset")
+def admin_reset_page():
+    token = request.args.get("token", "")
+    valid = token in reset_tokens and datetime.now() < reset_tokens[token]["expires"]
+    status = "valid" if valid else "invalid"
+    return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إعادة تعيين كلمة السر</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}}
+.card{{background:#16161f;border:1px solid #2a2a3a;border-radius:16px;padding:2rem;width:100%;max-width:400px;box-shadow:0 8px 40px rgba(0,0,0,.5)}}
+h2{{font-size:1.3rem;margin-bottom:.5rem}}
+p{{color:#8888aa;font-size:.9rem;margin-bottom:1.5rem}}
+input{{width:100%;background:#111118;border:1.5px solid #2a2a3a;border-radius:10px;padding:.8rem 1rem;color:#f0f0f8;font-family:inherit;font-size:1rem;outline:none;margin-bottom:1rem}}
+button{{width:100%;padding:.9rem;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer}}
+#msg{{text-align:center;font-size:.9rem;margin-top:.8rem;min-height:1.2rem}}
+a{{color:#8888aa;font-size:.85rem;display:block;text-align:center;margin-top:1rem;text-decoration:none}}
+</style></head>
+<body>
+<div class="card">
+{'<h2>❌ الرابط منتهي أو غير صالح</h2><p>اطلب رابطاً جديداً</p><a href="/admin/forgot">← طلب رابط جديد</a>' if status == 'invalid' else f'''
+  <h2>🔐 إعادة تعيين كلمة السر</h2>
+  <p>أدخل كلمة السر الجديدة</p>
+  <input id="p1" type="password" placeholder="كلمة السر الجديدة" />
+  <input id="p2" type="password" placeholder="تأكيد كلمة السر" />
+  <button onclick="doReset()">حفظ كلمة السر الجديدة</button>
+  <div id="msg"></div>
+  <script>
+  async function doReset() {{
+    const p1 = document.getElementById('p1').value;
+    const p2 = document.getElementById('p2').value;
+    const msg = document.getElementById('msg');
+    if (p1.length < 6) {{ msg.style.color='#fca5a5'; msg.textContent='6 أحرف على الأقل'; return; }}
+    if (p1 !== p2) {{ msg.style.color='#fca5a5'; msg.textContent='كلمتا السر غير متطابقتين'; return; }}
+    msg.style.color='#8888aa'; msg.textContent='جاري الحفظ...';
+    const res = await fetch('/admin/api/do-reset', {{
+      method:'POST', headers:{{'Content-Type':'application/json'}},
+      body: JSON.stringify({{token: '{token}', new_pass: p1}})
+    }});
+    const d = await res.json();
+    if (res.ok) {{ msg.style.color='#10b981'; msg.textContent=d.message; setTimeout(()=>window.location='/admin', 2000); }}
+    else {{ msg.style.color='#fca5a5'; msg.textContent=d.error; }}
+  }}
+  </script>
+'''}
+</div>
+</body></html>""", mimetype="text/html")
+
+
+@app.route("/admin/api/do-reset", methods=["POST"])
+def do_reset():
+    global ADMIN_PASS
+    data = request.get_json() or {}
+    token = data.get("token", "")
+    new_pass = data.get("new_pass", "")
+
+    if token not in reset_tokens or datetime.now() > reset_tokens[token]["expires"]:
+        return jsonify({"error": "الرابط منتهي أو غير صالح"}), 403
+    if len(new_pass) < 6:
+        return jsonify({"error": "كلمة السر يجب أن تكون 6 أحرف على الأقل"}), 400
+
+    ADMIN_PASS = new_pass
+    del reset_tokens[token]
+
+    cfg = load_config()
+    cfg["admin_pass"] = ADMIN_PASS
+    save_config(cfg)
+
+    return jsonify({"message": "✅ تم تغيير كلمة السر، جاري تحويلك..."})
 
 
 @app.route("/admin/api/update-ytdlp", methods=["POST"])

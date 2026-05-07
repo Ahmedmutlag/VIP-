@@ -284,6 +284,10 @@
       <button onclick="changePassword()" class="action-btn btn-update" style="width:fit-content">
         🔐 حفظ التغييرات
       </button>
+      <button onclick="doLogout()" class="action-btn btn-clear" style="width:fit-content;margin-top:.5rem">
+        🚪 تسجيل الخروج
+      </button>
+      <a href="/admin/forgot" style="font-size:.8rem;color:var(--muted);margin-top:.5rem;display:inline-block">نسيت كلمة السر؟</a>
     </div>
   </div>
 
@@ -429,6 +433,14 @@ async function changePassword() {
   } catch {
     showToast('❌ فشل الاتصال بالخادم', 'var(--red)');
   }
+}
+
+function doLogout() {
+  fetch('/admin/logout', {
+    headers: { 'Authorization': 'Basic ' + btoa('__out__:__out__') }
+  }).catch(() => {}).finally(() => {
+    window.location.replace('/');
+  });
 }
 
 loadStats();
