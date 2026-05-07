@@ -442,26 +442,33 @@ loadPublicStats();
 renderHistory();
 
 // ===== Rating =====
+const stars = document.querySelectorAll('.star');
+
+function highlightStars(n) {
+  stars.forEach((s, i) => s.classList.toggle('active', i < n));
+}
+
+stars.forEach((s, idx) => {
+  s.addEventListener('mouseenter', () => { if (!localStorage.getItem('vip_rated')) highlightStars(idx + 1); });
+  s.addEventListener('mouseleave', () => { if (!localStorage.getItem('vip_rated')) highlightStars(0); });
+});
+
 const userRated = localStorage.getItem('vip_rated');
 if (userRated) {
-  document.querySelectorAll('.star').forEach((s, i) => {
-    if (i < parseInt(userRated)) s.classList.add('active');
-  });
+  highlightStars(parseInt(userRated));
   document.getElementById('ratingMsg').textContent = 'شكراً على تقييمك السابق ❤️';
 }
 
-function rate(stars) {
+function rate(n) {
   if (localStorage.getItem('vip_rated')) return;
-  document.querySelectorAll('.star').forEach((s, i) => {
-    s.classList.toggle('active', i < stars);
-  });
+  highlightStars(n);
   fetch('/api/rate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stars }),
+    body: JSON.stringify({ stars: n }),
   }).then(r => r.json()).then(d => {
-    localStorage.setItem('vip_rated', stars);
-    document.getElementById('ratingMsg').textContent = d.message + ' — متوسط التقييم: ' + d.avg + ' ⭐ (' + d.count + ' تقييم)';
+    localStorage.setItem('vip_rated', n);
+    document.getElementById('ratingMsg').textContent = d.message + ' — متوسط: ' + d.avg + ' ⭐ (' + d.count + ' تقييم)';
     loadPublicStats();
   });
 }

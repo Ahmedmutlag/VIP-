@@ -249,6 +249,7 @@ main { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding
 .p-icon.tk { background: #010101; color: #fff; }
 .p-icon.ig { background: linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); color: #fff; }
 .p-icon.fb { background: #1877f2; color: #fff; }
+.p-icon.yt { background: #ff0000; color: #fff; font-size:1.8rem; }
 .platform-card span { font-size: .9rem; font-weight: 700; color: var(--muted); }
 
 /* ===== Pricing ===== */
@@ -422,8 +423,11 @@ main { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding
 
 /* ===== Rating ===== */
 .rating-section { margin-top: 2rem; }
-.star { font-size: 2rem; cursor: pointer; transition: transform .15s; filter: grayscale(1) opacity(.4); }
-.star.active, .star:hover { filter: none; transform: scale(1.2); }
+.star {
+  font-size: 2.2rem; cursor: pointer; color: #444; transition: color .15s, transform .15s;
+}
+.star.active { color: #f59e0b; transform: scale(1.1); }
+.star:hover { color: #f59e0b; }
 
 /* ===== Guide ===== */
 .guide-section { margin-top: 2rem; }
