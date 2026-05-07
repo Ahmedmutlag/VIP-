@@ -261,14 +261,21 @@ function renderInfo(data) {
   selectedFormat = null;
 
   currentFormats.forEach(f => {
+    const isVipFormat = f.label === 'أفضل جودة' ||
+      (f.label.endsWith('p') && parseInt(f.label) >= 1080);
     const btn = document.createElement('button');
-    btn.className = 'format-btn';
+    btn.className = 'format-btn' + (isVipFormat ? ' vip-format' : '');
     btn.innerHTML = `
       <span class="format-label">${f.label}</span>
+      ${isVipFormat ? '<span class="vip-badge">👑 VIP</span>' : ''}
       <span class="format-type">${f.type === 'video' ? '🎬 فيديو' : '🎵 صوت'} · ${f.ext}</span>
       ${f.filesize ? `<span class="format-size">${formatSize(f.filesize)}</span>` : ''}
     `;
     btn.addEventListener('click', () => {
+      if (isVipFormat && !isPremium()) {
+        openRedeemModal();
+        return;
+      }
       document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       selectedFormat = f;
@@ -277,7 +284,13 @@ function renderInfo(data) {
     grid.appendChild(btn);
   });
 
-  if (currentFormats.length > 0) grid.firstChild.click();
+  if (currentFormats.length > 0) {
+    const premium = isPremium();
+    const defaultBtn = [...grid.children].find(b =>
+      premium || !b.classList.contains('vip-format')
+    ) || grid.firstChild;
+    defaultBtn.click();
+  }
 
   let dlBtn = document.getElementById('dlSelBtn');
   if (!dlBtn) {

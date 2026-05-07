@@ -253,6 +253,28 @@
     </div>
   </div>
 
+  <!-- Visitor Stats -->
+  <div class="server-card" style="margin-bottom:1.5rem">
+    <h3>👥 إحصائية الزوار اليومية</h3>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin-bottom:1.2rem">
+      <div style="background:var(--bg2);border-radius:10px;padding:.8rem;text-align:center;border:1px solid rgba(16,185,129,.2)">
+        <div style="font-size:1.8rem;font-weight:900;color:var(--green)" id="visToday">--</div>
+        <div style="font-size:.75rem;color:var(--muted)">اليوم</div>
+      </div>
+      <div style="background:var(--bg2);border-radius:10px;padding:.8rem;text-align:center;border:1px solid var(--border)">
+        <div style="font-size:1.8rem;font-weight:900;color:var(--accent2)" id="visYesterday">--</div>
+        <div style="font-size:.75rem;color:var(--muted)">أمس</div>
+      </div>
+      <div style="background:var(--bg2);border-radius:10px;padding:.8rem;text-align:center;border:1px solid rgba(245,158,11,.2)">
+        <div style="font-size:1.8rem;font-weight:900;color:var(--gold)" id="visWeek">--</div>
+        <div style="font-size:.75rem;color:var(--muted)">هذا الأسبوع</div>
+      </div>
+    </div>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:.6rem">آخر 30 يوم (زوار فريدون يومياً)</div>
+    <div id="visitorChart" style="display:flex;align-items:flex-end;gap:3px;height:80px;padding:0 2px"></div>
+    <div style="display:flex;justify-content:space-between;margin-top:.3rem;font-size:.68rem;color:var(--muted)" id="visitorChartLabels"></div>
+  </div>
+
   <!-- Subscription Codes -->
   <div class="server-card" style="margin-bottom:1.5rem">
     <h3>🔑 أكواد الاشتراك المميز</h3>
@@ -526,6 +548,41 @@ async function checkYtdlpUpdate() {
   } catch {}
 }
 
+async function loadVisitorStats() {
+  try {
+    const res = await fetch('/admin/api/visitor-stats');
+    const d = await res.json();
+    document.getElementById('visToday').textContent = d.today;
+    document.getElementById('visYesterday').textContent = d.yesterday;
+    document.getElementById('visWeek').textContent = d.week;
+
+    const maxVal = Math.max(...d.days.map(x => x.count), 1);
+    const chart = document.getElementById('visitorChart');
+    const labels = document.getElementById('visitorChartLabels');
+    chart.innerHTML = '';
+    labels.innerHTML = '';
+
+    d.days.forEach((day, i) => {
+      const pct = Math.max((day.count / maxVal) * 100, day.count > 0 ? 4 : 1);
+      const isToday = i === d.days.length - 1;
+      const bar = document.createElement('div');
+      bar.style.cssText = `flex:1;height:${pct}%;border-radius:3px 3px 0 0;
+        background:${isToday ? 'var(--green)' : 'var(--accent)'};
+        opacity:${isToday ? 1 : .6};transition:height .4s ease;cursor:default;position:relative`;
+      bar.title = `${day.date}: ${day.count} زائر`;
+      chart.appendChild(bar);
+
+      if (i % 7 === 0 || isToday) {
+        const lbl = document.createElement('span');
+        lbl.textContent = isToday ? 'اليوم' : day.date.slice(5);
+        labels.appendChild(lbl);
+      } else {
+        labels.appendChild(document.createElement('span'));
+      }
+    });
+  } catch {}
+}
+
 async function loadSubscriberStats() {
   try {
     const res = await fetch('/admin/api/subscriber-stats');
@@ -538,8 +595,10 @@ async function loadSubscriberStats() {
 
 loadStats();
 loadSubscriberStats();
+loadVisitorStats();
 setInterval(loadStats, 30000);
-setInterval(loadSubscriberStats, 30000);
+setInterval(loadSubscriberStats, 60000);
+setInterval(loadVisitorStats, 60000);
 setTimeout(checkYtdlpUpdate, 2000);
 
 // ===== Codes =====

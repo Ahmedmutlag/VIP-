@@ -88,7 +88,31 @@ CONFIG_FILE  = Path("data/config.json")
 CODES_FILE   = Path("data/codes.json")
 RATINGS_FILE = Path("data/ratings.json")
 STATS_FILE   = Path("data/stats.json")
+VISITORS_FILE = Path("data/visitors.json")
 CONFIG_FILE.parent.mkdir(exist_ok=True)
+
+def load_visitors():
+    if VISITORS_FILE.exists():
+        try: return json.loads(VISITORS_FILE.read_text())
+        except: pass
+    return {}
+
+def save_visitors(data):
+    cutoff = (datetime.now() - timedelta(days=90)).date().isoformat()
+    data = {k: v for k, v in data.items() if k >= cutoff}
+    VISITORS_FILE.write_text(json.dumps(data))
+
+def record_visit(ip):
+    import hashlib
+    today = datetime.now().date().isoformat()
+    ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:16]
+    visitors = load_visitors()
+    if today not in visitors:
+        visitors[today] = {"count": 0, "ips": []}
+    if ip_hash not in visitors[today]["ips"]:
+        visitors[today]["ips"].append(ip_hash)
+        visitors[today]["count"] = len(visitors[today]["ips"])
+        save_visitors(visitors)
 
 def load_ratings():
     if RATINGS_FILE.exists():
@@ -309,6 +333,7 @@ def submit_rating():
 
 @app.route("/")
 def index():
+    record_visit(get_remote_address())
     return render_template("index.html", stripe_link=STRIPE_PAYMENT_LINK)
 
 
@@ -317,6 +342,23 @@ def index():
 @requires_auth
 def admin():
     return render_template("admin.html")
+
+
+@app.route("/admin/api/visitor-stats")
+@requires_auth
+def admin_visitor_stats():
+    visitors = load_visitors()
+    result = []
+    for i in range(29, -1, -1):
+        date = (datetime.now() - timedelta(days=i)).date().isoformat()
+        count = visitors.get(date, {}).get("count", 0)
+        result.append({"date": date, "count": count})
+    today = datetime.now().date().isoformat()
+    yesterday = (datetime.now() - timedelta(days=1)).date().isoformat()
+    today_count = visitors.get(today, {}).get("count", 0)
+    yesterday_count = visitors.get(yesterday, {}).get("count", 0)
+    week_total = sum(visitors.get((datetime.now() - timedelta(days=i)).date().isoformat(), {}).get("count", 0) for i in range(7))
+    return jsonify({"days": result, "today": today_count, "yesterday": yesterday_count, "week": week_total})
 
 
 @app.route("/admin/api/subscriber-stats")
@@ -1034,8 +1076,12 @@ def start_download():
             "no_warnings": True,
             "noplaylist": True,
             "nocheckcertificate": True,
+            "prefer_ffmpeg": True,
             "progress_hooks": [make_progress_hook(task_id)],
-            "postprocessors": [{"key": "FFmpegVideoConvertor", "preferedformat": "mp4"}],
+            "postprocessors": [
+                {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"},
+                {"key": "FFmpegMetadata", "add_metadata": True},
+            ],
         }
 
         if format_id in ("bestaudio", "bestaudio/best"):
@@ -1043,7 +1089,7 @@ def start_download():
             ydl_opts["postprocessors"] = [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
-                "preferredquality": "192",
+                "preferredquality": "320",
             }]
 
         try:
