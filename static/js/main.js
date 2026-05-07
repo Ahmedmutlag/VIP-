@@ -132,9 +132,31 @@ async function verifyPremiumWithServer() {
 
 verifyPremiumWithServer();
 
+function friendlyError(raw) {
+  if (!raw) return 'حدث خطأ غير متوقع، حاول مرة أخرى';
+  const r = raw.toLowerCase();
+  if (r.includes('unsupported url') || r.includes('غير مدعوم'))
+    return 'هذا الرابط غير مدعوم — تأكد أنه من TikTok أو Instagram أو Facebook أو Pinterest';
+  if (r.includes('private') || r.includes('login') || r.includes('خاص'))
+    return 'الفيديو خاص أو يتطلب تسجيل دخول — جرّب فيديو عاماً';
+  if (r.includes('not found') || r.includes('404') || r.includes('غير موجود'))
+    return 'الفيديو غير موجود أو تم حذفه من المنصة';
+  if (r.includes('geo') || r.includes('region') || r.includes('country'))
+    return 'هذا الفيديو مقيّد في منطقتك الجغرافية';
+  if (r.includes('copyright') || r.includes('حقوق'))
+    return 'لا يمكن تحميل هذا الفيديو بسبب قيود حقوق النشر';
+  if (r.includes('network') || r.includes('connection') || r.includes('timeout') || r.includes('الاتصال'))
+    return 'تعذّر الاتصال بالخادم — تحقق من اتصالك بالإنترنت وحاول مرة أخرى';
+  if (r.includes('الملف لم يُوجد') || r.includes('file not found'))
+    return 'فشل في معالجة الفيديو — حاول بجودة مختلفة أو بعد لحظات';
+  if (r.includes('rate') || r.includes('limit') || r.includes('too many'))
+    return 'طلبات كثيرة — انتظر دقيقة ثم حاول مرة أخرى';
+  return raw;
+}
+
 function showError(msg) {
   const box = document.getElementById('errorBox');
-  document.getElementById('errorText').textContent = msg;
+  document.getElementById('errorText').textContent = friendlyError(msg);
   box.classList.remove('hidden');
 }
 
@@ -236,7 +258,7 @@ async function fetchInfo() {
     document.getElementById('infoSection').classList.remove('hidden');
   } catch {
     document.getElementById('skeletonSection').classList.add('hidden');
-    showError('تعذّر الاتصال بالخادم، حاول مرة أخرى');
+    showError('network');
   }
   setLoading(false);
 }
@@ -370,7 +392,7 @@ async function startDownload() {
     }
     pollProgress(data.task_id);
   } catch {
-    showError('تعذّر بدء التحميل');
+    showError('network');
     document.getElementById('progressSection').classList.add('hidden');
     document.getElementById('infoSection').classList.remove('hidden');
   }
@@ -402,7 +424,7 @@ function pollProgress(taskId) {
         clearInterval(pollInterval);
         document.getElementById('progressSection').classList.add('hidden');
         document.getElementById('infoSection').classList.remove('hidden');
-        showError('فشل التحميل: ' + (data.error || 'خطأ غير معروف'));
+        showError(data.error || '');
       }
     } catch { /* keep polling */ }
   }, 1000);

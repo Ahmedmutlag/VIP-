@@ -48,6 +48,13 @@ def add_cache_headers(response):
     elif path in ('/', '/api/public-stats'):
         response.cache_control.max_age = 60
         response.cache_control.public = True
+
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    if request.is_secure:
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
 
 limiter = Limiter(
@@ -1387,6 +1394,16 @@ def admin_backup_codes():
     resp.headers["Content-Type"] = "application/json"
     resp.headers["Content-Disposition"] = "attachment; filename=vip-codes-backup.json"
     return resp
+
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template("404.html"), 404
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    return render_template("404.html", error_code=500), 500
 
 
 if __name__ == "__main__":

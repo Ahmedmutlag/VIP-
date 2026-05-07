@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% if error_code == 500 %}خطأ في الخادم{% else %}الصفحة غير موجودة{% endif %} — VIP Downloader</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: #0a0a0f;
+      color: #f0f0f8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      text-align: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      opacity: .15;
+      animation: float linear infinite;
+    }
+    @keyframes float {
+      0%   { transform: translateY(110vh) scale(0); opacity: 0; }
+      10%  { opacity: .15; }
+      90%  { opacity: .15; }
+      100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 500px;
+      width: 100%;
+    }
+
+    .code-display {
+      font-size: clamp(6rem, 20vw, 9rem);
+      font-weight: 900;
+      line-height: 1;
+      background: linear-gradient(135deg, #7c3aed, #a855f7, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: .5rem;
+      filter: drop-shadow(0 0 40px rgba(168,85,247,.4));
+    }
+
+    .icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 900;
+      margin-bottom: .6rem;
+    }
+
+    p {
+      color: #8888aa;
+      font-size: .95rem;
+      line-height: 1.7;
+      margin-bottom: 2rem;
+    }
+
+    .btn-home {
+      display: inline-flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .9rem 2rem;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: #fff;
+      text-decoration: none;
+      border-radius: 14px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      transition: opacity .2s, transform .2s;
+      box-shadow: 0 8px 30px rgba(124,58,237,.4);
+    }
+    .btn-home:hover {
+      opacity: .9;
+      transform: translateY(-2px);
+    }
+
+    .divider {
+      width: 60px;
+      height: 3px;
+      background: linear-gradient(90deg, #7c3aed, #06b6d4);
+      border-radius: 2px;
+      margin: 0 auto 1.5rem;
+    }
+
+    .logo {
+      position: fixed;
+      top: 1.2rem;
+      right: 1.5rem;
+      font-weight: 900;
+      font-size: 1.1rem;
+      color: #f0f0f8;
+      text-decoration: none;
+      z-index: 10;
+    }
+    .logo span { color: #a855f7; }
+  </style>
+</head>
+<body>
+  <div class="particles" id="particles"></div>
+
+  <a href="/" class="logo">VIP <span>Downloader</span></a>
+
+  <div class="container">
+    <div class="code-display">{% if error_code == 500 %}500{% else %}404{% endif %}</div>
+    <span class="icon">{% if error_code == 500 %}⚙️{% else %}🔍{% endif %}</span>
+    <div class="divider"></div>
+    <h1>{% if error_code == 500 %}خطأ في الخادم{% else %}الصفحة غير موجودة{% endif %}</h1>
+    <p>
+      {% if error_code == 500 %}
+        حدث خطأ غير متوقع في الخادم. نعمل على إصلاحه في أقرب وقت.<br>
+        حاول مرة أخرى بعد لحظات.
+      {% else %}
+        الصفحة التي تبحث عنها لا توجد أو تم نقلها.<br>
+        لكن يمكنك تحميل فيديوهاتك من الصفحة الرئيسية!
+      {% endif %}
+    </p>
+    <a href="/" class="btn-home">⬇️ العودة للصفحة الرئيسية</a>
+  </div>
+
+  <script>
+    (function() {
+      const container = document.getElementById('particles');
+      const colors = ['#7c3aed', '#a855f7', '#06b6d4', '#10b981'];
+      for (let i = 0; i < 20; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        const size = Math.random() * 14 + 4;
+        p.style.cssText = `
+          width:${size}px; height:${size}px;
+          left:${Math.random() * 100}%;
+          background:${colors[Math.floor(Math.random() * colors.length)]};
+          animation-duration:${Math.random() * 18 + 12}s;
+          animation-delay:${Math.random() * -25}s;
+        `;
+        container.appendChild(p);
+      }
+    })();
+  </script>
+</body>
+</html>

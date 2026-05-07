@@ -70,6 +70,18 @@
   <link rel="apple-touch-icon" href="/static/icons/192" />
   <link rel="icon" type="image/svg+xml" href="/static/icons/32" />
 
+  <!-- Google Search Console — replace content value with your verification token -->
+  <meta name="google-site-verification" content="REPLACE_WITH_YOUR_SEARCH_CONSOLE_TOKEN" />
+
+  <!-- Google Analytics GA4 — replace G-XXXXXXXXXX with your Measurement ID -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+
   <script>
     const AD_WAIT_SECONDS = {{ settings.ad_wait_seconds | default(10) }};
     const RATINGS_ENABLED = {{ 'true' if settings.ratings_enabled else 'false' }};
@@ -437,6 +449,103 @@
         </div>
       </div>
     </section>
+
+    <!-- ===== SEO Descriptive Content ===== -->
+    <section style="padding:0 0 .5rem">
+      <div class="card" style="padding:1.8rem">
+        <h2 style="font-size:1.2rem;font-weight:900;margin-bottom:.8rem">لماذا VIP Downloader؟</h2>
+        <p style="color:var(--muted);font-size:.88rem;line-height:1.9">
+          VIP Downloader هو أسرع وأسهل موقع لتحميل فيديوهات TikTok وInstagram وFacebook وPinterest
+          بدون علامة مائية وبجودة عالية تصل إلى 1080p. لا نحتاج منك أي تسجيل دخول أو تثبيت تطبيق —
+          فقط الصق الرابط وحمّل مجاناً في ثوانٍ. ندعم تحميل الصوت بصيغة MP3 عالية الجودة من أي فيديو.
+          موقعنا يعمل على جميع الأجهزة: الهاتف والكمبيوتر والتابلت.
+        </p>
+      </div>
+    </section>
+
+    <!-- ===== FAQ ===== -->
+    <section id="faq" style="padding:0 0 1rem">
+      <h2 class="section-title">الأسئلة الشائعة</h2>
+      <div style="display:flex;flex-direction:column;gap:.7rem">
+
+        <details class="faq-item">
+          <summary class="faq-q">كيف أحمل فيديو من TikTok بدون علامة مائية؟</summary>
+          <p class="faq-a">افتح تطبيق TikTok واضغط على "مشاركة" ثم "نسخ الرابط"، ثم الصق الرابط في حقل البحث أعلاه واضغط "جلب معلومات الفيديو". اختر "أفضل جودة" وسيُحمَّل الفيديو تلقائياً بدون علامة مائية.</p>
+        </details>
+
+        <details class="faq-item">
+          <summary class="faq-q">هل التحميل مجاني تماماً؟</summary>
+          <p class="faq-a">نعم، التحميل مجاني بالكامل وبدون حدود وبدون تسجيل حساب. المستخدمون المجانيون يشاهدون إعلاناً قصيراً قبل كل تحميل لدعم المنصة.</p>
+        </details>
+
+        <details class="faq-item">
+          <summary class="faq-q">هل يمكنني تحميل فيديوهات Instagram Reels؟</summary>
+          <p class="faq-a">نعم، يمكنك تحميل Reels والبوستات العامة من Instagram بدون تسجيل دخول. الحسابات الخاصة فقط لا يمكن تحميل محتواها.</p>
+        </details>
+
+        <details class="faq-item">
+          <summary class="faq-q">ما هي المنصات المدعومة؟</summary>
+          <p class="faq-a">يدعم الموقع حالياً: TikTok، Instagram (ريلز وبوستات)، Facebook، Pinterest. نعمل على إضافة منصات جديدة باستمرار.</p>
+        </details>
+
+        <details class="faq-item">
+          <summary class="faq-q">كيف أحمّل الصوت فقط من فيديو؟</summary>
+          <p class="faq-a">بعد جلب معلومات الفيديو، ستجد ضمن الجودات المتاحة خياراً باسم "صوت فقط". اختره وسيُحمَّل الصوت بصيغة MP3 عالية الجودة.</p>
+        </details>
+
+        <details class="faq-item">
+          <summary class="faq-q">هل الموقع آمن وهل يحفظ بياناتي؟</summary>
+          <p class="faq-a">الموقع آمن تماماً. لا نحتفظ بأي روابط أو بيانات شخصية. الملفات المحملة تُحذف تلقائياً من خوادمنا بعد 30 دقيقة من معالجتها.</p>
+        </details>
+
+        <details class="faq-item">
+          <summary class="faq-q">لماذا لا يعمل الرابط الذي أدخلته؟</summary>
+          <p class="faq-a">تأكد من أن الرابط صحيح وكامل. الفيديوهات الخاصة أو المقيّدة جغرافياً قد لا تعمل. إذا استمرت المشكلة، جرب نسخ الرابط من التطبيق مباشرة وليس من المتصفح.</p>
+        </details>
+
+      </div>
+    </section>
+
+    <style>
+      .faq-item {
+        background: var(--card, #16161f);
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .faq-q {
+        padding: 1rem 1.2rem;
+        font-weight: 700;
+        font-size: .95rem;
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .8rem;
+        transition: background .2s;
+      }
+      .faq-q::-webkit-details-marker { display: none; }
+      .faq-q::after {
+        content: '+';
+        font-size: 1.3rem;
+        font-weight: 400;
+        color: var(--accent, #a855f7);
+        flex-shrink: 0;
+        transition: transform .25s;
+      }
+      details[open] .faq-q::after { transform: rotate(45deg); }
+      .faq-q:hover { background: rgba(168,85,247,.06); }
+      .faq-a {
+        padding: 0 1.2rem 1rem;
+        color: var(--muted, #8888aa);
+        font-size: .88rem;
+        line-height: 1.75;
+        border-top: 1px solid var(--border, #2a2a3a);
+        margin-top: 0;
+      }
+    </style>
+
   </main>
 
   <!-- ===== Footer Ad ===== -->
