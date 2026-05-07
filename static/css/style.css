@@ -220,15 +220,6 @@ main { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding
 .btn-download-sel:hover { opacity: .9; transform: translateY(-1px); }
 .btn-download-sel:disabled { opacity: .5; cursor: not-allowed; transform: none; }
 
-.sub-hint {
-  margin-top: .6rem; text-align: center; font-size: .82rem;
-  color: var(--muted); opacity: 0; transform: translateY(-4px);
-  transition: opacity .35s ease, transform .35s ease;
-}
-.sub-hint strong { color: #f59e0b; }
-.sub-hint-show { opacity: 1 !important; transform: translateY(0) !important; }
-.sub-hint:hover { color: var(--accent2); }
-
 /* ===== Progress ===== */
 .progress-card { text-align: center; }
 .progress-header { display: flex; justify-content: space-between; margin-bottom: .6rem; }
