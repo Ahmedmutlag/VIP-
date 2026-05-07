@@ -408,6 +408,26 @@ main { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ===== Stats Bar ===== */
+.stats-bar {
+  display: flex; align-items: center; justify-content: center;
+  gap: 1.5rem; margin: 1.5rem auto 0;
+  background: rgba(124,58,237,.08); border: 1px solid rgba(124,58,237,.2);
+  border-radius: 999px; padding: .7rem 2rem; width: fit-content;
+}
+.stat-item { display: flex; flex-direction: column; align-items: center; gap: .1rem; }
+.stat-num { font-size: 1.1rem; font-weight: 900; color: var(--accent2); }
+.stat-desc { font-size: .72rem; color: var(--muted); }
+.stat-divider { width: 1px; height: 30px; background: var(--border); }
+
+/* ===== Rating ===== */
+.rating-section { margin-top: 2rem; }
+.star { font-size: 2rem; cursor: pointer; transition: transform .15s; filter: grayscale(1) opacity(.4); }
+.star.active, .star:hover { filter: none; transform: scale(1.2); }
+
+/* ===== Guide ===== */
+.guide-section { margin-top: 2rem; }
+
 /* ===== Utilities ===== */
 .hidden { display: none !important; }
 

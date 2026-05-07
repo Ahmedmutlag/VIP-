@@ -51,9 +51,19 @@ SMTP_PASS = os.environ.get("SMTP_PASS", "")
 
 reset_tokens = {}  # token -> {"expires": datetime}
 
-CONFIG_FILE = Path("data/config.json")
-CODES_FILE = Path("data/codes.json")
+CONFIG_FILE  = Path("data/config.json")
+CODES_FILE   = Path("data/codes.json")
+RATINGS_FILE = Path("data/ratings.json")
 CONFIG_FILE.parent.mkdir(exist_ok=True)
+
+def load_ratings():
+    if RATINGS_FILE.exists():
+        try: return json.loads(RATINGS_FILE.read_text())
+        except: pass
+    return {"total": 0, "sum": 0, "count": 0}
+
+def save_ratings(data):
+    RATINGS_FILE.write_text(json.dumps(data))
 
 def load_config():
     if CONFIG_FILE.exists():
@@ -198,6 +208,31 @@ def app_icon(size):
 @app.route("/ads.txt")
 def ads_txt():
     return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
+
+
+@app.route("/api/public-stats")
+def public_stats():
+    r = load_ratings()
+    avg = round(r["sum"] / r["count"], 1) if r["count"] > 0 else 5.0
+    return jsonify({
+        "total_downloads": stats["total_downloads"],
+        "rating_avg": avg,
+        "rating_count": r["count"],
+    })
+
+
+@app.route("/api/rate", methods=["POST"])
+def submit_rating():
+    data = request.get_json() or {}
+    stars = int(data.get("stars", 0))
+    if stars < 1 or stars > 5:
+        return jsonify({"error": "تقييم غير صالح"}), 400
+    r = load_ratings()
+    r["count"] += 1
+    r["sum"] += stars
+    save_ratings(r)
+    avg = round(r["sum"] / r["count"], 1)
+    return jsonify({"message": "شكراً على تقييمك!", "avg": avg, "count": r["count"]})
 
 
 @app.route("/")

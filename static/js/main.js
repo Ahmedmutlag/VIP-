@@ -362,12 +362,108 @@ function pollProgress(taskId) {
   }, 1000);
 }
 
+let lastDownloadUrl = '';
+
 function showSuccess(file, filename) {
   const link = document.getElementById('downloadLink');
-  link.href = `/api/file/${file}?name=${encodeURIComponent(filename)}`;
+  lastDownloadUrl = `/api/file/${file}?name=${encodeURIComponent(filename)}`;
+  link.href = lastDownloadUrl;
   link.download = filename;
   document.getElementById('successSection').classList.remove('hidden');
   link.click();
+  saveToHistory(filename, currentUrl);
+}
+
+function copyDownloadLink() {
+  if (!lastDownloadUrl) return;
+  const full = window.location.origin + lastDownloadUrl;
+  navigator.clipboard.writeText(full).then(() => {
+    const btn = document.getElementById('copyLinkBtn');
+    btn.textContent = '✅ تم النسخ!';
+    setTimeout(() => btn.textContent = '🔗 نسخ رابط التحميل', 2000);
+  });
+}
+
+// ===== Download History =====
+function saveToHistory(filename, url) {
+  const history = JSON.parse(localStorage.getItem('dl_history') || '[]');
+  history.unshift({ filename, url, date: new Date().toLocaleDateString('ar') });
+  if (history.length > 10) history.pop();
+  localStorage.setItem('dl_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = JSON.parse(localStorage.getItem('dl_history') || '[]');
+  const section = document.getElementById('historySection');
+  const list = document.getElementById('historyList');
+  if (history.length === 0) { section.classList.add('hidden'); return; }
+  section.classList.remove('hidden');
+  list.innerHTML = history.map(h => `
+    <div style="display:flex;align-items:center;gap:.8rem;background:var(--bg2);border-radius:8px;padding:.6rem 1rem;border:1px solid var(--border)">
+      <span style="font-size:1.2rem">🎬</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.filename}</div>
+        <div style="font-size:.72rem;color:var(--muted)">${h.date}</div>
+      </div>
+      <button onclick="reFetch('${h.url}')" style="background:none;border:1px solid var(--border);border-radius:8px;padding:.3rem .7rem;color:var(--muted);font-size:.75rem;cursor:pointer;white-space:nowrap">إعادة جلب</button>
+    </div>
+  `).join('');
+}
+
+function clearHistory() {
+  localStorage.removeItem('dl_history');
+  renderHistory();
+}
+
+function reFetch(url) {
+  document.getElementById('urlInput').value = url;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  fetchInfo();
+}
+
+// ===== Public Stats =====
+async function loadPublicStats() {
+  try {
+    const res = await fetch('/api/public-stats');
+    const d = await res.json();
+    const total = d.total_downloads;
+    const display = total > 1000
+      ? '+' + Math.floor(total / 1000) + ',000'
+      : total > 0 ? '+' + total : '+10,000';
+    document.getElementById('heroDownloads').textContent = display;
+    if (d.rating_count > 0) {
+      document.getElementById('heroRating').textContent = '⭐ ' + d.rating_avg;
+      document.getElementById('heroRatingCount').textContent = d.rating_count + ' تقييم';
+    }
+  } catch {}
+}
+loadPublicStats();
+renderHistory();
+
+// ===== Rating =====
+const userRated = localStorage.getItem('vip_rated');
+if (userRated) {
+  document.querySelectorAll('.star').forEach((s, i) => {
+    if (i < parseInt(userRated)) s.classList.add('active');
+  });
+  document.getElementById('ratingMsg').textContent = 'شكراً على تقييمك السابق ❤️';
+}
+
+function rate(stars) {
+  if (localStorage.getItem('vip_rated')) return;
+  document.querySelectorAll('.star').forEach((s, i) => {
+    s.classList.toggle('active', i < stars);
+  });
+  fetch('/api/rate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stars }),
+  }).then(r => r.json()).then(d => {
+    localStorage.setItem('vip_rated', stars);
+    document.getElementById('ratingMsg').textContent = d.message + ' — متوسط التقييم: ' + d.avg + ' ⭐ (' + d.count + ' تقييم)';
+    loadPublicStats();
+  });
 }
 
 function resetPage() {
