@@ -16,6 +16,7 @@ from flask import Flask, request, jsonify, send_file, render_template, Response,
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_compress import Compress
 import yt_dlp
 
 
@@ -36,6 +37,18 @@ threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "vip-secret-2026-xk9z")
 CORS(app)
+Compress(app)
+
+@app.after_request
+def add_cache_headers(response):
+    path = request.path
+    if path.startswith('/static/'):
+        response.cache_control.max_age = 604800  # 7 days
+        response.cache_control.public = True
+    elif path in ('/', '/api/public-stats'):
+        response.cache_control.max_age = 60
+        response.cache_control.public = True
+    return response
 
 limiter = Limiter(
     get_remote_address,
