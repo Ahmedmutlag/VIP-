@@ -581,15 +581,34 @@ async function submitRedeemCode() {
 }
 
 function showPremiumWelcome() {
-  const toast = document.createElement('div');
-  toast.style.cssText = `
-    position:fixed; bottom:2rem; left:50%; transform:translateX(-50%);
-    background:linear-gradient(135deg,#f59e0b,#f97316);
-    color:#000; padding:.8rem 1.5rem; border-radius:999px;
-    font-weight:700; font-size:1rem; z-index:9999;
-    box-shadow:0 4px 20px rgba(245,158,11,.4);
-  `;
-  toast.textContent = '⭐ مرحباً بك في VIP المميز! لا إعلانات من الآن';
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 5000);
+  document.getElementById('premiumModal').classList.remove('hidden');
+  document.getElementById('premiumOverlay').classList.remove('hidden');
+}
+
+function closePremiumModal() {
+  document.getElementById('premiumModal').classList.add('hidden');
+  document.getElementById('premiumOverlay').classList.add('hidden');
+}
+
+function shareWhatsApp() {
+  const text = 'جربت موقع VIP Downloader — يحمّل فيديوهات TikTok وInstagram وFacebook وPinterest بجودة عالية وبدون واترمارك 🔥\n\nwww.vip-dl.com';
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+function shareNative() {
+  const data = {
+    title: 'VIP Downloader',
+    text: 'حمّل فيديوهاتك بدون واترمارك من TikTok وInstagram وFacebook وPinterest',
+    url: 'https://www.vip-dl.com',
+  };
+  if (navigator.share) {
+    navigator.share(data).catch(() => {});
+  } else {
+    navigator.clipboard.writeText('https://www.vip-dl.com').then(() => {
+      const btn = event.target.closest('button');
+      const orig = btn.textContent;
+      btn.textContent = '✅ تم نسخ الرابط!';
+      setTimeout(() => btn.textContent = orig, 2000);
+    });
+  }
 }

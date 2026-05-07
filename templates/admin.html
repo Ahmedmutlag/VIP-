@@ -596,10 +596,28 @@ async function loadCodes() {
         <span style="font-size:.78rem;color:var(--muted);flex:1">${c.note ? '👤 ' + c.note : ''} ${c.days ? '· ' + c.days + ' يوم' : ''}</span>
         <span style="font-size:.75rem;padding:.2rem .6rem;border-radius:999px;background:${statusBg};color:${statusColor}">${statusText}</span>
         <span style="font-size:.72rem;color:var(--muted)">${c.expires_at ? '⏰ ' + c.expires_at : c.created_at}</span>
+        <button onclick="extendCode('${c.code}')" style="background:none;border:1px solid rgba(16,185,129,.3);border-radius:6px;color:var(--green);cursor:pointer;font-size:.78rem;padding:.15rem .5rem;flex-shrink:0">+تمديد</button>
         <button onclick="deleteCode('${c.code}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:.85rem;flex-shrink:0">🗑️</button>
       </div>`;
     }).join('');
   } catch {}
+}
+
+async function extendCode(code) {
+  const days = prompt(`تمديد الكود: ${code}\nأدخل عدد الأيام للتمديد:`, '30');
+  if (!days || isNaN(days)) return;
+  try {
+    const res = await fetch('/admin/api/extend-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, days: parseInt(days) }),
+    });
+    const d = await res.json();
+    showToast(res.ok ? '✅ ' + d.message : '❌ ' + d.error, res.ok ? 'var(--green)' : 'var(--red)');
+    loadCodes();
+  } catch {
+    showToast('❌ فشل الاتصال', 'var(--red)');
+  }
 }
 
 async function deleteCode(code) {

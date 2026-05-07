@@ -757,6 +757,32 @@ def list_codes():
     return jsonify(result)
 
 
+@app.route("/admin/api/extend-code", methods=["POST"])
+@requires_auth
+def extend_code():
+    data = request.get_json() or {}
+    code = data.get("code", "").strip()
+    days = int(data.get("days", 30))
+    codes = load_codes()
+    if code not in codes:
+        return jsonify({"error": "الكود غير موجود"}), 404
+    entry = codes[code]
+    if entry.get("expires_at"):
+        try:
+            base = datetime.strptime(entry["expires_at"], "%Y-%m-%d %H:%M")
+            if base < datetime.now():
+                base = datetime.now()
+        except Exception:
+            base = datetime.now()
+    else:
+        base = datetime.now()
+    new_exp = (base + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+    codes[code]["expires_at"] = new_exp
+    codes[code]["used"] = True
+    save_codes(codes)
+    return jsonify({"message": f"تم التمديد حتى {new_exp}"})
+
+
 @app.route("/admin/api/delete-code", methods=["POST"])
 @requires_auth
 def delete_code():
