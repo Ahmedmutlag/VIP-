@@ -88,10 +88,15 @@ document.getElementById('urlInput').addEventListener('keydown', e => {
 // ===== State =====
 let currentUrl = '';
 let currentFormats = [];
+let currentThumbnail = '';
 let selectedFormat = null;
 let pollInterval = null;
 let pendingTaskId = null;
 let pendingFilename = null;
+
+function openOriginalVideo() {
+  if (currentUrl) window.open(currentUrl, '_blank', 'noopener,noreferrer');
+}
 
 // ===== Premium Status =====
 function isPremium() {
@@ -265,12 +270,14 @@ async function fetchInfo() {
 
 function renderInfo(data) {
   const thumb = document.getElementById('thumbnail');
+  const thumbWrap = document.getElementById('thumbWrap');
+  currentThumbnail = data.thumbnail || '';
   if (data.thumbnail) {
     thumb.src = data.thumbnail;
-    thumb.style.display = '';
-    thumb.onerror = () => { thumb.style.display = 'none'; };
+    thumbWrap.style.display = '';
+    thumb.onerror = () => { thumbWrap.style.display = 'none'; };
   } else {
-    thumb.style.display = 'none';
+    thumbWrap.style.display = 'none';
   }
 
   document.getElementById('videoTitle').textContent = data.title || 'فيديو';
@@ -437,6 +444,16 @@ function showSuccess(file, filename) {
   lastDownloadUrl = `/api/file/${file}?name=${encodeURIComponent(filename)}`;
   link.href = lastDownloadUrl;
   link.download = filename;
+
+  const st = document.getElementById('successThumb');
+  if (currentThumbnail) {
+    st.src = currentThumbnail;
+    st.classList.remove('hidden');
+    st.onerror = () => st.classList.add('hidden');
+  } else {
+    st.classList.add('hidden');
+  }
+
   document.getElementById('successSection').classList.remove('hidden');
   link.click();
   launchConfetti();
@@ -578,6 +595,7 @@ function resetPage() {
   hideError();
   currentUrl = '';
   currentFormats = [];
+  currentThumbnail = '';
   selectedFormat = null;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }

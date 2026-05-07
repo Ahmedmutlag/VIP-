@@ -175,7 +175,13 @@
     <section id="infoSection" class="hidden">
       <div class="card info-card">
         <div class="video-meta">
-          <img id="thumbnail" src="" alt="thumbnail" class="thumbnail" />
+          <div class="thumb-wrap" id="thumbWrap" onclick="openOriginalVideo()">
+            <img id="thumbnail" src="" alt="thumbnail" class="thumbnail" />
+            <div class="thumb-play">
+              <div class="thumb-play-icon">▶</div>
+            </div>
+            <span class="thumb-open-hint">فتح الفيديو الأصلي ↗</span>
+          </div>
           <div class="video-details">
             <div id="platformBadge" class="platform-badge"></div>
             <h2 id="videoTitle" class="video-title"></h2>
@@ -241,6 +247,7 @@
     <!-- ===== Success ===== -->
     <section id="successSection" class="hidden">
       <div class="card success-card">
+        <img id="successThumb" src="" alt="" class="success-thumb hidden" />
         <div class="success-icon">✅</div>
         <h3>جاهز للتحميل!</h3>
         <p>تم معالجة الفيديو بنجاح</p>
