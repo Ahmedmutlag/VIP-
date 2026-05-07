@@ -393,6 +393,29 @@ def app_icon(size):
     return resp
 
 
+@app.route("/robots.txt")
+def robots_txt():
+    content = """User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/
+Sitemap: https://www.vip-dl.com/sitemap.xml"""
+    return content, 200, {"Content-Type": "text/plain"}
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://www.vip-dl.com/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>'''
+    return xml, 200, {"Content-Type": "application/xml"}
+
+
 @app.route("/ads.txt")
 def ads_txt():
     return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
