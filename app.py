@@ -46,6 +46,8 @@ ADMIN_PASS = os.environ.get("ADMIN_PASS", "vip2026")
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "ahmed.alabdan2@gmail.com")
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
+RESET_SECRET = os.environ.get("RESET_SECRET", "")
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
 
 reset_tokens = {}  # token -> {"expires": datetime}
 
@@ -297,6 +299,73 @@ input:focus{{border-color:#7c3aed}}
 def admin_logout():
     session.clear()
     return redirect("/admin/login")
+
+
+@app.route("/admin/emergency")
+def admin_emergency():
+    secret = request.args.get("secret", "")
+    new_pass = request.args.get("new_pass", "")
+
+    if not RESET_SECRET:
+        return Response("<h2 style='font-family:sans-serif;color:red'>RESET_SECRET غير مضبوط في المتغيرات</h2>", mimetype="text/html")
+
+    if secret != RESET_SECRET:
+        return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إعادة تعيين طارئة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>*{{box-sizing:border-box;margin:0;padding:0}}body{{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}}.card{{background:#16161f;border:1px solid #2a2a3a;border-radius:20px;padding:2rem;width:100%;max-width:400px}}h2{{margin-bottom:.8rem}}p{{color:#8888aa;font-size:.9rem;margin-bottom:1rem}}input{{width:100%;background:#111118;border:1.5px solid #2a2a3a;border-radius:10px;padding:.8rem 1rem;color:#f0f0f8;font-family:inherit;font-size:1rem;outline:none;margin-bottom:.8rem}}.btn{{width:100%;padding:.9rem;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer}}</style>
+</head><body><div class="card">
+<h2>🔑 إعادة تعيين طارئة</h2>
+<p>أدخل الكلمة السرية وكلمة السر الجديدة</p>
+<input id="s" type="password" placeholder="الكلمة السرية" />
+<input id="p" type="password" placeholder="كلمة السر الجديدة" />
+<button class="btn" onclick="go()">إعادة التعيين</button>
+<script>
+function go(){{
+  const s=document.getElementById('s').value;
+  const p=document.getElementById('p').value;
+  if(!s||!p){{alert('أدخل جميع الحقول');return;}}
+  window.location='/admin/emergency?secret='+encodeURIComponent(s)+'&new_pass='+encodeURIComponent(p);
+}}
+</script>
+</div></body></html>""", mimetype="text/html")
+
+    global ADMIN_PASS
+    if new_pass and len(new_pass) >= 6:
+        ADMIN_PASS = new_pass
+        cfg = load_config()
+        cfg["admin_pass"] = ADMIN_PASS
+        save_config(cfg)
+        session["admin_logged_in"] = True
+        return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><title>تم</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
+<style>body{{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:1rem}}</style>
+</head><body>
+<div style="font-size:3rem">✅</div>
+<h2>تم تغيير كلمة السر بنجاح</h2>
+<a href="/admin" style="color:#a855f7;font-size:1rem">الذهاب للوحة التحكم</a>
+</body></html>""", mimetype="text/html")
+
+    return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إعادة تعيين طارئة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>*{{box-sizing:border-box;margin:0;padding:0}}body{{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}}.card{{background:#16161f;border:1px solid #2a2a3a;border-radius:20px;padding:2rem;width:100%;max-width:400px}}h2{{margin-bottom:.8rem}}p{{color:#10b981;font-size:.9rem;margin-bottom:1rem}}input{{width:100%;background:#111118;border:1.5px solid #2a2a3a;border-radius:10px;padding:.8rem 1rem;color:#f0f0f8;font-family:inherit;font-size:1rem;outline:none;margin-bottom:.8rem}}.btn{{width:100%;padding:.9rem;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer}}</style>
+</head><body><div class="card">
+<h2>🔑 إعادة تعيين طارئة</h2>
+<p>✅ الكلمة السرية صحيحة — أدخل كلمة السر الجديدة</p>
+<input id="p" type="password" placeholder="كلمة السر الجديدة (6 أحرف على الأقل)" />
+<button class="btn" onclick="go()">حفظ كلمة السر الجديدة</button>
+<script>
+function go(){{
+  const p=document.getElementById('p').value;
+  if(p.length<6){{alert('6 أحرف على الأقل');return;}}
+  window.location='/admin/emergency?secret={secret}&new_pass='+encodeURIComponent(p);
+}}
+</script>
+</div></body></html>""", mimetype="text/html")
 
 
 def send_reset_email(token):
