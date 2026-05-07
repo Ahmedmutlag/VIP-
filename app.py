@@ -303,6 +303,32 @@ def admin():
     return render_template("admin.html")
 
 
+@app.route("/admin/api/subscriber-stats")
+@requires_auth
+def subscriber_stats():
+    codes = load_codes()
+    now = datetime.now()
+    total = len(codes)
+    active = 0
+    expired = 0
+    unused = 0
+    for v in codes.values():
+        if not v["used"]:
+            unused += 1
+        elif v.get("expires_at"):
+            try:
+                exp = datetime.strptime(v["expires_at"], "%Y-%m-%d %H:%M")
+                if now > exp:
+                    expired += 1
+                else:
+                    active += 1
+            except Exception:
+                active += 1
+        else:
+            active += 1
+    return jsonify({"total": total, "active": active, "expired": expired, "unused": unused})
+
+
 @app.route("/admin/api/stats")
 @requires_auth
 def admin_stats():

@@ -173,6 +173,21 @@
       <span class="stat-label">مهام جارية</span>
       <span class="stat-value gold" id="activeTasks">--</span>
     </div>
+    <div class="stat-card green">
+      <span class="stat-icon">👑</span>
+      <span class="stat-label">مشتركون فعّالون</span>
+      <span class="stat-value green" id="activeSubs">--</span>
+    </div>
+    <div class="stat-card purple">
+      <span class="stat-icon">🔑</span>
+      <span class="stat-label">أكواد غير مستخدمة</span>
+      <span class="stat-value purple" id="unusedCodes">--</span>
+    </div>
+    <div class="stat-card red">
+      <span class="stat-icon">⌛</span>
+      <span class="stat-label">اشتراكات منتهية</span>
+      <span class="stat-value red" id="expiredSubs">--</span>
+    </div>
   </div>
 
   <!-- Server Info -->
@@ -511,8 +526,20 @@ async function checkYtdlpUpdate() {
   } catch {}
 }
 
+async function loadSubscriberStats() {
+  try {
+    const res = await fetch('/admin/api/subscriber-stats');
+    const d = await res.json();
+    document.getElementById('activeSubs').textContent = d.active;
+    document.getElementById('unusedCodes').textContent = d.unused;
+    document.getElementById('expiredSubs').textContent = d.expired;
+  } catch {}
+}
+
 loadStats();
+loadSubscriberStats();
 setInterval(loadStats, 30000);
+setInterval(loadSubscriberStats, 30000);
 setTimeout(checkYtdlpUpdate, 2000);
 
 // ===== Codes =====
