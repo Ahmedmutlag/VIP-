@@ -454,17 +454,17 @@ function highlightStars(n, cls) {
 
 stars.forEach((s, idx) => {
   s.addEventListener('mouseenter', () => {
-    if (!localStorage.getItem('vip_rated')) highlightStars(idx + 1, 'hover-active');
+    highlightStars(idx + 1, 'hover-active');
   });
   s.addEventListener('mouseleave', () => {
-    if (!localStorage.getItem('vip_rated')) highlightStars(selectedStars, 'active');
+    highlightStars(selectedStars, 'active');
   });
   s.addEventListener('click', () => {
-    if (localStorage.getItem('vip_rated')) return;
     selectedStars = idx + 1;
     highlightStars(selectedStars, 'active');
     document.getElementById('submitRatingBtn').style.display = 'inline-block';
     document.getElementById('ratingMsg').textContent = '';
+    document.getElementById('ratingMsg').style.color = 'var(--muted)';
   });
 });
 
@@ -472,11 +472,11 @@ const userRated = localStorage.getItem('vip_rated');
 if (userRated) {
   selectedStars = parseInt(userRated);
   highlightStars(selectedStars, 'active');
-  document.getElementById('ratingMsg').textContent = 'شكراً على تقييمك السابق ❤️';
+  document.getElementById('ratingMsg').textContent = 'قيّمت سابقاً — يمكنك تغيير تقييمك';
 }
 
 function submitRating() {
-  if (!selectedStars || localStorage.getItem('vip_rated')) return;
+  if (!selectedStars) return;
   const btn = document.getElementById('submitRatingBtn');
   btn.disabled = true;
   btn.textContent = 'جاري الإرسال...';
