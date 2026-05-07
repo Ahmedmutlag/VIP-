@@ -88,8 +88,19 @@ CONFIG_FILE  = Path("data/config.json")
 CODES_FILE   = Path("data/codes.json")
 RATINGS_FILE = Path("data/ratings.json")
 STATS_FILE   = Path("data/stats.json")
-VISITORS_FILE = Path("data/visitors.json")
+VISITORS_FILE     = Path("data/visitors.json")
+DOWNLOAD_LOG_FILE = Path("data/download_log.json")
+HOURLY_STATS_FILE = Path("data/hourly_stats.json")
+DAILY_STATS_FILE  = Path("data/daily_stats.json")
+SETTINGS_FILE     = Path("data/settings.json")
 CONFIG_FILE.parent.mkdir(exist_ok=True)
+
+DEFAULT_SETTINGS = {
+    "ad_wait_seconds": 10,
+    "maintenance_mode": False,
+    "ratings_enabled": True,
+    "welcome_message": "",
+}
 
 def load_visitors():
     if VISITORS_FILE.exists():
@@ -102,16 +113,73 @@ def save_visitors(data):
     data = {k: v for k, v in data.items() if k >= cutoff}
     VISITORS_FILE.write_text(json.dumps(data))
 
-def record_visit(ip):
+def load_settings():
+    if SETTINGS_FILE.exists():
+        try:
+            s = json.loads(SETTINGS_FILE.read_text())
+            return {**DEFAULT_SETTINGS, **s}
+        except: pass
+    return dict(DEFAULT_SETTINGS)
+
+def save_settings(data):
+    SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False))
+
+def load_download_log():
+    if DOWNLOAD_LOG_FILE.exists():
+        try: return json.loads(DOWNLOAD_LOG_FILE.read_text())
+        except: pass
+    return []
+
+def save_download_log(data):
+    DOWNLOAD_LOG_FILE.write_text(json.dumps(data, ensure_ascii=False))
+
+def load_hourly_stats():
+    if HOURLY_STATS_FILE.exists():
+        try: return json.loads(HOURLY_STATS_FILE.read_text())
+        except: pass
+    return {str(h): 0 for h in range(24)}
+
+def save_hourly_stats(data):
+    HOURLY_STATS_FILE.write_text(json.dumps(data))
+
+def load_daily_stats():
+    if DAILY_STATS_FILE.exists():
+        try: return json.loads(DAILY_STATS_FILE.read_text())
+        except: pass
+    return {}
+
+def save_daily_stats(data):
+    cutoff = (datetime.now() - timedelta(days=60)).date().isoformat()
+    data = {k: v for k, v in data.items() if k >= cutoff}
+    DAILY_STATS_FILE.write_text(json.dumps(data))
+
+def detect_device(ua_string):
+    ua = (ua_string or "").lower()
+    if any(x in ua for x in ["mobile", "android", "iphone", "ipad", "tablet"]):
+        return "mobile"
+    return "desktop"
+
+def record_visit(ip, user_agent=""):
     import hashlib
     today = datetime.now().date().isoformat()
     ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:16]
+    device = detect_device(user_agent)
     visitors = load_visitors()
+    is_new = not any(
+        ip_hash in v.get("ips", [])
+        for d, v in visitors.items() if d != today
+    )
     if today not in visitors:
-        visitors[today] = {"count": 0, "ips": []}
-    if ip_hash not in visitors[today]["ips"]:
-        visitors[today]["ips"].append(ip_hash)
-        visitors[today]["count"] = len(visitors[today]["ips"])
+        visitors[today] = {"count": 0, "ips": [], "mobile": 0, "desktop": 0, "new": 0, "returning": 0}
+    day = visitors[today]
+    for k in ("mobile", "desktop", "new", "returning"):
+        if k not in day: day[k] = 0
+    if ip_hash not in day["ips"]:
+        day["ips"].append(ip_hash)
+        day["count"] = len(day["ips"])
+        day[device] += 1
+        day["new" if is_new else "returning"] += 1
+        visitors[today] = day
         save_visitors(visitors)
 
 def load_ratings():
@@ -180,7 +248,7 @@ stats = {
 stats_lock = threading.Lock()
 
 
-def record_download(platform, success, error_msg=""):
+def record_download(platform, success, error_msg="", duration=0):
     with stats_lock:
         today = datetime.now().date().isoformat()
         if stats["last_reset_date"] != today:
@@ -207,6 +275,25 @@ def record_download(platform, success, error_msg=""):
             "failed_downloads": stats["failed_downloads"],
             "platform_counts": stats["platform_counts"],
         })
+
+    log = load_download_log()
+    log.insert(0, {
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "platform": platform,
+        "status": "success" if success else "failed",
+        "duration": round(duration, 1),
+    })
+    save_download_log(log[:20])
+
+    hour = str(datetime.now().hour)
+    hourly = load_hourly_stats()
+    hourly[hour] = hourly.get(hour, 0) + 1
+    save_hourly_stats(hourly)
+
+    today_str = datetime.now().date().isoformat()
+    daily = load_daily_stats()
+    daily[today_str] = daily.get(today_str, 0) + 1
+    save_daily_stats(daily)
 
 
 def detect_platform(url):
@@ -333,8 +420,11 @@ def submit_rating():
 
 @app.route("/")
 def index():
-    record_visit(get_remote_address())
-    return render_template("index.html", stripe_link=STRIPE_PAYMENT_LINK)
+    cfg = load_settings()
+    if cfg.get("maintenance_mode"):
+        return render_template("maintenance.html"), 503
+    record_visit(get_remote_address(), request.headers.get("User-Agent", ""))
+    return render_template("index.html", stripe_link=STRIPE_PAYMENT_LINK, settings=cfg)
 
 
 # ===== Admin Dashboard =====
@@ -1067,6 +1157,7 @@ def start_download():
     progress_store[task_id] = {"status": "starting", "percent": 0}
 
     def do_download():
+        _start = time.time()
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
         ydl_opts = {
             "format": format_id,
@@ -1107,14 +1198,14 @@ def start_download():
                     "file": task_id + ext,
                     "filename": safe_title + ext,
                 }
-                record_download(platform, True)
+                record_download(platform, True, duration=time.time()-_start)
             else:
                 progress_store[task_id] = {"status": "error", "error": "الملف لم يُوجد"}
-                record_download(platform, False, "الملف لم يُوجد")
+                record_download(platform, False, "الملف لم يُوجد", duration=time.time()-_start)
         except Exception as e:
             err = str(e)[:200]
             progress_store[task_id] = {"status": "error", "error": err}
-            record_download(platform, False, err)
+            record_download(platform, False, err, duration=time.time()-_start)
 
     threading.Thread(target=do_download, daemon=True).start()
     return jsonify({"task_id": task_id})
@@ -1139,6 +1230,121 @@ def serve_file(filename):
 
     download_name = request.args.get("name", filename)
     return send_file(filepath, as_attachment=True, download_name=download_name)
+
+
+@app.route("/admin/api/download-trend")
+@requires_auth
+def admin_download_trend():
+    days = int(request.args.get("days", 7))
+    daily = load_daily_stats()
+    result = []
+    for i in range(days - 1, -1, -1):
+        date = (datetime.now() - timedelta(days=i)).date().isoformat()
+        result.append({"date": date, "count": daily.get(date, 0)})
+    return jsonify(result)
+
+
+@app.route("/admin/api/hourly-stats")
+@requires_auth
+def admin_hourly_stats():
+    hourly = load_hourly_stats()
+    result = [{"hour": h, "count": hourly.get(str(h), 0)} for h in range(24)]
+    return jsonify(result)
+
+
+@app.route("/admin/api/recent-downloads")
+@requires_auth
+def admin_recent_downloads():
+    return jsonify(load_download_log())
+
+
+@app.route("/admin/api/subscriber-list")
+@requires_auth
+def admin_subscriber_list():
+    codes = load_codes()
+    now = datetime.now()
+    result = []
+    for code, v in codes.items():
+        if not v.get("used"):
+            continue
+        days_left = None
+        expired = False
+        if v.get("expires_at"):
+            try:
+                exp = datetime.strptime(v["expires_at"], "%Y-%m-%d %H:%M")
+                days_left = max(0, (exp - now).days)
+                expired = now > exp
+            except Exception:
+                pass
+        if not expired:
+            result.append({
+                "code": code,
+                "note": v.get("note", ""),
+                "days_left": days_left,
+                "expires_at": v.get("expires_at", ""),
+            })
+    result.sort(key=lambda x: x["days_left"] if x["days_left"] is not None else 9999)
+    return jsonify(result)
+
+
+@app.route("/admin/api/visitor-device-stats")
+@requires_auth
+def admin_visitor_device_stats():
+    visitors = load_visitors()
+    mobile = sum(v.get("mobile", 0) for v in visitors.values())
+    desktop = sum(v.get("desktop", 0) for v in visitors.values())
+    new_v = sum(v.get("new", 0) for v in visitors.values())
+    returning = sum(v.get("returning", 0) for v in visitors.values())
+    hourly = load_hourly_stats()
+    peak = max(range(24), key=lambda h: hourly.get(str(h), 0))
+    return jsonify({"mobile": mobile, "desktop": desktop, "new": new_v, "returning": returning, "peak_hour": peak})
+
+
+@app.route("/admin/api/test-url", methods=["POST"])
+@requires_auth
+def admin_test_url():
+    url = (request.get_json() or {}).get("url", "").strip()
+    if not url:
+        return jsonify({"error": "أدخل رابطاً"}), 400
+    try:
+        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "noplaylist": True}) as ydl:
+            info = ydl.extract_info(url, download=False)
+        mins = int((info.get("duration") or 0) // 60)
+        secs = int((info.get("duration") or 0) % 60)
+        return jsonify({
+            "ok": True,
+            "title": info.get("title", "—")[:80],
+            "platform": info.get("extractor_key", "—"),
+            "duration": f"{mins}:{secs:02d}" if info.get("duration") else "—",
+            "formats": len(info.get("formats") or []),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)[:200]}), 422
+
+
+@app.route("/admin/api/settings", methods=["GET", "POST"])
+@requires_auth
+def admin_settings_api():
+    if request.method == "GET":
+        return jsonify(load_settings())
+    data = request.get_json() or {}
+    s = load_settings()
+    for k, v in data.items():
+        if k in DEFAULT_SETTINGS:
+            s[k] = v
+    save_settings(s)
+    return jsonify({"message": "تم الحفظ بنجاح"})
+
+
+@app.route("/admin/api/backup-codes")
+@requires_auth
+def admin_backup_codes():
+    codes = load_codes()
+    from flask import make_response
+    resp = make_response(json.dumps(codes, ensure_ascii=False, indent=2))
+    resp.headers["Content-Type"] = "application/json"
+    resp.headers["Content-Disposition"] = "attachment; filename=vip-codes-backup.json"
+    return resp
 
 
 if __name__ == "__main__":

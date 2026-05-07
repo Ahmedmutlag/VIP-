@@ -315,7 +315,7 @@ function showAdModal() {
   const skipBtn = document.getElementById('adSkipBtn');
   const progressFill = document.getElementById('adProgressFill');
 
-  let seconds = 10;
+  let seconds = (typeof AD_WAIT_SECONDS !== 'undefined') ? AD_WAIT_SECONDS : 10;
   skipBtn.disabled = true;
   countdownEl.textContent = seconds;
   progressFill.style.width = '0%';
