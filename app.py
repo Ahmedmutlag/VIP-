@@ -847,7 +847,10 @@ def check_updates():
     try:
         with urllib.request.urlopen("https://pypi.org/pypi/yt-dlp/json", timeout=6) as resp:
             latest = json.loads(resp.read())["info"]["version"]
-        needs_update = latest != current
+        def ver_tuple(v):
+            try: return tuple(int(x) for x in v.split('.'))
+            except: return (0,)
+        needs_update = ver_tuple(latest) > ver_tuple(current)
         return jsonify({"current": current, "latest": latest, "needs_update": needs_update})
     except Exception:
         return jsonify({"current": current, "latest": None, "needs_update": False})
