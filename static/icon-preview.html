@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  body { font-family:'Cairo',sans-serif; background:#0a0a0f; color:#f0f0f8; display:flex; flex-direction:column; align-items:center; padding:3rem 1rem; gap:3rem; }
+  .row { display:flex; gap:3rem; flex-wrap:wrap; justify-content:center; }
+  .item { display:flex; flex-direction:column; align-items:center; gap:1rem; }
+  .label { font-size:1rem; font-weight:700; color:#a855f7; }
+  .desc { font-size:.8rem; color:#8888aa; text-align:center; max-width:160px; }
+  h1 { color:#f0f0f8; font-size:1.4rem; margin-bottom:0; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;900&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<h1>🎨 اختر إيقونة التطبيق</h1>
+<div class="row">
+
+  <!-- 1: الماسة الذهبية -->
+  <div class="item">
+    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 512 512">
+      <defs>
+        <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#1a0533"/>
+          <stop offset="100%" stop-color="#6d28d9"/>
+        </linearGradient>
+        <linearGradient id="gold1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#fbbf24"/>
+          <stop offset="100%" stop-color="#f59e0b"/>
+        </linearGradient>
+        <linearGradient id="diamond" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#e9d5ff"/>
+          <stop offset="60%" stop-color="#a855f7"/>
+        </linearGradient>
+        <filter id="glow1"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <rect width="512" height="512" rx="110" fill="url(#bg1)"/>
+      <!-- Diamond shape -->
+      <polygon points="256,80 380,200 256,420 132,200" fill="url(#diamond)" opacity=".15"/>
+      <polygon points="256,80 380,200 256,420 132,200" fill="none" stroke="url(#gold1)" stroke-width="6" filter="url(#glow1)"/>
+      <!-- Arrow down inside -->
+      <rect x="232" y="160" width="48" height="140" rx="24" fill="white" filter="url(#glow1)"/>
+      <polygon points="185,270 256,360 327,270" fill="white" filter="url(#glow1)"/>
+      <!-- Gold VIP bar -->
+      <rect x="80" y="418" width="352" height="62" rx="31" fill="url(#gold1)"/>
+      <text x="256" y="464" font-size="46" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" fill="#1a0533" letter-spacing="8">VIP</text>
+    </svg>
+    <span class="label">1 — الماسة الذهبية</span>
+    <span class="desc">ماسة بنفسجية + سهم تحميل + شريط VIP ذهبي</span>
+  </div>
+
+  <!-- 2: السهم الدائري -->
+  <div class="item">
+    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 512 512">
+      <defs>
+        <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#0f172a"/>
+          <stop offset="100%" stop-color="#1e1b4b"/>
+        </linearGradient>
+        <linearGradient id="circle2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#7c3aed"/>
+          <stop offset="100%" stop-color="#06b6d4"/>
+        </linearGradient>
+        <filter id="glow2"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <rect width="512" height="512" rx="110" fill="url(#bg2)"/>
+      <!-- Outer glow ring -->
+      <circle cx="256" cy="230" r="165" fill="none" stroke="url(#circle2)" stroke-width="3" opacity=".4"/>
+      <circle cx="256" cy="230" r="140" fill="url(#circle2)" opacity=".12"/>
+      <!-- Big circle bg -->
+      <circle cx="256" cy="230" r="120" fill="url(#circle2)" filter="url(#glow2)"/>
+      <!-- Arrow -->
+      <rect x="228" y="130" width="56" height="135" rx="28" fill="white"/>
+      <polygon points="190,240 256,330 322,240" fill="white"/>
+      <!-- VIP text bottom -->
+      <text x="256" y="470" font-size="80" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" fill="url(#circle2)" filter="url(#glow2)" letter-spacing="4">VIP</text>
+    </svg>
+    <span class="label">2 — السهم الدائري</span>
+    <span class="desc">دائرة متدرجة بنفسجية + أزرق مع سهم أبيض ضخم</span>
+  </div>
+
+  <!-- 3: الكأس الفاخر -->
+  <div class="item">
+    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 512 512">
+      <defs>
+        <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#0a0a0f"/>
+          <stop offset="100%" stop-color="#1c0a2e"/>
+        </linearGradient>
+        <linearGradient id="gold3" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#fcd34d"/>
+          <stop offset="50%" stop-color="#f59e0b"/>
+          <stop offset="100%" stop-color="#d97706"/>
+        </linearGradient>
+        <filter id="glow3"><feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <rect width="512" height="512" rx="110" fill="url(#bg3)"/>
+      <!-- Gold frame border -->
+      <rect x="18" y="18" width="476" height="476" rx="100" fill="none" stroke="url(#gold3)" stroke-width="8" opacity=".5"/>
+      <!-- Trophy cup -->
+      <path d="M 168,100 L 344,100 L 320,260 Q 256,300 192,260 Z" fill="url(#gold3)" filter="url(#glow3)"/>
+      <!-- Cup handles -->
+      <path d="M 168,130 Q 110,130 110,185 Q 110,230 168,230" fill="none" stroke="url(#gold3)" stroke-width="18" stroke-linecap="round"/>
+      <path d="M 344,130 Q 402,130 402,185 Q 402,230 344,230" fill="none" stroke="url(#gold3)" stroke-width="18" stroke-linecap="round"/>
+      <!-- Stem -->
+      <rect x="234" y="295" width="44" height="70" rx="8" fill="url(#gold3)"/>
+      <!-- Base -->
+      <rect x="168" y="358" width="176" height="32" rx="16" fill="url(#gold3)"/>
+      <!-- Star on cup -->
+      <text x="256" y="215" font-size="70" text-anchor="middle" fill="white" filter="url(#glow3)">★</text>
+      <!-- VIP below -->
+      <text x="256" y="470" font-size="68" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" fill="url(#gold3)" letter-spacing="6">VIP</text>
+    </svg>
+    <span class="label">3 — الكأس الفاخر</span>
+    <span class="desc">كأس ذهبي فاخر على خلفية سوداء مع إطار ذهبي</span>
+  </div>
+
+</div>
+</body>
+</html>
