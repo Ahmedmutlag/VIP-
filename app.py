@@ -389,6 +389,20 @@ def app_icon(size):
     return resp
 
 
+@app.route("/.well-known/assetlinks.json")
+def asset_links():
+    sha256 = os.environ.get("ANDROID_CERT_SHA256", "REPLACE_WITH_YOUR_SHA256_FINGERPRINT")
+    data = [{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.nazzilhaplus.app",
+            "sha256_cert_fingerprints": [sha256]
+        }
+    }]
+    return jsonify(data)
+
+
 @app.route("/robots.txt")
 def robots_txt():
     content = """User-agent: *
