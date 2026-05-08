@@ -455,9 +455,29 @@ function showSuccess(file, filename) {
   }
 
   document.getElementById('successSection').classList.remove('hidden');
+  showDownloadHint();
   link.click();
   launchConfetti();
   saveToHistory(filename, currentUrl);
+}
+
+function showDownloadHint() {
+  const hint = document.getElementById('downloadHint');
+  if (!hint) return;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isAndroid = /Android/.test(navigator.userAgent);
+  if (isIOS) {
+    hint.innerHTML = `📂 <strong style="color:var(--text)">أين الفيديو؟ (iPhone)</strong><br>
+      <strong>1.</strong> افتح تطبيق <strong>الملفات</strong> ← التنزيلات<br>
+      <strong>2.</strong> اضغط مطولاً على الفيديو ← <strong>مشاركة</strong> ← <strong>احفظ الفيديو</strong><br>
+      <span style="font-size:.75rem">بعدها سيظهر في تطبيق الصور مباشرة ✅</span>`;
+  } else if (isAndroid) {
+    hint.innerHTML = `📂 <strong style="color:var(--text)">أين الفيديو؟ (Android)</strong><br>
+      افتح تطبيق <strong>الملفات</strong> ← مجلد <strong>Downloads</strong><br>
+      <span style="font-size:.75rem">أو تطبيق الصور ← المكتبة ← التنزيلات ✅</span>`;
+  } else {
+    hint.innerHTML = `📂 <strong style="color:var(--text)">أين الفيديو؟</strong> تحقق من مجلد <strong>التنزيلات</strong> على جهازك`;
+  }
 }
 
 function copyDownloadLink() {
