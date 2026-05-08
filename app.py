@@ -389,6 +389,11 @@ def app_icon(size):
     return resp
 
 
+@app.route("/download-app")
+def download_android_app():
+    return send_file("static/android-app.zip", as_attachment=True, download_name="android-app.zip")
+
+
 @app.route("/.well-known/assetlinks.json")
 def asset_links():
     sha256 = os.environ.get("ANDROID_CERT_SHA256", "REPLACE_WITH_YOUR_SHA256_FINGERPRINT")
