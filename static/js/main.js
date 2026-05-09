@@ -74,8 +74,14 @@ function showIOSInstallHint() {
 // ===== Paste Button =====
 document.getElementById('pasteBtn').addEventListener('click', async () => {
   try {
-    const text = await navigator.clipboard.readText();
-    document.getElementById('urlInput').value = text;
+    let text;
+    if (window.AndroidClipboard) {
+      text = window.AndroidClipboard.getText();
+    } else {
+      text = await navigator.clipboard.readText();
+    }
+    if (text) document.getElementById('urlInput').value = text;
+    else document.getElementById('urlInput').focus();
   } catch {
     document.getElementById('urlInput').focus();
   }
