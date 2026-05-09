@@ -1171,7 +1171,7 @@ def get_info():
 
         return jsonify({
             "title": info.get("title", "فيديو"),
-            "thumbnail": info.get("thumbnail"),
+            "thumbnail": info.get("thumbnail") or next((t.get("url") for t in reversed(info.get("thumbnails") or []) if t.get("url")), None),
             "duration": info.get("duration"),
             "uploader": info.get("uploader") or info.get("channel"),
             "platform": info.get("extractor_key", ""),
