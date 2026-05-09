@@ -278,12 +278,24 @@ function renderInfo(data) {
   const thumb = document.getElementById('thumbnail');
   const thumbWrap = document.getElementById('thumbWrap');
   currentThumbnail = data.thumbnail || '';
+  const platformIcons = { Instagram: '📷', TikTok: '🎵', YouTube: '▶️', Twitter: '🐦', Facebook: '👍' };
   if (data.thumbnail) {
     thumb.src = data.thumbnail;
     thumbWrap.style.display = '';
-    thumb.onerror = () => { thumbWrap.style.display = 'none'; };
+    thumb.onerror = () => {
+      thumb.style.display = 'none';
+      thumbWrap.style.display = '';
+      thumbWrap.style.background = 'var(--card)';
+      thumbWrap.style.fontSize = '4rem';
+      thumbWrap.style.justifyContent = 'center';
+      thumbWrap.innerHTML = platformIcons[data.platform] || '🎬';
+    };
   } else {
-    thumbWrap.style.display = 'none';
+    thumbWrap.style.display = '';
+    thumbWrap.style.background = 'var(--card)';
+    thumbWrap.style.fontSize = '4rem';
+    thumbWrap.style.justifyContent = 'center';
+    thumbWrap.innerHTML = platformIcons[data.platform] || '🎬';
   }
 
   document.getElementById('videoTitle').textContent = data.title || 'فيديو';
