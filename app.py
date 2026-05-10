@@ -471,6 +471,11 @@ def index():
     return render_template("index.html", stripe_link=STRIPE_PAYMENT_LINK, settings=cfg)
 
 
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+
 # ===== Admin Dashboard =====
 @app.route("/admin")
 @requires_auth
