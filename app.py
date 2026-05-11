@@ -17,6 +17,7 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_compress import Compress
+from werkzeug.middleware.proxy_fix import ProxyFix
 import yt_dlp
 
 
@@ -36,6 +37,7 @@ threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "vip-secret-2026-xk9z")
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 CORS(app)
 Compress(app)
 
