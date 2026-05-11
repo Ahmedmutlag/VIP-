@@ -2,6 +2,7 @@ package com.nazzilhaplus.app;
 
 import android.Manifest;
 import android.app.DownloadManager;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -14,6 +15,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -60,6 +62,8 @@ public class MainActivity extends AppCompatActivity {
                 return false;
             }
         });
+
+        webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
 
         webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
@@ -136,6 +140,21 @@ public class MainActivity extends AppCompatActivity {
                 && pendingUrl != null) {
             startDownload(pendingUrl, pendingUserAgent, pendingContentDisposition, pendingMimeType);
             pendingUrl = null;
+        }
+    }
+
+    private class AppBridge {
+        @JavascriptInterface
+        public void openPlayStore() {
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW,
+                            Uri.parse("market://details?id=com.nazzilhaplus.app")));
+                } catch (ActivityNotFoundException e) {
+                    startActivity(new Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://play.google.com/store/apps/details?id=com.nazzilhaplus.app")));
+                }
+            });
         }
     }
 

@@ -498,6 +498,20 @@ function showDownloadHint() {
   }
 }
 
+// Show rate button only inside Android app
+if (window.AndroidApp) {
+  const rateBtn = document.createElement('button');
+  rateBtn.innerHTML = '⭐ قيّم التطبيق';
+  rateBtn.style.cssText = `
+    position:fixed; bottom:1.2rem; left:50%; transform:translateX(-50%);
+    background:var(--accent); color:#000; border:none; border-radius:20px;
+    padding:.5rem 1.4rem; font-size:.85rem; font-weight:700;
+    cursor:pointer; z-index:999; box-shadow:0 4px 15px rgba(0,190,255,.4);
+  `;
+  rateBtn.onclick = () => window.AndroidApp.openPlayStore();
+  document.body.appendChild(rateBtn);
+}
+
 function copyDownloadLink() {
   if (!lastDownloadUrl) return;
   const full = window.location.origin + lastDownloadUrl;
