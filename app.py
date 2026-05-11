@@ -11,7 +11,12 @@ import secrets
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+TZ_OFFSET = timedelta(hours=3)  # Arabia Standard Time (UTC+3)
+
+def now():
+    return datetime.now(timezone.utc).astimezone(timezone(TZ_OFFSET)).replace(tzinfo=None)
 from flask import Flask, request, jsonify, send_file, render_template, Response, session, redirect, url_for
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -28,7 +33,7 @@ def auto_update_ytdlp():
             ["pip", "install", "-U", "yt-dlp", "--quiet", "--break-system-packages"],
             timeout=120, check=False
         )
-        stats["ytdlp_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        stats["ytdlp_updated"] = now().strftime("%Y-%m-%d %H:%M")
     except Exception:
         pass
 
@@ -74,8 +79,8 @@ def is_locked(ip):
     if not entry:
         return False, 0
     locked_until = entry.get("locked_until")
-    if locked_until and datetime.now() < locked_until:
-        mins = max(1, int((locked_until - datetime.now()).total_seconds() // 60) + 1)
+    if locked_until and now() < locked_until:
+        mins = max(1, int((locked_until - now()).total_seconds() // 60) + 1)
         return True, mins
     return False, 0
 
@@ -84,7 +89,7 @@ def record_failed_login(ip):
         login_attempts[ip] = {"count": 0, "locked_until": None}
     login_attempts[ip]["count"] += 1
     if login_attempts[ip]["count"] >= 5:
-        login_attempts[ip]["locked_until"] = datetime.now() + timedelta(minutes=15)
+        login_attempts[ip]["locked_until"] = now() + timedelta(minutes=15)
         login_attempts[ip]["count"] = 0
 
 def clear_login_attempts(ip):
@@ -132,7 +137,7 @@ def load_visitors():
     return {}
 
 def save_visitors(data):
-    cutoff = (datetime.now() - timedelta(days=90)).date().isoformat()
+    cutoff = (now() - timedelta(days=90)).date().isoformat()
     data = {k: v for k, v in data.items() if k >= cutoff}
     VISITORS_FILE.write_text(json.dumps(data))
 
@@ -172,7 +177,7 @@ def load_daily_stats():
     return {}
 
 def save_daily_stats(data):
-    cutoff = (datetime.now() - timedelta(days=60)).date().isoformat()
+    cutoff = (now() - timedelta(days=60)).date().isoformat()
     data = {k: v for k, v in data.items() if k >= cutoff}
     DAILY_STATS_FILE.write_text(json.dumps(data))
 
@@ -201,7 +206,7 @@ def record_visit(ip, user_agent=""):
     import hashlib
     if is_bot(user_agent):
         return
-    today = datetime.now().date().isoformat()
+    today = now().date().isoformat()
     ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:16]
     device = detect_device(user_agent)
     visitors = load_visitors()
@@ -271,7 +276,7 @@ if "admin_pass" in config:
 if "admin_user" in config:
     ADMIN_USER = config["admin_user"]
 
-SERVER_START = datetime.now()
+SERVER_START = now()
 
 # ===== Live Stats =====
 _saved = load_stats_file()
@@ -282,7 +287,7 @@ stats = {
     "platform_counts": _saved.get("platform_counts", {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Other": 0}),
     "recent_errors": [],
     "ytdlp_updated": "لم يتم بعد",
-    "last_reset_date": datetime.now().date().isoformat(),
+    "last_reset_date": now().date().isoformat(),
 }
 
 stats_lock = threading.Lock()
@@ -290,7 +295,7 @@ stats_lock = threading.Lock()
 
 def record_download(platform, success, error_msg="", duration=0):
     with stats_lock:
-        today = datetime.now().date().isoformat()
+        today = now().date().isoformat()
         if stats["last_reset_date"] != today:
             stats["today_downloads"] = 0
             stats["last_reset_date"] = today
@@ -304,7 +309,7 @@ def record_download(platform, success, error_msg="", duration=0):
             stats["failed_downloads"] += 1
             if error_msg:
                 stats["recent_errors"].insert(0, {
-                    "time": datetime.now().strftime("%H:%M:%S"),
+                    "time": now().strftime("%H:%M:%S"),
                     "error": error_msg[:120],
                     "platform": platform,
                 })
@@ -318,19 +323,19 @@ def record_download(platform, success, error_msg="", duration=0):
 
     log = load_download_log()
     log.insert(0, {
-        "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "time": now().strftime("%Y-%m-%d %H:%M"),
         "platform": platform,
         "status": "success" if success else "failed",
         "duration": round(duration, 1),
     })
     save_download_log(log[:20])
 
-    hour = str(datetime.now().hour)
+    hour = str(now().hour)
     hourly = load_hourly_stats()
     hourly[hour] = hourly.get(hour, 0) + 1
     save_hourly_stats(hourly)
 
-    today_str = datetime.now().date().isoformat()
+    today_str = now().date().isoformat()
     daily = load_daily_stats()
     daily[today_str] = daily.get(today_str, 0) + 1
     save_daily_stats(daily)
@@ -530,14 +535,14 @@ def admin_visitor_stats():
     visitors = load_visitors()
     result = []
     for i in range(29, -1, -1):
-        date = (datetime.now() - timedelta(days=i)).date().isoformat()
+        date = (now() - timedelta(days=i)).date().isoformat()
         count = visitors.get(date, {}).get("count", 0)
         result.append({"date": date, "count": count})
-    today = datetime.now().date().isoformat()
-    yesterday = (datetime.now() - timedelta(days=1)).date().isoformat()
+    today = now().date().isoformat()
+    yesterday = (now() - timedelta(days=1)).date().isoformat()
     today_count = visitors.get(today, {}).get("count", 0)
     yesterday_count = visitors.get(yesterday, {}).get("count", 0)
-    week_total = sum(visitors.get((datetime.now() - timedelta(days=i)).date().isoformat(), {}).get("count", 0) for i in range(7))
+    week_total = sum(visitors.get((now() - timedelta(days=i)).date().isoformat(), {}).get("count", 0) for i in range(7))
     return jsonify({"days": result, "today": today_count, "yesterday": yesterday_count, "week": week_total})
 
 
@@ -545,7 +550,7 @@ def admin_visitor_stats():
 @requires_auth
 def subscriber_stats():
     codes = load_codes()
-    now = datetime.now()
+    now = now()
     total = len(codes)
     active = 0
     expired = 0
@@ -570,7 +575,7 @@ def subscriber_stats():
 @app.route("/admin/api/stats")
 @requires_auth
 def admin_stats():
-    uptime_sec = int((datetime.now() - SERVER_START).total_seconds())
+    uptime_sec = int((now() - SERVER_START).total_seconds())
     hours = uptime_sec // 3600
     minutes = (uptime_sec % 3600) // 60
     uptime_str = f"{hours} ساعة و {minutes} دقيقة"
@@ -598,7 +603,7 @@ def admin_stats():
         "ytdlp_version": ytdlp_ver,
         "ytdlp_updated": stats["ytdlp_updated"],
         "recent_errors": stats["recent_errors"],
-        "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "server_time": now().strftime("%Y-%m-%d %H:%M:%S"),
     })
 
 
@@ -818,7 +823,7 @@ def send_reset():
         return jsonify({"error": "لم يتم إعداد خدمة الإيميل بعد"}), 500
 
     token = secrets.token_urlsafe(32)
-    reset_tokens[token] = {"expires": datetime.now() + timedelta(minutes=30)}
+    reset_tokens[token] = {"expires": now() + timedelta(minutes=30)}
 
     try:
         send_reset_email(token)
@@ -831,7 +836,7 @@ def send_reset():
 @app.route("/admin/reset")
 def admin_reset_page():
     token = request.args.get("token", "")
-    valid = token in reset_tokens and datetime.now() < reset_tokens[token]["expires"]
+    valid = token in reset_tokens and now() < reset_tokens[token]["expires"]
     status = "valid" if valid else "invalid"
     return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -886,7 +891,7 @@ def do_reset():
     token = data.get("token", "")
     new_pass = data.get("new_pass", "")
 
-    if token not in reset_tokens or datetime.now() > reset_tokens[token]["expires"]:
+    if token not in reset_tokens or now() > reset_tokens[token]["expires"]:
         return jsonify({"error": "الرابط منتهي أو غير صالح"}), 403
     if len(new_pass) < 6:
         return jsonify({"error": "كلمة السر يجب أن تكون 6 أحرف على الأقل"}), 400
@@ -930,7 +935,7 @@ def admin_update_ytdlp():
                 ["pip", "install", "-U", "yt-dlp", "--break-system-packages"],
                 capture_output=True, text=True, timeout=120
             )
-            stats["ytdlp_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            stats["ytdlp_updated"] = now().strftime("%Y-%m-%d %H:%M")
         except Exception:
             pass
     threading.Thread(target=do_update, daemon=True).start()
@@ -967,7 +972,7 @@ def generate_code():
         "used": False,
         "note": note,
         "days": days,
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "created_at": now().strftime("%Y-%m-%d %H:%M"),
         "used_at": None,
         "expires_at": None,
     }
@@ -979,7 +984,7 @@ def generate_code():
 @requires_auth
 def list_codes():
     codes = load_codes()
-    now = datetime.now()
+    now = now()
     result = []
     for k, v in sorted(codes.items(), key=lambda x: x[1]["created_at"], reverse=True):
         entry = {"code": k, **v}
@@ -1011,12 +1016,12 @@ def extend_code():
     if entry.get("expires_at"):
         try:
             base = datetime.strptime(entry["expires_at"], "%Y-%m-%d %H:%M")
-            if base < datetime.now():
-                base = datetime.now()
+            if base < now():
+                base = now()
         except Exception:
-            base = datetime.now()
+            base = now()
     else:
-        base = datetime.now()
+        base = now()
     new_exp = (base + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
     codes[code]["expires_at"] = new_exp
     codes[code]["used"] = True
@@ -1075,7 +1080,7 @@ def redeem_code():
         return jsonify({"error": "هذا الكود مستخدم مسبقاً"}), 409
 
     days = codes[code].get("days", 30)
-    now = datetime.now()
+    now = now()
     from datetime import timedelta
     expires_at = (now + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
 
@@ -1106,7 +1111,7 @@ def check_premium():
     if entry.get("expires_at"):
         try:
             exp = datetime.strptime(entry["expires_at"], "%Y-%m-%d %H:%M")
-            if datetime.now() > exp:
+            if now() > exp:
                 return jsonify({"valid": False, "reason": "expired"})
         except Exception:
             pass
@@ -1332,7 +1337,7 @@ def admin_download_trend():
     daily = load_daily_stats()
     result = []
     for i in range(days - 1, -1, -1):
-        date = (datetime.now() - timedelta(days=i)).date().isoformat()
+        date = (now() - timedelta(days=i)).date().isoformat()
         result.append({"date": date, "count": daily.get(date, 0)})
     return jsonify(result)
 
@@ -1355,7 +1360,7 @@ def admin_recent_downloads():
 @requires_auth
 def admin_subscriber_list():
     codes = load_codes()
-    now = datetime.now()
+    now = now()
     result = []
     for code, v in codes.items():
         if not v.get("used"):
