@@ -175,14 +175,31 @@ def save_daily_stats(data):
     data = {k: v for k, v in data.items() if k >= cutoff}
     DAILY_STATS_FILE.write_text(json.dumps(data))
 
+BOT_KEYWORDS = [
+    "bot", "crawl", "spider", "slurp", "curl", "wget", "python-requests",
+    "scrapy", "facebookexternalhit", "twitterbot", "linkedinbot", "whatsapp",
+    "googlebot", "bingbot", "yandex", "baidu", "duckduck", "semrush",
+    "ahrefsbot", "mj12bot", "dotbot", "petalbot"
+]
+
+def is_bot(ua_string):
+    ua = (ua_string or "").lower()
+    return any(k in ua for k in BOT_KEYWORDS)
+
 def detect_device(ua_string):
     ua = (ua_string or "").lower()
-    if any(x in ua for x in ["mobile", "android", "iphone", "ipad", "tablet"]):
+    # Tablet check before mobile (iPad has "mobile" in some UAs)
+    if any(x in ua for x in ["ipad", "tablet", "kindle", "playbook"]):
+        return "mobile"
+    # Mobile check: Android phones, iPhones, WebView
+    if any(x in ua for x in ["android", "iphone", "ipod", "mobile", "webview", "wv)"]):
         return "mobile"
     return "desktop"
 
 def record_visit(ip, user_agent=""):
     import hashlib
+    if is_bot(user_agent):
+        return
     today = datetime.now().date().isoformat()
     ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:16]
     device = detect_device(user_agent)
@@ -1399,6 +1416,13 @@ def admin_backup_codes():
     resp.headers["Content-Type"] = "application/json"
     resp.headers["Content-Disposition"] = "attachment; filename=vip-codes-backup.json"
     return resp
+
+
+@app.route("/admin/api/reset-visitors", methods=["POST"])
+@requires_auth
+def admin_reset_visitors():
+    VISITORS_FILE.write_text("{}")
+    return jsonify({"ok": True, "message": "تم مسح بيانات الزوار"})
 
 
 @app.errorhandler(404)
