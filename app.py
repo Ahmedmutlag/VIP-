@@ -107,11 +107,12 @@ SMTP_PASS = os.environ.get("SMTP_PASS", "")
 reset_tokens = {}  # token -> {"expires": datetime}
 
 CONFIG_FILE  = Path("data/config.json")
-CODES_FILE   = Path("data/codes.json")
-RATINGS_FILE = Path("data/ratings.json")
-STATS_FILE   = Path("data/stats.json")
+CODES_FILE        = Path("data/codes.json")
+RATINGS_FILE      = Path("data/ratings.json")
+STATS_FILE        = Path("data/stats.json")
 VISITORS_FILE     = Path("data/visitors.json")
 DOWNLOAD_LOG_FILE = Path("data/download_log.json")
+APP_INSTALLS_FILE = Path("data/app_installs.json")
 HOURLY_STATS_FILE = Path("data/hourly_stats.json")
 DAILY_STATS_FILE  = Path("data/daily_stats.json")
 SETTINGS_FILE     = Path("data/settings.json")
@@ -493,6 +494,27 @@ def index():
 @app.route("/privacy")
 def privacy():
     return render_template("privacy.html")
+
+
+@app.route("/api/app-ping", methods=["POST"])
+def app_ping():
+    data = request.get_json() or {}
+    device_id = (data.get("device_id") or "").strip()[:64]
+    if not device_id:
+        return jsonify({"ok": False}), 400
+    installs = json.loads(APP_INSTALLS_FILE.read_text()) if APP_INSTALLS_FILE.exists() else {"devices": [], "total": 0}
+    if device_id not in installs["devices"]:
+        installs["devices"].append(device_id)
+        installs["total"] = len(installs["devices"])
+        APP_INSTALLS_FILE.write_text(json.dumps(installs))
+    return jsonify({"ok": True, "total": installs["total"]})
+
+
+@app.route("/admin/api/app-installs")
+@requires_auth
+def admin_app_installs():
+    installs = json.loads(APP_INSTALLS_FILE.read_text()) if APP_INSTALLS_FILE.exists() else {"devices": [], "total": 0}
+    return jsonify({"total": installs["total"]})
 
 
 # ===== Admin Dashboard =====

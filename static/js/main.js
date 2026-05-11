@@ -1,3 +1,17 @@
+// ===== Android App Install Tracking =====
+if (window.AndroidApp) {
+  let deviceId = localStorage.getItem('_nzp_did');
+  if (!deviceId) {
+    deviceId = 'did_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('_nzp_did', deviceId);
+  }
+  fetch('/api/app-ping', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device_id: deviceId })
+  }).catch(() => {});
+}
+
 // ===== PWA Install =====
 let deferredPrompt = null;
 

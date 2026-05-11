@@ -39,7 +39,7 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
 .page-header p{color:var(--sub);font-size:.85rem;margin-top:.2rem}
 
 /* KPI Cards */
-.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem}
 .kpi-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem;position:relative;overflow:hidden}
 .kpi-card::before{content:'';position:absolute;top:0;right:0;width:4px;height:100%;background:var(--accent)}
 .kpi-card.green::before{background:var(--green)}
@@ -250,6 +250,12 @@ tr:hover td{background:rgba(0,200,255,.03)}
         <div class="kpi-value" id="kpi-failed">—</div>
         <div class="kpi-sub" id="kpi-active-tasks">مهام نشطة: —</div>
         <div class="kpi-icon">❌</div>
+      </div>
+      <div class="kpi-card" style="--accent:#f97316">
+        <div class="kpi-label">مثبّتو التطبيق (Android)</div>
+        <div class="kpi-value" id="kpi-app-installs">—</div>
+        <div class="kpi-sub">أجهزة فريدة</div>
+        <div class="kpi-icon">📱</div>
       </div>
     </div>
 
@@ -672,10 +678,11 @@ function makeDonut(id, labels, data, colors) {
 
 // ===== Overview =====
 async function loadOverview() {
-  const [stats, visitors, dlRaw] = await Promise.all([
+  const [stats, visitors, dlRaw, appData] = await Promise.all([
     fetch('/admin/api/stats').then(r => r.json()).catch(() => ({})),
     fetch('/admin/api/visitor-stats').then(r => r.json()).catch(() => ({})),
     fetch('/admin/api/download-trend?days=30').then(r => r.json()).catch(() => []),
+    fetch('/admin/api/app-installs').then(r => r.json()).catch(() => ({})),
   ]);
   const dl = { days: Array.isArray(dlRaw) ? dlRaw : [] };
   const subs = await fetch('/admin/api/subscriber-stats').then(r => r.json()).catch(() => ({}));
@@ -690,6 +697,7 @@ async function loadOverview() {
   document.getElementById('kpi-total-subs').textContent = 'الإجمالي: ' + (subs.total ?? '—');
   document.getElementById('kpi-failed').textContent = stats.failed_downloads ?? '—';
   document.getElementById('kpi-active-tasks').textContent = 'مهام نشطة: ' + (stats.active_tasks ?? '—');
+  document.getElementById('kpi-app-installs').textContent = appData.total ?? '—';
 
   if (visitors.days) {
     const labels = visitors.days.map(d => d.date.slice(5));
