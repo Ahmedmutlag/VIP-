@@ -409,6 +409,7 @@
         <div class="act-row">
           <button class="abtn abtn-p" onclick="updateYtdlp()">🔄 تحديث yt-dlp</button>
           <button class="abtn abtn-r" onclick="clearFiles()">🗑️ مسح الملفات المؤقتة</button>
+          <button class="abtn abtn-r" onclick="resetVisitors()">📊 مسح إحصائيات الزوار</button>
           <button class="abtn abtn-g" onclick="loadAll()">↻ تحديث البيانات</button>
           <a href="https://www.vip-dl.com" target="_blank" class="abtn abtn-g">🌐 الموقع</a>
           <a href="/admin/api/backup-codes" class="abtn abtn-g">💾 نسخ احتياطي للأكواد</a>
@@ -863,6 +864,16 @@ async function clearFiles() {
     showToast('✅ ' + (await res.json()).message);
     loadStats();
   } catch { showToast('❌ فشل الحذف', 'var(--red)'); }
+}
+
+async function resetVisitors() {
+  if (!confirm('هل تريد مسح جميع إحصائيات الزوار والبدء من صفر؟')) return;
+  try {
+    const res = await fetch('/admin/api/reset-visitors', { method:'POST' });
+    const data = await res.json();
+    showToast('✅ ' + data.message);
+    loadVisitorStats();
+  } catch { showToast('❌ فشل المسح', 'var(--red)'); }
 }
 
 // ===== URL TESTER =====
