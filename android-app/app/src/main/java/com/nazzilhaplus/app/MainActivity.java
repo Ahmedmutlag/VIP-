@@ -88,7 +88,7 @@ public class MainActivity extends AppCompatActivity {
         request.setTitle(filename);
         request.setDescription("نزلها بلس");
         request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DCIM, "NazzilhaPlus/" + filename);
+        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "NazzilhaPlus/" + filename);
         request.addRequestHeader("User-Agent", userAgent);
         String cookie = CookieManager.getInstance().getCookie(url);
         if (cookie != null) request.addRequestHeader("Cookie", cookie);
@@ -116,7 +116,7 @@ public class MainActivity extends AppCompatActivity {
                         MediaScannerConnection.scanFile(context, new String[]{path}, null,
                                 (p, uri) -> runOnUiThread(() ->
                                         Toast.makeText(MainActivity.this,
-                                                "✅ تم الحفظ في المعرض!", Toast.LENGTH_LONG).show()));
+                                                "✅ تم الحفظ في Downloads/NazzilhaPlus", Toast.LENGTH_LONG).show()));
                     } else {
                         runOnUiThread(() ->
                                 Toast.makeText(MainActivity.this,
@@ -127,7 +127,8 @@ public class MainActivity extends AppCompatActivity {
                 try { unregisterReceiver(this); } catch (Exception ignored) {}
             }
         };
-        registerReceiver(receiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+        registerReceiver(receiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                Build.VERSION.SDK_INT >= 33 ? Context.RECEIVER_EXPORTED : 0);
     }
 
     @Override
