@@ -102,6 +102,8 @@
   </style>
   <script>
     if (window.AndroidClipboard) {
+      var appBanner = document.getElementById('appDownloadBanner');
+      if (appBanner) appBanner.style.display = 'none';
       var sp = document.getElementById('splashScreen');
       sp.style.display = 'flex';
       setTimeout(function() {
@@ -341,7 +343,7 @@
     <div id="premiumOverlay" class="ad-overlay hidden" onclick="closePremiumModal()"></div>
 
     <!-- ===== App Download Banner ===== -->
-    <section style="padding:0 0 .5rem">
+    <section id="appDownloadBanner" style="padding:0 0 .5rem">
       <div class="card" style="padding:1.5rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(6,182,212,.1));border:1px solid rgba(124,58,237,.3)">
         <div style="font-size:3rem;flex-shrink:0">📱</div>
         <div style="flex:1;min-width:180px">
