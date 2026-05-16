@@ -299,6 +299,21 @@
     </div>
     <div id="premiumOverlay" class="ad-overlay hidden" onclick="closePremiumModal()"></div>
 
+    <!-- ===== App Download Banner ===== -->
+    <section style="padding:0 0 .5rem">
+      <div class="card" style="padding:1.5rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(6,182,212,.1));border:1px solid rgba(124,58,237,.3)">
+        <div style="font-size:3rem;flex-shrink:0">📱</div>
+        <div style="flex:1;min-width:180px">
+          <h3 style="font-size:1.05rem;font-weight:900;margin-bottom:.3rem">حمّل تطبيق نزلها بلس</h3>
+          <p style="color:var(--muted);font-size:.82rem;line-height:1.6">تجربة أسرع وأسهل على هاتفك — متاح الآن على Google Play</p>
+        </div>
+        <a href="https://play.google.com/store/apps/details?id=com.nazzilhaplus.app" target="_blank"
+          style="display:inline-flex;align-items:center;gap:.5rem;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border-radius:12px;padding:.65rem 1.3rem;text-decoration:none;font-weight:700;font-size:.9rem;white-space:nowrap;flex-shrink:0">
+          تحميل من Play
+        </a>
+      </div>
+    </section>
+
     <!-- ===== Platforms ===== -->
     <section id="platforms" class="platforms-section">
       <h2 class="section-title">المنصات المدعومة</h2>
@@ -573,6 +588,7 @@
     <div class="footer-links">
       <a href="#pricing">الاشتراك المميز</a>
       <a href="#how">كيف يعمل</a>
+      <a href="/privacy">سياسة الخصوصية</a>
     </div>
   </footer>
 
@@ -655,13 +671,14 @@
         <span class="ad-skip-info">يمكنك التخطي بعد <strong id="adCountdown">10</strong> ثواني</span>
       </div>
 
-      <!-- مساحة الإعلان الفعلية -->
-      <div class="ad-modal-content">
-        <!-- AdSense interstitial أو شبكة إعلانات أخرى -->
-        <div class="ad-placeholder large">
-          مساحة إعلانية<br/>
-          <small>ضع هنا كود AdSense أو أي شبكة إعلانات</small>
-        </div>
+      <div class="ad-modal-content" style="padding:.8rem;min-height:200px;display:flex;align-items:center;justify-content:center">
+        <ins class="adsbygoogle"
+             style="display:block;width:100%;min-height:200px"
+             data-ad-client="ca-pub-9098461798177099"
+             data-ad-slot="auto"
+             data-ad-format="rectangle"
+             data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
       </div>
 
       <div class="ad-modal-footer">
