@@ -43,7 +43,7 @@ threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "vip-secret-2026-xk9z")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-CORS(app)
+CORS(app, origins=["https://www.vip-dl.com", "https://vip-dl.com"])
 Compress(app)
 
 @app.after_request
@@ -60,6 +60,16 @@ def add_cache_headers(response):
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com "
+        "https://pagead2.googlesyndication.com https://www.googletagmanager.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self'; "
+        "frame-src https://googleads.g.doubleclick.net https://www.google.com;"
+    )
     if request.is_secure:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
@@ -355,8 +365,13 @@ def detect_platform(url):
 
 
 # ===== Admin Auth =====
+def verify_password(stored, provided):
+    if stored and stored.startswith(("pbkdf2:", "scrypt:")):
+        return check_password_hash(stored, provided)
+    return stored == provided
+
 def check_auth(username, password):
-    return username == ADMIN_USER and password == ADMIN_PASS
+    return username == ADMIN_USER and verify_password(ADMIN_PASS, password)
 
 
 def requires_auth(f):
@@ -707,7 +722,7 @@ function go(){{
 
     global ADMIN_PASS
     if new_pass and len(new_pass) >= 6:
-        ADMIN_PASS = new_pass
+        ADMIN_PASS = generate_password_hash(new_pass)
         cfg = load_config()
         cfg["admin_pass"] = ADMIN_PASS
         save_config(cfg)
@@ -896,7 +911,7 @@ def do_reset():
     if len(new_pass) < 6:
         return jsonify({"error": "كلمة السر يجب أن تكون 6 أحرف على الأقل"}), 400
 
-    ADMIN_PASS = new_pass
+    ADMIN_PASS = generate_password_hash(new_pass)
     del reset_tokens[token]
 
     cfg = load_config()
@@ -1133,7 +1148,7 @@ def change_password():
     if len(new_pass) < 6:
         return jsonify({"error": "كلمة السر الجديدة يجب أن تكون 6 أحرف على الأقل"}), 400
 
-    ADMIN_PASS = new_pass
+    ADMIN_PASS = generate_password_hash(new_pass)
     if new_user:
         ADMIN_USER = new_user
 
