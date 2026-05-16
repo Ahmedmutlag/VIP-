@@ -51,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
