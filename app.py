@@ -517,6 +517,11 @@ def privacy():
     return render_template("privacy.html")
 
 
+@app.route("/how-to-use")
+def how_to_use():
+    return render_template("how-to-use.html")
+
+
 @app.route("/api/app-ping", methods=["POST"])
 def app_ping():
     data = request.get_json() or {}
