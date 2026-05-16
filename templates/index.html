@@ -90,6 +90,17 @@
 <body>
   <div class="bg-particles" id="particles"></div>
 
+  {% if settings.app_update_banner %}
+  <div id="updateBanner" style="background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;text-align:center;padding:.7rem 1rem;font-size:.88rem;font-weight:700;display:none">
+    📲 يتوفر تحديث جديد للتطبيق —
+    <a href="https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"
+       onclick="if(window.AndroidClipboard){event.preventDefault();window.location.href='market://details?id=com.nazzilhaplus.app';}"
+       style="color:#fff;text-decoration:underline">حدّث الآن</a>
+    <button onclick="document.getElementById('updateBanner').style.display='none'" style="background:none;border:none;color:#fff;font-size:1rem;cursor:pointer;margin-right:.5rem">✕</button>
+  </div>
+  <script>if(window.AndroidClipboard) document.getElementById('updateBanner').style.display='block';</script>
+  {% endif %}
+
   <!-- ===== Header ===== -->
   <header class="header">
     <div class="logo">

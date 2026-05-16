@@ -532,6 +532,16 @@ tr:hover td{background:rgba(0,200,255,.03)}
           <span class="toggle-slider"></span>
         </label>
       </div>
+      <div class="toggle-row" style="margin-top:.8rem">
+        <div>
+          <div style="font-size:.9rem">📲 إشعار تحديث التطبيق</div>
+          <div style="font-size:.75rem;color:var(--sub)">يظهر بانر للمستخدمين داخل التطبيق فقط</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="setting-update-banner">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
       <div style="margin-top:1rem">
         <button class="btn btn-primary" onclick="saveSettings()">💾 حفظ الإعدادات</button>
       </div>
@@ -928,12 +938,14 @@ async function loadSettings() {
   if (cfg.smtp_user) document.getElementById('smtp-user').value = cfg.smtp_user;
   document.getElementById('setting-free').checked = cfg.allow_free !== false;
   document.getElementById('maintenance-toggle') && (document.getElementById('maintenance-toggle').checked = cfg.maintenance_mode || false);
+  document.getElementById('setting-update-banner').checked = cfg.app_update_banner || false;
 }
 
 async function saveSettings() {
   const body = {
     ad_wait_seconds: parseInt(document.getElementById('setting-adwait').value) || 0,
     allow_free: document.getElementById('setting-free').checked,
+    app_update_banner: document.getElementById('setting-update-banner').checked,
     smtp_host: document.getElementById('smtp-host').value,
     smtp_port: parseInt(document.getElementById('smtp-port').value) || 587,
     smtp_user: document.getElementById('smtp-user').value,

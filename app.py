@@ -139,6 +139,7 @@ DEFAULT_SETTINGS = {
     "maintenance_mode": False,
     "ratings_enabled": True,
     "welcome_message": "",
+    "app_update_banner": False,
 }
 
 def load_visitors():
