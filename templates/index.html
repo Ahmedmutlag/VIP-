@@ -90,6 +90,27 @@
 <body>
   <div class="bg-particles" id="particles"></div>
 
+  <!-- Splash Screen (App only) -->
+  <div id="splashScreen" style="display:none;position:fixed;inset:0;z-index:9999;background:#0a0a0f;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;transition:opacity .5s ease">
+    <div style="font-size:4rem;animation:splashPulse 1s ease-in-out infinite alternate">⬇️</div>
+    <div style="font-size:1.6rem;font-weight:900;color:#f0f0f8;font-family:'Cairo',sans-serif">نزلها <span style="color:#a855f7">بلس</span></div>
+    <div style="width:48px;height:3px;background:linear-gradient(90deg,#7c3aed,#06b6d4);border-radius:2px;animation:splashBar 1.2s ease-in-out infinite"></div>
+  </div>
+  <style>
+    @keyframes splashPulse { from{transform:scale(1)} to{transform:scale(1.12)} }
+    @keyframes splashBar { 0%,100%{width:30px;opacity:.6} 50%{width:60px;opacity:1} }
+  </style>
+  <script>
+    if (window.AndroidClipboard) {
+      var sp = document.getElementById('splashScreen');
+      sp.style.display = 'flex';
+      setTimeout(function() {
+        sp.style.opacity = '0';
+        setTimeout(function() { sp.style.display = 'none'; }, 500);
+      }, 1800);
+    }
+  </script>
+
   {% if settings.app_update_banner %}
   <div id="updateBanner" style="display:none;position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);z-index:999;width:calc(100% - 2rem);max-width:420px;background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;border-radius:16px;padding:.9rem 1.2rem;box-shadow:0 8px 30px rgba(124,58,237,.5);display:none;align-items:center;gap:.8rem;flex-wrap:wrap">
     <span style="font-size:1.3rem">📲</span>
