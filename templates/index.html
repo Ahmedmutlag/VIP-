@@ -91,14 +91,23 @@
   <div class="bg-particles" id="particles"></div>
 
   {% if settings.app_update_banner %}
-  <div id="updateBanner" style="background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;text-align:center;padding:.7rem 1rem;font-size:.88rem;font-weight:700;display:none;position:relative;z-index:200">
-    📲 يتوفر تحديث جديد للتطبيق —
+  <div id="updateBanner" style="display:none;position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);z-index:999;width:calc(100% - 2rem);max-width:420px;background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;border-radius:16px;padding:.9rem 1.2rem;box-shadow:0 8px 30px rgba(124,58,237,.5);display:none;align-items:center;gap:.8rem;flex-wrap:wrap">
+    <span style="font-size:1.3rem">📲</span>
+    <div style="flex:1;min-width:150px">
+      <div style="font-weight:800;font-size:.92rem">يتوفر تحديث جديد!</div>
+      <div style="font-size:.78rem;opacity:.85">حدّث التطبيق للحصول على أحدث الميزات</div>
+    </div>
     <a href="https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"
        onclick="if(window.AndroidClipboard){event.preventDefault();window.location.href='market://details?id=com.nazzilhaplus.app';}"
-       style="color:#fff;text-decoration:underline">حدّث الآن</a>
-    <button onclick="document.getElementById('updateBanner').style.display='none'" style="background:none;border:none;color:#fff;font-size:1rem;cursor:pointer;margin-right:.5rem">✕</button>
+       style="background:#fff;color:#7c3aed;border-radius:10px;padding:.4rem 1rem;font-weight:800;font-size:.85rem;text-decoration:none;white-space:nowrap">تحديث</a>
+    <button onclick="document.getElementById('updateBanner').style.display='none'" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:.9rem;flex-shrink:0">✕</button>
   </div>
-  <script>if(window.AndroidClipboard) document.getElementById('updateBanner').style.display='block';</script>
+  <script>
+    if(window.AndroidClipboard){
+      var b=document.getElementById('updateBanner');
+      b.style.display='flex';
+    }
+  </script>
   {% endif %}
 
   <!-- ===== Header ===== -->
