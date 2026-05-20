@@ -125,9 +125,19 @@ public class MainActivity extends AppCompatActivity {
                                 cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
                         String path = Uri.parse(localUri).getPath();
                         MediaScannerConnection.scanFile(context, new String[]{path}, null,
-                                (p, uri) -> runOnUiThread(() ->
-                                        Toast.makeText(MainActivity.this,
-                                                "✅ تم الحفظ في Downloads/NazzilhaPlus", Toast.LENGTH_LONG).show()));
+                                (p, uri) -> runOnUiThread(() -> {
+                                    new androidx.appcompat.app.AlertDialog.Builder(MainActivity.this)
+                                        .setTitle("✅ اكتمل التحميل")
+                                        .setMessage("تم حفظ الفيديو في Downloads/NazzilhaPlus")
+                                        .setPositiveButton("فتح الفيديو", (d, w) -> {
+                                            Intent open = new Intent(Intent.ACTION_VIEW);
+                                            open.setDataAndType(uri, "video/*");
+                                            open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                            try { startActivity(open); } catch (Exception ignored) {}
+                                        })
+                                        .setNegativeButton("حسناً", null)
+                                        .show();
+                                }));
                     } else {
                         runOnUiThread(() ->
                                 Toast.makeText(MainActivity.this,
