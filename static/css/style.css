@@ -563,7 +563,8 @@ main { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding
 /* ===== Responsive ===== */
 @media (max-width: 600px) {
   .header { padding: 1rem; }
-  .nav-links { display: none; }
+  .nav-links { display: flex; gap: .6rem; }
+  .nav-links a { font-size: .72rem; }
 .pricing-grid { grid-template-columns: 1fr; }
   .steps-grid { flex-direction: column; }
   .step-arrow { transform: rotate(90deg); }
