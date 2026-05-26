@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>مدونة نزلها بلس - نصائح ودروس تحميل الفيديوهات</title>
+  <meta name="description" content="مقالات ونصائح حول تحميل الفيديوهات من تيك توك وإنستقرام وفيسبوك وبينتريست." />
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-HYY3LFZZCS"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-HYY3LFZZCS');
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+    nav { background: #1a1a2e; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a4a; }
+    .logo { font-size: 1.4rem; font-weight: 700; color: #a855f7; text-decoration: none; }
+    .nav-links a { color: #ccc; text-decoration: none; margin-right: 1.5rem; font-size: .9rem; }
+    .nav-links a:hover { color: #a855f7; }
+    .container { max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
+    h1 { font-size: 2rem; color: #fff; margin-bottom: .5rem; }
+    .subtitle { color: #888; margin-bottom: 2rem; }
+    .articles-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
+    .article-card { background: #1a1a2e; border-radius: 12px; padding: 1.5rem; border: 1px solid #2a2a4a; transition: transform .2s, border-color .2s; text-decoration: none; display: block; }
+    .article-card:hover { transform: translateY(-3px); border-color: #a855f7; }
+    .article-emoji { font-size: 2.5rem; margin-bottom: 1rem; }
+    .article-title { font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: .5rem; line-height: 1.4; }
+    .article-desc { font-size: .85rem; color: #888; line-height: 1.6; margin-bottom: 1rem; }
+    .article-date { font-size: .75rem; color: #555; }
+    footer { text-align: center; padding: 2rem; color: #555; font-size: .8rem; border-top: 1px solid #2a2a4a; margin-top: 3rem; }
+    footer a { color: #a855f7; text-decoration: none; margin: 0 .5rem; }
+  </style>
+</head>
+<body>
+<nav>
+  <a href="/" class="logo">⬇️ نزلها بلس</a>
+  <div class="nav-links">
+    <a href="/">الرئيسية</a>
+    <a href="/how-to-use">كيف تستخدمه</a>
+    <a href="/blog">المدونة</a>
+  </div>
+</nav>
+
+<div class="container">
+  <h1>📝 المدونة</h1>
+  <p class="subtitle">نصائح ودروس حول تحميل الفيديوهات من مختلف المنصات</p>
+
+  <div class="articles-grid">
+    {% for article in articles %}
+    <a href="/blog/{{ article.slug }}" class="article-card">
+      <div class="article-emoji">{{ article.emoji }}</div>
+      <div class="article-title">{{ article.title }}</div>
+      <div class="article-desc">{{ article.description }}</div>
+      <div class="article-date">{{ article.date }}</div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<footer>
+  <a href="/">الرئيسية</a>
+  <a href="/how-to-use">كيف تستخدمه</a>
+  <a href="/about">عن الموقع</a>
+  <a href="/privacy">سياسة الخصوصية</a>
+</footer>
+</body>
+</html>

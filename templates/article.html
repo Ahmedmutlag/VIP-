@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ article.title }} - نزلها بلس</title>
+  <meta name="description" content="{{ article.description }}" />
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-HYY3LFZZCS"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-HYY3LFZZCS');
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+    nav { background: #1a1a2e; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a4a; }
+    .logo { font-size: 1.4rem; font-weight: 700; color: #a855f7; text-decoration: none; }
+    .nav-links a { color: #ccc; text-decoration: none; margin-right: 1.5rem; font-size: .9rem; }
+    .nav-links a:hover { color: #a855f7; }
+    .container { max-width: 750px; margin: 0 auto; padding: 2rem 1rem; }
+    .breadcrumb { font-size: .8rem; color: #555; margin-bottom: 1.5rem; }
+    .breadcrumb a { color: #a855f7; text-decoration: none; }
+    .article-emoji { font-size: 3rem; margin-bottom: 1rem; }
+    h1 { font-size: 1.7rem; color: #fff; margin-bottom: .5rem; line-height: 1.4; }
+    .article-meta { font-size: .8rem; color: #555; margin-bottom: 2rem; }
+    .article-content h2 { font-size: 1.2rem; color: #a855f7; margin: 1.5rem 0 .7rem; }
+    .article-content h3 { font-size: 1rem; color: #ccc; margin: 1rem 0 .5rem; }
+    .article-content p { line-height: 1.8; margin-bottom: 1rem; color: #ccc; }
+    .article-content ol, .article-content ul { padding-right: 1.5rem; margin-bottom: 1rem; }
+    .article-content li { line-height: 1.8; margin-bottom: .3rem; color: #ccc; }
+    .article-content strong { color: #fff; }
+    .cta-box { background: linear-gradient(135deg, #1a1a2e, #2a1a4a); border: 1px solid #a855f7; border-radius: 12px; padding: 1.5rem; margin: 2rem 0; text-align: center; }
+    .cta-box h3 { color: #fff; margin-bottom: .5rem; }
+    .cta-box p { color: #aaa; font-size: .9rem; margin-bottom: 1rem; }
+    .cta-btn { background: #a855f7; color: #fff; padding: .7rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 700; display: inline-block; }
+    .related { margin-top: 2.5rem; }
+    .related h2 { font-size: 1.1rem; color: #fff; margin-bottom: 1rem; }
+    .related-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+    .related-card { background: #1a1a2e; border-radius: 8px; padding: 1rem; border: 1px solid #2a2a4a; text-decoration: none; display: block; }
+    .related-card:hover { border-color: #a855f7; }
+    .related-card .emoji { font-size: 1.5rem; }
+    .related-card .title { font-size: .85rem; color: #ccc; margin-top: .5rem; line-height: 1.3; }
+    footer { text-align: center; padding: 2rem; color: #555; font-size: .8rem; border-top: 1px solid #2a2a4a; margin-top: 3rem; }
+    footer a { color: #a855f7; text-decoration: none; margin: 0 .5rem; }
+  </style>
+</head>
+<body>
+<nav>
+  <a href="/" class="logo">⬇️ نزلها بلس</a>
+  <div class="nav-links">
+    <a href="/">الرئيسية</a>
+    <a href="/how-to-use">كيف تستخدمه</a>
+    <a href="/blog">المدونة</a>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="breadcrumb">
+    <a href="/">الرئيسية</a> ← <a href="/blog">المدونة</a> ← {{ article.title }}
+  </div>
+
+  <div class="article-emoji">{{ article.emoji }}</div>
+  <h1>{{ article.title }}</h1>
+  <div class="article-meta">{{ article.date }}</div>
+
+  <div class="article-content">
+    {{ article.content | safe }}
+  </div>
+
+  <div class="cta-box">
+    <h3>جاهز للتحميل؟</h3>
+    <p>استخدم نزلها بلس لتحميل فيديوهاتك المفضلة مجاناً وبجودة عالية</p>
+    <a href="/" class="cta-btn">ابدأ التحميل الآن ⬇️</a>
+  </div>
+
+  {% set other_articles = articles | selectattr("slug", "ne", article.slug) | list %}
+  {% if other_articles %}
+  <div class="related">
+    <h2>مقالات ذات صلة</h2>
+    <div class="related-grid">
+      {% for a in other_articles[:3] %}
+      <a href="/blog/{{ a.slug }}" class="related-card">
+        <div class="emoji">{{ a.emoji }}</div>
+        <div class="title">{{ a.title }}</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<footer>
+  <a href="/">الرئيسية</a>
+  <a href="/how-to-use">كيف تستخدمه</a>
+  <a href="/blog">المدونة</a>
+  <a href="/about">عن الموقع</a>
+  <a href="/privacy">سياسة الخصوصية</a>
+</footer>
+</body>
+</html>
