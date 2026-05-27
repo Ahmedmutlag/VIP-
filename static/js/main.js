@@ -471,11 +471,43 @@ function pollProgress(taskId) {
 
 let lastDownloadUrl = '';
 
+async function iosShareDownload(url, filename) {
+  const btn = document.getElementById('downloadLink');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '⏳ جاري التحضير...';
+  btn.style.pointerEvents = 'none';
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const ext = filename.split('.').pop() || 'mp4';
+    const mimeType = blob.type || `video/${ext}`;
+    const file = new File([blob], filename, { type: mimeType });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename });
+    } else {
+      window.location.href = url;
+    }
+  } catch {
+    window.location.href = url;
+  } finally {
+    btn.innerHTML = orig;
+    btn.style.pointerEvents = '';
+  }
+}
+
 function showSuccess(file, filename) {
   const link = document.getElementById('downloadLink');
   lastDownloadUrl = `/api/file/${file}?name=${encodeURIComponent(filename)}`;
-  link.href = lastDownloadUrl;
-  link.download = filename;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (isIOS) {
+    link.href = '#';
+    link.removeAttribute('download');
+    link.onclick = (e) => { e.preventDefault(); iosShareDownload(lastDownloadUrl, filename); };
+  } else {
+    link.href = lastDownloadUrl;
+    link.download = filename;
+    link.onclick = null;
+  }
 
   const st = document.getElementById('successThumb');
   if (currentThumbnail) {
@@ -499,10 +531,8 @@ function showDownloadHint() {
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   const isAndroid = /Android/.test(navigator.userAgent);
   if (isIOS) {
-    hint.innerHTML = `📂 <strong style="color:var(--text)">أين الفيديو؟ (iPhone)</strong><br>
-      <strong>1.</strong> افتح تطبيق <strong>الملفات</strong> ← التنزيلات<br>
-      <strong>2.</strong> اضغط مطولاً على الفيديو ← <strong>مشاركة</strong> ← <strong>احفظ الفيديو</strong><br>
-      <span style="font-size:.75rem">بعدها سيظهر في تطبيق الصور مباشرة ✅</span>`;
+    hint.innerHTML = `📲 <strong style="color:var(--text)">iPhone — اضغط "تحميل الفيديو" ثم اختر "Save Video"</strong><br>
+      <span style="font-size:.75rem">سيظهر الفيديو في معرض الصور مباشرة ✅</span>`;
   } else if (isAndroid) {
     hint.innerHTML = `📂 <strong style="color:var(--text)">أين الفيديو؟ (Android)</strong><br>
       افتح تطبيق <strong>الملفات</strong> ← مجلد <strong>Downloads</strong><br>
