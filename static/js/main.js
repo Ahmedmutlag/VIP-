@@ -536,7 +536,7 @@ function showDownloadHint() {
   } else if (isAndroid) {
     hint.innerHTML = `📂 <strong style="color:var(--text)">أين الفيديو؟ (Android)</strong><br>
       افتح تطبيق <strong>الملفات</strong> ← مجلد <strong>Downloads</strong><br>
-      <span style="font-size:.75rem">أو تطبيق الصور ← المكتبة ← التنزيلات ✅</span>`;
+      <span style="font-size:.75rem;color:#f59e0b">⚠️ قد يتأخر ظهوره في معرض الصور — ابحث عنه في الملفات أولاً</span>`;
   } else {
     hint.innerHTML = `📂 <strong style="color:var(--text)">أين الفيديو؟</strong> تحقق من مجلد <strong>التنزيلات</strong> على جهازك`;
   }
