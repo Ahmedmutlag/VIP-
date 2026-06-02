@@ -193,22 +193,22 @@ tr:hover td{background:rgba(0,200,255,.03)}
     <h2>⚡ نزلها بلس</h2>
     <span>لوحة التحكم</span>
   </div>
-  <div class="nav-item active" onclick="showPage('overview')">
+  <div class="nav-item active" onclick="showPage('overview', this)">
     <span class="icon">📊</span> نظرة عامة
   </div>
-  <div class="nav-item" onclick="showPage('visitors')">
+  <div class="nav-item" onclick="showPage('visitors', this)">
     <span class="icon">👥</span> الزوار
   </div>
-  <div class="nav-item" onclick="showPage('downloads')">
+  <div class="nav-item" onclick="showPage('downloads', this)">
     <span class="icon">⬇️</span> التحميلات
   </div>
-  <div class="nav-item" onclick="showPage('subscribers')">
+  <div class="nav-item" onclick="showPage('subscribers', this)">
     <span class="icon">🔑</span> المشتركون
   </div>
-  <div class="nav-item" onclick="showPage('system')">
+  <div class="nav-item" onclick="showPage('system', this)">
     <span class="icon">🖥️</span> النظام
   </div>
-  <div class="nav-item" onclick="showPage('settings')">
+  <div class="nav-item" onclick="showPage('settings', this)">
     <span class="icon">⚙️</span> الإعدادات
   </div>
   <div class="sidebar-bottom">
@@ -640,12 +640,13 @@ function closeSidebar() {
 // ===== Navigation =====
 let allCodes = [];
 
-function showPage(name) {
+function showPage(name, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
-  event.currentTarget.classList.add('active');
   closeSidebar();
+  if (el) el.classList.add('active');
+  else try { event.currentTarget.classList.add('active'); } catch(_) {}
   if (name === 'overview') loadOverview();
   else if (name === 'visitors') loadVisitors();
   else if (name === 'downloads') loadDownloads();
