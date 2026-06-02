@@ -1344,12 +1344,12 @@ def redeem_code():
         return jsonify({"error": "هذا الكود مستخدم مسبقاً"}), 409
 
     days = codes[code].get("days", 30)
-    now = now()
     from datetime import timedelta
-    expires_at = (now + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+    current_time = now()
+    expires_at = (current_time + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
 
     codes[code]["used"] = True
-    codes[code]["used_at"] = now.strftime("%Y-%m-%d %H:%M")
+    codes[code]["used_at"] = current_time.strftime("%Y-%m-%d %H:%M")
     codes[code]["expires_at"] = expires_at
     save_codes(codes)
     return jsonify({
