@@ -814,7 +814,7 @@ def admin_visitor_stats():
 @requires_auth
 def subscriber_stats():
     codes = load_codes()
-    now = now()
+    current_time = now()
     total = len(codes)
     active = 0
     expired = 0
@@ -825,7 +825,7 @@ def subscriber_stats():
         elif v.get("expires_at"):
             try:
                 exp = datetime.strptime(v["expires_at"], "%Y-%m-%d %H:%M")
-                if now > exp:
+                if current_time > exp:
                     expired += 1
                 else:
                     active += 1
@@ -1248,15 +1248,15 @@ def generate_code():
 @requires_auth
 def list_codes():
     codes = load_codes()
-    now = now()
+    current_time = now()
     result = []
     for k, v in sorted(codes.items(), key=lambda x: x[1]["created_at"], reverse=True):
         entry = {"code": k, **v}
         if v["used"] and v.get("expires_at"):
             try:
                 exp = datetime.strptime(v["expires_at"], "%Y-%m-%d %H:%M")
-                entry["expired"] = now > exp
-                entry["days_left"] = max(0, (exp - now).days)
+                entry["expired"] = current_time > exp
+                entry["days_left"] = max(0, (exp - current_time).days)
             except Exception:
                 entry["expired"] = False
                 entry["days_left"] = 0
@@ -1624,7 +1624,7 @@ def admin_recent_downloads():
 @requires_auth
 def admin_subscriber_list():
     codes = load_codes()
-    now = now()
+    current_time = now()
     result = []
     for code, v in codes.items():
         if not v.get("used"):
@@ -1634,8 +1634,8 @@ def admin_subscriber_list():
         if v.get("expires_at"):
             try:
                 exp = datetime.strptime(v["expires_at"], "%Y-%m-%d %H:%M")
-                days_left = max(0, (exp - now).days)
-                expired = now > exp
+                days_left = max(0, (exp - current_time).days)
+                expired = current_time > exp
             except Exception:
                 pass
         if not expired:
