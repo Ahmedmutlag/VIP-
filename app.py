@@ -41,11 +41,20 @@ def auto_update_ytdlp():
 
 threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 
+_server_start = time.time()
+_last_activity = time.time()
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "vip-secret-2026-xk9z")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 CORS(app, origins=["https://www.vip-dl.com", "https://vip-dl.com"])
 Compress(app)
+
+@app.before_request
+def track_activity():
+    global _last_activity
+    _last_activity = time.time()
+
 
 @app.after_request
 def add_cache_headers(response):
@@ -1242,6 +1251,20 @@ def generate_code():
     }
     save_codes(codes)
     return jsonify({"code": code})
+
+
+@app.route("/admin/api/render-ping")
+@requires_auth
+def render_ping():
+    idle_sec = int(time.time() - _last_activity)
+    uptime_sec = int(time.time() - _server_start)
+    sleep_in = max(0, 900 - idle_sec)  # Render sleeps after 15 min (900s)
+    return jsonify({
+        "ok": True,
+        "uptime": uptime_sec,
+        "idle": idle_sec,
+        "sleep_in": sleep_in,
+    })
 
 
 @app.route("/admin/api/codes")

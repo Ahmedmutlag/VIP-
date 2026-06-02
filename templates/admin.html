@@ -473,6 +473,38 @@ tr:hover td{background:rgba(0,200,255,.03)}
       </div>
     </div>
 
+    <!-- Render Sleep Manager -->
+    <div class="section-card" id="render-card">
+      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>🌙 إدارة نوم Render</span>
+        <span id="render-status-badge" class="badge badge-green">● نشط</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1rem">
+        <div style="background:var(--card2);border-radius:10px;padding:.9rem;text-align:center">
+          <div style="color:var(--sub);font-size:.75rem;margin-bottom:.3rem">وقت التشغيل</div>
+          <div id="render-uptime" style="font-size:1.1rem;font-weight:700;color:var(--accent)">—</div>
+        </div>
+        <div style="background:var(--card2);border-radius:10px;padding:.9rem;text-align:center">
+          <div style="color:var(--sub);font-size:.75rem;margin-bottom:.3rem">زمن الاستجابة</div>
+          <div id="render-latency" style="font-size:1.1rem;font-weight:700;color:var(--green)">—</div>
+        </div>
+        <div style="background:var(--card2);border-radius:10px;padding:.9rem;text-align:center;grid-column:1/-1">
+          <div style="color:var(--sub);font-size:.75rem;margin-bottom:.4rem">⏳ وقت حتى النوم</div>
+          <div id="render-sleep-bar" style="background:var(--border);border-radius:20px;height:8px;margin-bottom:.4rem;overflow:hidden">
+            <div id="render-sleep-fill" style="height:100%;background:var(--green);border-radius:20px;transition:width .5s,background .5s;width:100%"></div>
+          </div>
+          <div id="render-sleep-countdown" style="font-size:1.3rem;font-weight:700;color:var(--green)">15:00</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:.7rem;flex-wrap:wrap">
+        <button class="btn btn-primary" style="flex:1" onclick="renderPingNow()">🏓 إيقاظ / قياس</button>
+        <button id="render-auto-btn" class="btn btn-secondary" style="flex:1" onclick="toggleRenderAuto()">⏰ تلقائي: إيقاف</button>
+      </div>
+      <div id="render-auto-hint" style="color:var(--sub);font-size:.75rem;margin-top:.6rem;text-align:center;display:none">
+        يُرسل ping تلقائياً كل 5 دقائق لإبقاء السيرفر مستيقظاً
+      </div>
+    </div>
+
     <div class="section-card">
       <div class="section-title">وضع الصيانة</div>
       <div class="toggle-row">
@@ -618,7 +650,7 @@ function showPage(name) {
   else if (name === 'visitors') loadVisitors();
   else if (name === 'downloads') loadDownloads();
   else if (name === 'subscribers') loadSubscribers();
-  else if (name === 'system') loadSystem();
+  else if (name === 'system') { loadSystem(); renderPingNow(); }
   else if (name === 'settings') loadSettings();
 }
 
@@ -988,6 +1020,101 @@ function logout() {
 
 // ===== Init =====
 loadOverview();
+
+// ===== Render Sleep Manager =====
+let _renderAutoInterval = null;
+let _renderCountdown = 900;
+let _renderCountdownTimer = null;
+
+function fmtUptime(sec) {
+  if (sec < 60) return sec + 'ث';
+  if (sec < 3600) return Math.floor(sec / 60) + 'د ' + (sec % 60) + 'ث';
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  return h + 'س ' + m + 'د';
+}
+
+function updateSleepUI(sleepIn) {
+  _renderCountdown = sleepIn;
+  const pct = (sleepIn / 900) * 100;
+  const fill = document.getElementById('render-sleep-fill');
+  const cd = document.getElementById('render-sleep-countdown');
+  const badge = document.getElementById('render-status-badge');
+  const m = String(Math.floor(sleepIn / 60)).padStart(2, '0');
+  const s = String(sleepIn % 60).padStart(2, '0');
+  cd.textContent = m + ':' + s;
+  fill.style.width = pct + '%';
+  if (sleepIn > 300) {
+    fill.style.background = 'var(--green)';
+    cd.style.color = 'var(--green)';
+    badge.className = 'badge badge-green';
+    badge.textContent = '● نشط';
+  } else if (sleepIn > 60) {
+    fill.style.background = 'var(--orange)';
+    cd.style.color = 'var(--orange)';
+    badge.className = 'badge badge-orange';
+    badge.textContent = '● تحذير';
+  } else {
+    fill.style.background = 'var(--red)';
+    cd.style.color = 'var(--red)';
+    badge.className = 'badge badge-red';
+    badge.textContent = '● قريب من النوم';
+  }
+}
+
+function startCountdownTick() {
+  if (_renderCountdownTimer) clearInterval(_renderCountdownTimer);
+  _renderCountdownTimer = setInterval(() => {
+    if (_renderCountdown > 0) {
+      _renderCountdown--;
+      updateSleepUI(_renderCountdown);
+    }
+  }, 1000);
+}
+
+async function renderPingNow() {
+  const btn = document.querySelector('#render-card .btn-primary');
+  btn.disabled = true;
+  btn.textContent = '⏳ جاري...';
+  const t0 = Date.now();
+  try {
+    const res = await fetch('/admin/api/render-ping');
+    const latency = Date.now() - t0;
+    const data = await res.json();
+    document.getElementById('render-latency').textContent = latency + ' ms';
+    document.getElementById('render-uptime').textContent = fmtUptime(data.uptime);
+    updateSleepUI(data.sleep_in);
+    startCountdownTick();
+    showToast('✅ السيرفر مستيقظ — ' + latency + 'ms');
+  } catch {
+    showToast('❌ لا يوجد اتصال بالسيرفر', 'var(--red)');
+    document.getElementById('render-status-badge').className = 'badge badge-red';
+    document.getElementById('render-status-badge').textContent = '● نائم';
+  }
+  btn.disabled = false;
+  btn.textContent = '🏓 إيقاظ / قياس';
+}
+
+function toggleRenderAuto() {
+  const btn = document.getElementById('render-auto-btn');
+  const hint = document.getElementById('render-auto-hint');
+  if (_renderAutoInterval) {
+    clearInterval(_renderAutoInterval);
+    _renderAutoInterval = null;
+    btn.textContent = '⏰ تلقائي: إيقاف';
+    btn.className = 'btn btn-secondary';
+    hint.style.display = 'none';
+    showToast('تم إيقاف الـ ping التلقائي');
+  } else {
+    _renderAutoInterval = setInterval(renderPingNow, 5 * 60 * 1000);
+    btn.textContent = '⏰ تلقائي: تشغيل ✅';
+    btn.className = 'btn btn-primary';
+    hint.style.display = 'block';
+    renderPingNow();
+    showToast('✅ سيتم إرسال ping كل 5 دقائق');
+  }
+}
+
+
 </script>
 </body>
 </html>
