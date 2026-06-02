@@ -1564,6 +1564,29 @@ def get_info():
         return jsonify({"error": "حدث خطأ غير متوقع"}), 500
 
 
+@app.route("/api/thumb")
+@limiter.limit("60 per minute")
+def proxy_thumbnail():
+    url = request.args.get("url", "").strip()
+    if not url or not url.startswith("http"):
+        return "", 400
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+            "Referer": "https://www.instagram.com/",
+            "Accept": "image/webp,image/avif,image/*,*/*;q=0.8",
+        }
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=8) as r:
+            data = r.read()
+            content_type = r.headers.get("Content-Type", "image/jpeg")
+        resp = Response(data, content_type=content_type)
+        resp.headers["Cache-Control"] = "public, max-age=3600"
+        return resp
+    except Exception:
+        return "", 502
+
+
 @app.route("/api/download", methods=["POST"])
 @limiter.limit("10 per minute")
 def start_download():

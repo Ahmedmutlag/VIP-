@@ -294,7 +294,9 @@ function renderInfo(data) {
   currentThumbnail = data.thumbnail || '';
   const platformIcons = { Instagram: '📷', TikTok: '🎵', YouTube: '▶️', Twitter: '🐦', Facebook: '👍' };
   if (data.thumbnail) {
-    thumb.src = data.thumbnail;
+    // Proxy Instagram/Facebook thumbnails (blocked by CORS/auth when loaded directly)
+    const needsProxy = data.platform === 'Instagram' || data.platform === 'Facebook';
+    thumb.src = needsProxy ? '/api/thumb?url=' + encodeURIComponent(data.thumbnail) : data.thumbnail;
     thumbWrap.style.display = '';
     thumb.onerror = () => {
       thumb.style.display = 'none';
