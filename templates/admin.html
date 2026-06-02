@@ -833,6 +833,14 @@ async function loadSubscribers() {
   renderCodes(codes);
 }
 
+function fmtExpiry(c) {
+  if (!c.used || !c.expires_at) return '—';
+  if (c.expired) return `<span style="color:var(--red);font-size:.75rem">منتهي<br><span style="color:var(--sub)">${c.expires_at}</span></span>`;
+  const d = c.days_left;
+  const color = d <= 3 ? 'var(--red)' : d <= 7 ? 'var(--orange)' : 'var(--green)';
+  return `<span style="color:${color};font-weight:700">${d} يوم متبقي</span><br><span style="color:var(--sub);font-size:.72rem">${c.expires_at}</span>`;
+}
+
 function renderCodes(codes) {
   const tbody = document.getElementById('codes-body');
   tbody.innerHTML = codes.length ? codes.map(c => `
@@ -840,7 +848,7 @@ function renderCodes(codes) {
       <td style="font-family:monospace;font-weight:700;color:var(--accent)">${c.code}</td>
       <td>${c.email||'—'}</td>
       <td>${c.used ? (c.expired ? '<span class="badge badge-red">منتهي</span>' : '<span class="badge badge-green">نشط</span>') : '<span class="badge badge-gray">غير مستخدم</span>'}</td>
-      <td style="font-size:.8rem">${c.expires_at||'—'}</td>
+      <td style="font-size:.8rem">${fmtExpiry(c)}</td>
       <td><button class="del-btn" onclick="deleteCode('${c.code}')">🗑️</button></td>
     </tr>`).join('')
     : '<tr><td colspan="5" style="text-align:center;color:var(--sub)">لا توجد أكواد</td></tr>';

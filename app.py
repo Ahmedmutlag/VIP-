@@ -8,6 +8,7 @@ import functools
 import json
 import smtplib
 import secrets
+import urllib.request
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
@@ -280,7 +281,37 @@ def load_config():
 def save_config(data):
     CONFIG_FILE.write_text(json.dumps(data))
 
+_UPSTASH_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "")
+_UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
+_CODES_REDIS_KEY = "vip_codes"
+
+def _redis(cmd, *args):
+    if not _UPSTASH_URL:
+        return None
+    try:
+        body = json.dumps([cmd] + list(args)).encode()
+        req  = urllib.request.Request(
+            _UPSTASH_URL,
+            data=body,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}",
+                     "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.loads(r.read()).get("result")
+    except Exception:
+        return None
+
 def load_codes():
+    # Try Redis first (persists across Render restarts)
+    if _UPSTASH_URL:
+        raw = _redis("GET", _CODES_REDIS_KEY)
+        if raw:
+            try:
+                return json.loads(raw)
+            except Exception:
+                pass
+    # Fallback: local file
     if CODES_FILE.exists():
         try:
             return json.loads(CODES_FILE.read_text())
@@ -289,7 +320,13 @@ def load_codes():
     return {}
 
 def save_codes(data):
-    CODES_FILE.write_text(json.dumps(data, ensure_ascii=False))
+    value = json.dumps(data, ensure_ascii=False)
+    if _UPSTASH_URL:
+        _redis("SET", _CODES_REDIS_KEY, value)
+    try:
+        CODES_FILE.write_text(value)
+    except Exception:
+        pass
 
 config = load_config()
 if "admin_pass" in config:
