@@ -1225,7 +1225,7 @@ def admin_clear_files():
 def generate_code():
     import secrets
     data = request.get_json() or {}
-    note = data.get("note", "").strip()[:50]
+    email = data.get("email", data.get("note", "")).strip()[:100]
     days = int(data.get("days", 30))
 
     raw = secrets.token_hex(4).upper()
@@ -1234,7 +1234,7 @@ def generate_code():
     codes = load_codes()
     codes[code] = {
         "used": False,
-        "note": note,
+        "email": email,
         "days": days,
         "created_at": now().strftime("%Y-%m-%d %H:%M"),
         "used_at": None,
@@ -1251,7 +1251,7 @@ def list_codes():
     current_time = now()
     result = []
     for k, v in sorted(codes.items(), key=lambda x: x[1]["created_at"], reverse=True):
-        entry = {"code": k, **v}
+        entry = {"code": k, **v, "email": v.get("email") or v.get("note", "")}
         if v["used"] and v.get("expires_at"):
             try:
                 exp = datetime.strptime(v["expires_at"], "%Y-%m-%d %H:%M")
