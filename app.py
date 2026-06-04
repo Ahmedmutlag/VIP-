@@ -1701,30 +1701,41 @@ def serve_file(filename):
 
     download_name = request.args.get("name", filename)
     file_size = filepath.stat().st_size
+    CHUNK = 512 * 1024  # 512 KB per chunk
 
-    # Support range requests so DownloadManager can resume interrupted downloads
     range_header = request.headers.get("Range")
     if range_header:
         try:
             byte_start = int(range_header.replace("bytes=", "").split("-")[0])
         except Exception:
             byte_start = 0
-        chunk_size = file_size - byte_start
+    else:
+        byte_start = 0
+
+    byte_end = file_size - 1
+    content_length = file_size - byte_start
+
+    def stream_file(start):
         with open(filepath, "rb") as f:
-            f.seek(byte_start)
-            data = f.read(chunk_size)
-        resp = Response(
-            data,
-            status=206,
-            mimetype="video/mp4",
-            headers={
-                "Content-Range": f"bytes {byte_start}-{file_size - 1}/{file_size}",
-                "Accept-Ranges": "bytes",
-                "Content-Length": str(chunk_size),
-                "Content-Disposition": f'attachment; filename="{download_name}"',
-            },
-        )
-        return resp
+            f.seek(start)
+            remaining = file_size - start
+            while remaining > 0:
+                data = f.read(min(CHUNK, remaining))
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+
+    status = 206 if range_header else 200
+    headers = {
+        "Content-Disposition": f'attachment; filename="{download_name}"',
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(content_length),
+        "Content-Range": f"bytes {byte_start}-{byte_end}/{file_size}",
+    }
+    return Response(stream_file(byte_start), status=status,
+                    mimetype="video/mp4", headers=headers,
+                    direct_passthrough=True)
 
     resp = send_file(filepath, as_attachment=True, download_name=download_name)
     resp.headers["Accept-Ranges"] = "bytes"
