@@ -1674,7 +1674,36 @@ def serve_file(filename):
         return jsonify({"error": "الملف غير موجود أو انتهت صلاحيته"}), 404
 
     download_name = request.args.get("name", filename)
-    return send_file(filepath, as_attachment=True, download_name=download_name)
+    file_size = filepath.stat().st_size
+
+    # Support range requests so DownloadManager can resume interrupted downloads
+    range_header = request.headers.get("Range")
+    if range_header:
+        try:
+            byte_start = int(range_header.replace("bytes=", "").split("-")[0])
+        except Exception:
+            byte_start = 0
+        chunk_size = file_size - byte_start
+        with open(filepath, "rb") as f:
+            f.seek(byte_start)
+            data = f.read(chunk_size)
+        resp = Response(
+            data,
+            status=206,
+            mimetype="video/mp4",
+            headers={
+                "Content-Range": f"bytes {byte_start}-{file_size - 1}/{file_size}",
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(chunk_size),
+                "Content-Disposition": f'attachment; filename="{download_name}"',
+            },
+        )
+        return resp
+
+    resp = send_file(filepath, as_attachment=True, download_name=download_name)
+    resp.headers["Accept-Ranges"] = "bytes"
+    resp.headers["Content-Length"] = str(file_size)
+    return resp
 
 
 @app.route("/admin/api/download-trend")
