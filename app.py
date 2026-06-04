@@ -129,6 +129,7 @@ SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 RESET_SECRET = os.environ.get("RESET_SECRET", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
+INSTAGRAM_COOKIES = os.environ.get("INSTAGRAM_COOKIES", "")  # Netscape cookies.txt content
 
 reset_tokens = {}  # token -> {"expires": datetime}
 
@@ -397,6 +398,20 @@ def record_download(platform, success, error_msg="", duration=0):
     daily = load_daily_stats()
     daily[today_str] = daily.get(today_str, 0) + 1
     save_daily_stats(daily)
+
+
+def get_cookies_file():
+    """Write INSTAGRAM_COOKIES env var to a temp file for yt-dlp."""
+    if not INSTAGRAM_COOKIES:
+        return None
+    import tempfile
+    try:
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+        tmp.write(INSTAGRAM_COOKIES)
+        tmp.close()
+        return tmp.name
+    except Exception:
+        return None
 
 
 def detect_platform(url):
@@ -1487,6 +1502,11 @@ def get_info():
         "nocheckcertificate": True,
     }
 
+    if "instagram.com" in url.lower():
+        cookies_file = get_cookies_file()
+        if cookies_file:
+            ydl_opts["cookiefile"] = cookies_file
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -1627,6 +1647,12 @@ def start_download():
                 "preferredcodec": "mp3",
                 "preferredquality": "320",
             }]
+
+        # Instagram requires cookies for public and private content
+        if "instagram.com" in url.lower():
+            cookies_file = get_cookies_file()
+            if cookies_file:
+                ydl_opts["cookiefile"] = cookies_file
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
