@@ -452,7 +452,7 @@ def clean_old_files():
     while True:
         now = time.time()
         for f in DOWNLOAD_DIR.iterdir():
-            if f.is_file() and (now - f.stat().st_mtime) > 1800:
+            if f.is_file() and (now - f.stat().st_mtime) > 10800:  # 3 hours
                 try:
                     f.unlink()
                 except Exception:
