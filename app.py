@@ -1731,6 +1731,8 @@ def serve_file(filename):
         "Content-Disposition": f'attachment; filename="{download_name}"',
         "Accept-Ranges": "bytes",
         "Content-Length": str(content_length),
+        "Cache-Control": "no-store, no-transform",  # prevent any proxy/compress from altering the stream
+        "Content-Encoding": "identity",              # tell Flask-Compress to skip this response
     }
     if range_header:
         headers["Content-Range"] = f"bytes {byte_start}-{byte_end}/{file_size}"
