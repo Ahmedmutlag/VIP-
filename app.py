@@ -1731,8 +1731,9 @@ def serve_file(filename):
         "Content-Disposition": f'attachment; filename="{download_name}"',
         "Accept-Ranges": "bytes",
         "Content-Length": str(content_length),
-        "Content-Range": f"bytes {byte_start}-{byte_end}/{file_size}",
     }
+    if range_header:
+        headers["Content-Range"] = f"bytes {byte_start}-{byte_end}/{file_size}"
     return Response(stream_file(byte_start), status=status,
                     mimetype="video/mp4", headers=headers,
                     direct_passthrough=True)
