@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Family Safety</string>
+    <string name="hint_server_url">Server URL (e.g. http://192.168.1.100:5000)</string>
+    <string name="btn_start_service">Start Service</string>
+    <string name="btn_stop_service">Stop Service</string>
+    <string name="btn_save_url">Save &amp; Start</string>
+    <string name="label_server_url">Server URL</string>
+    <string name="label_service_status">Service Status</string>
+    <string name="status_running">Running</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="pref_key_server_url">server_url</string>
+</resources>
