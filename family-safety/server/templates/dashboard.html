@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Family Safety – Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0d1117;--surface:#161b22;--surface2:#1f2937;--border:#30363d;
+      --accent:#4f8ef7;--text:#e6edf3;--muted:#8b949e;
+      --success:#3fb950;--warning:#d29922;--danger:#f85149;
+    }
+    html,body{height:100%;background:var(--bg);color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;
+      padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border);
+      position:sticky;top:0;z-index:900}
+    .topbar-brand{font-size:1rem;font-weight:700;display:flex;align-items:center;gap:8px}
+    .topbar-right{display:flex;align-items:center;gap:12px}
+    .conn-badge{display:flex;align-items:center;gap:5px;font-size:0.78rem;color:var(--muted)}
+    .conn-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);transition:background .3s}
+    .conn-dot.on{background:var(--success)}
+    .logout-btn{background:transparent;border:1px solid var(--border);border-radius:6px;
+      color:var(--muted);padding:5px 12px;cursor:pointer;font-size:0.82rem;transition:border-color .2s,color .2s}
+    .logout-btn:hover{border-color:var(--danger);color:var(--danger)}
+    .main{display:grid;grid-template-columns:1fr 340px;grid-template-rows:55vh 1fr;
+      height:calc(100vh - 49px)}
+    #map-container{grid-column:1;grid-row:1;position:relative}
+    #map{width:100%;height:100%;background:#1a2433}
+    .map-overlay{position:absolute;top:10px;left:10px;background:rgba(13,17,23,.85);
+      backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:8px;
+      padding:8px 12px;z-index:800;font-size:0.78rem;color:var(--muted);max-width:240px}
+    .map-overlay strong{color:var(--text)}
+    #stream-container{grid-column:1;grid-row:2;position:relative;background:#000;
+      border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden}
+    #stream-img{width:100%;height:100%;object-fit:contain;display:none}
+    #stream-placeholder{color:var(--muted);display:flex;flex-direction:column;
+      align-items:center;gap:8px;font-size:.85rem}
+    #stream-placeholder .big{font-size:2.5rem}
+    .stream-badge{position:absolute;top:8px;right:8px;display:flex;align-items:center;gap:6px;
+      background:rgba(0,0,0,.75);border-radius:6px;padding:4px 10px;font-size:0.75rem;font-weight:700}
+    .live-dot{width:8px;height:8px;border-radius:50%;background:var(--danger)}
+    .live-dot.active{background:var(--success);animation:pulse 1.5s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .sidebar{grid-column:2;grid-row:1/3;background:var(--surface);
+      border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+    .panel{border-bottom:1px solid var(--border);padding:14px 16px}
+    .panel-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+      color:var(--muted);margin-bottom:12px}
+    .device-tabs{display:flex;flex-wrap:wrap;gap:6px}
+    .device-tab{padding:5px 10px;border:1px solid var(--border);border-radius:6px;
+      background:var(--surface2);color:var(--muted);cursor:pointer;font-size:.78rem;
+      font-weight:600;transition:all .15s}
+    .device-tab.active{border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,.12)}
+    .device-tab.none{color:var(--muted);cursor:default}
+    .status-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .status-card{background:var(--surface2);border-radius:8px;padding:10px;border:1px solid var(--border)}
+    .status-card .lbl{font-size:.68rem;color:var(--muted);text-transform:uppercase;
+      letter-spacing:.06em;margin-bottom:4px}
+    .status-card .val{font-size:1.15rem;font-weight:700}
+    .val.good{color:var(--success)}.val.warn{color:var(--warning)}.val.bad{color:var(--danger)}
+    .status-card .sub{font-size:.68rem;color:var(--muted);margin-top:2px}
+    .cmd-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .cmd-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;
+      border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);
+      cursor:pointer;font-size:.75rem;font-weight:600;transition:all .15s;text-align:center}
+    .cmd-btn:hover{background:rgba(79,142,247,.12);border-color:var(--accent)}
+    .cmd-btn:active{transform:scale(.96)}
+    .cmd-btn.danger:hover{background:rgba(248,81,73,.12);border-color:var(--danger)}
+    .cmd-btn .ico{font-size:1.3rem}
+    .cmd-btn.stream-btn{background:rgba(63,185,80,.1);border-color:var(--success);color:var(--success)}
+    .cmd-btn.stream-stop{background:rgba(248,81,73,.1);border-color:var(--danger);color:var(--danger)}
+    .app-display{background:var(--surface2);border-radius:8px;padding:12px;border:1px solid var(--border)}
+    .app-name{font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:4px}
+    .app-pkg{font-size:.7rem;color:var(--muted)}
+    .app-ts{font-size:.68rem;color:var(--muted);margin-top:4px}
+    .screen-list{display:flex;flex-direction:column;gap:6px}
+    .screen-item{display:flex;align-items:center;gap:8px}
+    .screen-item .name{flex:1;font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .screen-item .mins{font-size:.75rem;font-weight:700;color:var(--accent);white-space:nowrap}
+    .screen-bar-wrap{width:60px;height:4px;background:var(--border);border-radius:2px}
+    .screen-bar{height:4px;border-radius:2px;background:var(--accent)}
+    .browser-list{display:flex;flex-direction:column;gap:4px;max-height:120px;overflow-y:auto}
+    .browser-item{font-size:.73rem;color:var(--muted);padding:4px 0;
+      border-bottom:1px solid rgba(48,54,61,.4)}
+    .browser-item .bts{color:rgba(139,148,158,.6);margin-right:4px}
+    .photo-wrap{background:#0d1117;border-radius:6px;overflow:hidden;border:1px solid var(--border);
+      min-height:100px;display:flex;align-items:center;justify-content:center;position:relative}
+    #photo-img{width:100%;height:auto;display:none}
+    .photo-ph{color:var(--muted);font-size:.8rem;display:flex;flex-direction:column;align-items:center;gap:6px}
+    .photo-ts{margin-top:6px;font-size:.7rem;color:var(--muted)}
+    .log-list{max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:3px}
+    .log-entry{font-size:.72rem;color:var(--muted);padding:3px 0;border-bottom:1px solid rgba(48,54,61,.3)}
+    .log-entry .ts{color:rgba(139,148,158,.5);margin-right:5px}
+    ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    #toast-container{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+    .toast{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+      padding:10px 16px;font-size:.82rem;box-shadow:0 8px 24px rgba(0,0,0,.4);
+      animation:slideIn .2s ease;max-width:280px}
+    .toast.success{border-color:var(--success)}.toast.info{border-color:var(--accent)}
+    @keyframes slideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    .no-data{color:var(--muted);font-size:.8rem;text-align:center;padding:8px 0}
+  </style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-brand">&#128274; Family Safety</div>
+  <div class="topbar-right">
+    <div class="conn-badge">
+      <div class="conn-dot" id="conn-dot"></div>
+      <span id="conn-label">Connecting…</span>
+    </div>
+    <a href="/logout"><button class="logout-btn">Logout</button></a>
+  </div>
+</div>
+
+<div class="main">
+  <div id="map-container">
+    <div id="map"></div>
+    <div class="map-overlay">
+      <strong id="overlay-device">No device selected</strong><br>
+      <span id="overlay-coords">Waiting for location…</span><br>
+      <span id="overlay-accuracy"></span>
+      <span id="overlay-ts" style="font-size:.68rem;color:rgba(139,148,158,.6)"></span>
+    </div>
+  </div>
+
+  <div id="stream-container">
+    <div id="stream-placeholder">
+      <span class="big">&#128247;</span>
+      <span>Live stream offline</span>
+      <span style="font-size:.72rem">Click "Start Stream" to begin</span>
+    </div>
+    <img id="stream-img" alt="Live" />
+    <div class="stream-badge" id="stream-badge" style="display:none">
+      <div class="live-dot" id="live-dot"></div>
+      <span id="live-label">OFFLINE</span>
+      <span style="color:var(--muted);margin-left:4px" id="fps-counter">0 fps</span>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="panel">
+      <div class="panel-title">Devices</div>
+      <div class="device-tabs" id="device-tabs">
+        <div class="device-tab none">No devices connected yet</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Device Status</div>
+      <div class="status-grid">
+        <div class="status-card">
+          <div class="lbl">Battery</div>
+          <div class="val" id="battery-val">--</div>
+          <div class="sub" id="battery-ts"></div>
+        </div>
+        <div class="status-card">
+          <div class="lbl">Network</div>
+          <div class="val" id="wifi-val">--</div>
+          <div class="sub" id="wifi-ts"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Commands</div>
+      <div class="cmd-grid">
+        <button class="cmd-btn" onclick="sendCmd('get_location')">
+          <span class="ico">&#128205;</span>Location
+        </button>
+        <button class="cmd-btn" onclick="sendCmd('take_photo')">
+          <span class="ico">&#128247;</span>Photo
+        </button>
+        <button class="cmd-btn stream-btn" onclick="sendCmd('start_stream')">
+          <span class="ico">&#9654;</span>Start Stream
+        </button>
+        <button class="cmd-btn stream-stop" onclick="sendCmd('stop_stream')">
+          <span class="ico">&#9646;&#9646;</span>Stop Stream
+        </button>
+        <button class="cmd-btn" onclick="sendCmd('start_tracking')">
+          <span class="ico">&#128337;</span>Track Start
+        </button>
+        <button class="cmd-btn danger" onclick="sendCmd('stop_tracking')">
+          <span class="ico">&#9940;</span>Track Stop
+        </button>
+        <button class="cmd-btn" onclick="sendCmd('get_status')" style="grid-column:1/-1">
+          <span class="ico">&#128301;</span>Get Status
+        </button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Active App</div>
+      <div id="active-app-panel">
+        <div class="no-data">No data yet</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Screen Time Today</div>
+      <div id="screen-time-panel">
+        <div class="no-data">No data yet</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Browser Activity</div>
+      <div id="browser-panel">
+        <div class="no-data">No data yet</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Latest Photo</div>
+      <div class="photo-wrap">
+        <div class="photo-ph" id="photo-ph"><span style="font-size:2rem">&#128247;</span><span>No photo yet</span></div>
+        <img id="photo-img" src="" alt="Photo" />
+      </div>
+      <div class="photo-ts" id="photo-ts"></div>
+    </div>
+
+    <div class="panel" style="flex:1">
+      <div class="panel-title">Event Log</div>
+      <div class="log-list" id="log-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+const map = L.map('map', {zoomControl:true}).setView([20, 0], 2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'&copy; OpenStreetMap',maxZoom:19
+}).addTo(map);
+
+let markers = {};
+let selectedDevice = null;
+let deviceData = {};
+let frameCount = 0, lastFpsTime = Date.now(), streamTimeout = null;
+
+const socket = io({transports:['websocket','polling']});
+
+socket.on('connect', () => {
+  setConn(true);
+  socket.emit('request_state');
+  log('Connected');
+});
+socket.on('disconnect', () => { setConn(false); log('Disconnected'); });
+
+socket.on('devices_state', (data) => {
+  (data.devices || []).forEach(d => {
+    deviceData[d.device_id] = d;
+    addDeviceTab(d.device_id, d.device_name);
+    if (!selectedDevice) selectDevice(d.device_id);
+  });
+});
+
+socket.on('location_update', (data) => {
+  const did = data.device_id;
+  if (!deviceData[did]) deviceData[did] = {device_id: did};
+  deviceData[did].location = data;
+  addDeviceTab(did, deviceData[did].device_name);
+  if (did === selectedDevice) renderLocation(data);
+  log(`[${getDeviceName(did)}] Location updated`);
+});
+
+socket.on('status_update', (data) => {
+  const did = data.device_id;
+  if (!deviceData[did]) deviceData[did] = {device_id: did};
+  deviceData[did].status = data;
+  addDeviceTab(did, deviceData[did].device_name);
+  if (!selectedDevice) selectDevice(did);
+  if (did === selectedDevice) renderStatus(data);
+  log(`[${getDeviceName(did)}] Battery ${data.battery}%`);
+  showToast(`[${getDeviceName(did)}] Battery ${data.battery}%`, 'info');
+});
+
+socket.on('frame_update', (data) => {
+  const did = data.device_id;
+  if (did !== selectedDevice) return;
+  const img = document.getElementById('stream-img');
+  const ph = document.getElementById('stream-placeholder');
+  img.src = 'data:image/jpeg;base64,' + data.frame;
+  img.style.display = 'block';
+  ph.style.display = 'none';
+  document.getElementById('stream-badge').style.display = 'flex';
+  document.getElementById('live-dot').classList.add('active');
+  document.getElementById('live-label').textContent = 'LIVE';
+  frameCount++;
+  const now = Date.now();
+  if (now - lastFpsTime >= 1000) {
+    document.getElementById('fps-counter').textContent = frameCount + ' fps';
+    frameCount = 0; lastFpsTime = now;
+  }
+  clearTimeout(streamTimeout);
+  streamTimeout = setTimeout(() => {
+    document.getElementById('live-dot').classList.remove('active');
+    document.getElementById('live-label').textContent = 'OFFLINE';
+    document.getElementById('fps-counter').textContent = '0 fps';
+  }, 5000);
+});
+
+socket.on('photo_update', (data) => {
+  const did = data.device_id;
+  if (did !== selectedDevice) return;
+  const img = document.getElementById('photo-img');
+  img.src = 'data:image/jpeg;base64,' + data.data;
+  img.style.display = 'block';
+  document.getElementById('photo-ph').style.display = 'none';
+  document.getElementById('photo-ts').textContent = 'Received ' + new Date().toLocaleTimeString();
+  log(`[${getDeviceName(did)}] New photo`);
+  showToast('New photo received', 'success');
+});
+
+socket.on('active_app_update', (data) => {
+  const did = data.device_id;
+  if (!deviceData[did]) deviceData[did] = {device_id: did};
+  deviceData[did].active_app = data;
+  if (did === selectedDevice) renderActiveApp(data);
+  log(`[${getDeviceName(did)}] App: ${data.app_name}`);
+});
+
+socket.on('screen_time_update', (data) => {
+  const did = data.device_id;
+  if (!deviceData[did]) deviceData[did] = {device_id: did};
+  deviceData[did].screen_time = data;
+  if (did === selectedDevice) renderScreenTime(data);
+});
+
+socket.on('browser_history_update', (data) => {
+  const did = data.device_id;
+  if (!deviceData[did]) deviceData[did] = {device_id: did};
+  deviceData[did].browser_history = data;
+  if (did === selectedDevice) renderBrowserHistory(data);
+  log(`[${getDeviceName(did)}] Browser: ${data.count} opens`);
+});
+
+socket.on('command_queued', (data) => {
+  log(`[${getDeviceName(data.device_id)}] Command: ${data.command}`);
+  showToast('Command sent: ' + data.command, 'info');
+});
+
+function addDeviceTab(did, dname) {
+  const tabs = document.getElementById('device-tabs');
+  if (document.getElementById('tab-' + did)) {
+    document.getElementById('tab-' + did).textContent = dname || did;
+    return;
+  }
+  if (tabs.querySelector('.none')) tabs.querySelector('.none').remove();
+  const tab = document.createElement('div');
+  tab.className = 'device-tab' + (did === selectedDevice ? ' active' : '');
+  tab.id = 'tab-' + did;
+  tab.textContent = dname || did;
+  tab.onclick = () => selectDevice(did);
+  tabs.appendChild(tab);
+  if (!selectedDevice) selectDevice(did);
+}
+
+function selectDevice(did) {
+  selectedDevice = did;
+  document.querySelectorAll('.device-tab').forEach(t => t.classList.remove('active'));
+  const tab = document.getElementById('tab-' + did);
+  if (tab) tab.classList.add('active');
+  document.getElementById('overlay-device').textContent = getDeviceName(did);
+  const dev = deviceData[did] || {};
+  if (dev.location) renderLocation(dev.location);
+  if (dev.status) renderStatus(dev.status);
+  if (dev.active_app) renderActiveApp(dev.active_app);
+  if (dev.screen_time) renderScreenTime(dev.screen_time);
+  if (dev.browser_history) renderBrowserHistory(dev.browser_history);
+  // Reset stream
+  document.getElementById('stream-img').style.display = 'none';
+  document.getElementById('stream-placeholder').style.display = 'flex';
+  document.getElementById('stream-badge').style.display = 'none';
+}
+
+function getDeviceName(did) {
+  return (deviceData[did] && deviceData[did].device_name) || did || 'Unknown';
+}
+
+function renderLocation(data) {
+  const pos = [data.lat, data.lon];
+  if (!markers[selectedDevice]) {
+    markers[selectedDevice] = L.marker(pos).addTo(map).bindPopup(getDeviceName(selectedDevice));
+  } else {
+    markers[selectedDevice].setLatLng(pos);
+  }
+  map.setView(pos, Math.max(map.getZoom(), 14));
+  document.getElementById('overlay-coords').textContent =
+    data.lat.toFixed(6) + ', ' + data.lon.toFixed(6);
+  document.getElementById('overlay-accuracy').textContent =
+    data.accuracy ? 'Accuracy: \xb1' + Math.round(data.accuracy) + 'm' : '';
+  document.getElementById('overlay-ts').textContent = fmtTs(data.timestamp);
+}
+
+function renderStatus(data) {
+  const bv = document.getElementById('battery-val');
+  bv.textContent = data.battery != null ? data.battery + '%' : '--';
+  bv.className = 'val ' + battCls(data.battery);
+  document.getElementById('battery-ts').textContent = fmtTs(data.timestamp);
+  const wv = document.getElementById('wifi-val');
+  wv.textContent = data.wifi != null ? (data.wifi ? 'Wi-Fi' : 'Mobile') : '--';
+  wv.className = 'val ' + (data.wifi ? 'good' : 'warn');
+  document.getElementById('wifi-ts').textContent = fmtTs(data.timestamp);
+}
+
+function renderActiveApp(data) {
+  const el = document.getElementById('active-app-panel');
+  el.innerHTML = `<div class="app-display">
+    <div class="app-name">${esc(data.app_name || '--')}</div>
+    <div class="app-pkg">${esc(data.app_package || '')}</div>
+    <div class="app-ts">${fmtTs(data.timestamp)}</div>
+  </div>`;
+}
+
+function renderScreenTime(data) {
+  const apps = data.apps || [];
+  if (!apps.length) { document.getElementById('screen-time-panel').innerHTML = '<div class="no-data">No data</div>'; return; }
+  const max = Math.max(...apps.map(a => a.minutes || 0), 1);
+  const html = '<div class="screen-list">' + apps.slice(0, 8).map(a => {
+    const pct = Math.round(((a.minutes || 0) / max) * 100);
+    return `<div class="screen-item">
+      <span class="name" title="${esc(a.package||'')}">${esc(a.name||a.package||'?')}</span>
+      <div class="screen-bar-wrap"><div class="screen-bar" style="width:${pct}%"></div></div>
+      <span class="mins">${a.minutes || 0}m</span>
+    </div>`;
+  }).join('') + '</div>';
+  document.getElementById('screen-time-panel').innerHTML = html;
+}
+
+function renderBrowserHistory(data) {
+  const sites = data.sites || [];
+  if (!sites.length) { document.getElementById('browser-panel').innerHTML = '<div class="no-data">No browser activity</div>'; return; }
+  const html = '<div class="browser-list">' + sites.slice(-15).reverse().map(s =>
+    `<div class="browser-item"><span class="bts">${fmtTs(s.timestamp)}</span>${esc(s.url||s.title||'Browser')}</div>`
+  ).join('') + '</div>';
+  document.getElementById('browser-panel').innerHTML = html;
+}
+
+function sendCmd(cmd) {
+  if (!selectedDevice) { showToast('Select a device first', 'info'); return; }
+  socket.emit('send_command', {command: cmd, device_id: selectedDevice});
+}
+
+function setConn(on) {
+  document.getElementById('conn-dot').className = 'conn-dot' + (on ? ' on' : '');
+  document.getElementById('conn-label').textContent = on ? 'Live' : 'Disconnected';
+}
+
+function battCls(p) {
+  if (p == null) return '';
+  return p >= 50 ? 'good' : p >= 20 ? 'warn' : 'bad';
+}
+
+function fmtTs(ts) {
+  if (!ts) return '';
+  try { return new Date(ts).toLocaleTimeString(); } catch { return ts; }
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function log(msg) {
+  const list = document.getElementById('log-list');
+  const e = document.createElement('div');
+  e.className = 'log-entry';
+  e.innerHTML = `<span class="ts">${new Date().toLocaleTimeString()}</span>${esc(msg)}`;
+  list.prepend(e);
+  while (list.children.length > 60) list.removeChild(list.lastChild);
+}
+
+function showToast(msg, type='info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(), 300); }, 3000);
+}
+</script>
+</body>
+</html>
