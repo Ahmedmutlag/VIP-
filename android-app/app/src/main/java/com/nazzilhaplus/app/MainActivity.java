@@ -1,7 +1,6 @@
 package com.nazzilhaplus.app;
 
 import android.Manifest;
-import android.app.AlarmManager;
 import android.app.DownloadManager;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
@@ -9,7 +8,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.media.MediaScannerConnection;
@@ -45,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
         webView.loadUrl("https://www.vip-dl.com");
         NotificationReceiver.createChannel(this);
         requestNotificationPermission();
-        scheduleDailyNotification();
+        NotificationReceiver.schedule(this);
     }
 
     private void requestNotificationPermission() {
@@ -55,29 +53,6 @@ public class MainActivity extends AppCompatActivity {
                 requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 200);
             }
         }
-    }
-
-    private void scheduleDailyNotification() {
-        SharedPreferences prefs = getSharedPreferences("app_prefs", MODE_PRIVATE);
-        if (prefs.getBoolean("notification_scheduled", false)) return;
-
-        AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
-        Intent intent = new Intent(this, NotificationReceiver.class);
-        PendingIntent pi = PendingIntent.getBroadcast(this, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-        java.util.Calendar cal = java.util.Calendar.getInstance();
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 19);
-        cal.set(java.util.Calendar.MINUTE, 0);
-        cal.set(java.util.Calendar.SECOND, 0);
-        if (cal.getTimeInMillis() < System.currentTimeMillis()) {
-            cal.add(java.util.Calendar.DAY_OF_YEAR, 1);
-        }
-
-        am.setRepeating(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(),
-                AlarmManager.INTERVAL_DAY, pi);
-
-        prefs.edit().putBoolean("notification_scheduled", true).apply();
     }
 
     private void setupWebView() {
