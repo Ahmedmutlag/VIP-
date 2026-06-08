@@ -634,61 +634,6 @@ async function loadPublicStats() {
 loadPublicStats();
 renderHistory();
 
-// ===== Rating =====
-const stars = document.querySelectorAll('.star');
-let selectedStars = 0;
-
-function highlightStars(n, cls) {
-  stars.forEach((s, i) => {
-    s.classList.remove('active', 'hover-active');
-    if (i < n) s.classList.add(cls || 'active');
-  });
-}
-
-stars.forEach((s, idx) => {
-  s.addEventListener('mouseenter', () => {
-    highlightStars(idx + 1, 'hover-active');
-  });
-  s.addEventListener('mouseleave', () => {
-    highlightStars(selectedStars, 'active');
-  });
-  s.addEventListener('click', () => {
-    selectedStars = idx + 1;
-    highlightStars(selectedStars, 'active');
-    document.getElementById('submitRatingBtn').style.display = 'inline-block';
-    document.getElementById('ratingMsg').textContent = '';
-    document.getElementById('ratingMsg').style.color = 'var(--muted)';
-  });
-});
-
-const userRated = localStorage.getItem('vip_rated');
-if (userRated) {
-  selectedStars = parseInt(userRated);
-  highlightStars(selectedStars, 'active');
-  document.getElementById('ratingMsg').textContent = 'قيّمت سابقاً — يمكنك تغيير تقييمك';
-}
-
-function submitRating() {
-  if (!selectedStars) return;
-  const btn = document.getElementById('submitRatingBtn');
-  btn.disabled = true;
-  btn.textContent = 'جاري الإرسال...';
-  fetch('/api/rate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stars: selectedStars }),
-  }).then(r => r.json()).then(d => {
-    localStorage.setItem('vip_rated', selectedStars);
-    const msg = document.getElementById('ratingMsg');
-    msg.textContent = d.message + ' — متوسط: ' + d.avg + ' ⭐ (' + d.count + ' تقييم)';
-    msg.style.color = '#10b981';
-    btn.style.display = 'none';
-    loadPublicStats();
-  }).catch(() => {
-    btn.disabled = false;
-    btn.textContent = 'إرسال التقييم ★';
-  });
-}
 
 function resetPage() {
   if (pollInterval) clearInterval(pollInterval);
