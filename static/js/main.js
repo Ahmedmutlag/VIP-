@@ -526,7 +526,8 @@ function showSuccess(file, filename) {
   // iOS: don't auto-click — navigator.share() requires a real user tap
   if (!isIOS) {
     if (window.AndroidApp && window.AndroidApp.downloadFile) {
-      AndroidApp.downloadFile(lastDownloadUrl, filename);
+      const absUrl = lastDownloadUrl.startsWith('http') ? lastDownloadUrl : (window.location.origin + lastDownloadUrl);
+      AndroidApp.downloadFile(absUrl, filename);
     } else {
       link.click();
     }
