@@ -524,7 +524,13 @@ function showSuccess(file, filename) {
   document.getElementById('successSection').classList.remove('hidden');
   showDownloadHint();
   // iOS: don't auto-click — navigator.share() requires a real user tap
-  if (!isIOS) link.click();
+  if (!isIOS) {
+    if (window.AndroidApp && window.AndroidApp.downloadFile) {
+      AndroidApp.downloadFile(lastDownloadUrl, filename);
+    } else {
+      link.click();
+    }
+  }
   launchConfetti();
   saveToHistory(filename, currentUrl);
 }
