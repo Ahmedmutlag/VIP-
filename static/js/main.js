@@ -1,3 +1,8 @@
+// ===== Analytics Helper =====
+function track(event, params) {
+  if (typeof gtag === 'function') gtag('event', event, params || {});
+}
+
 // ===== Android App Install Tracking =====
 if (window.AndroidApp) {
   let deviceId = localStorage.getItem('_nzp_did');
@@ -261,6 +266,7 @@ async function fetchInfo() {
   if (!url) { showError('الرجاء إدخال رابط الفيديو'); return; }
 
   hideError();
+  track('video_fetch', { url: url });
   setLoading(true);
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.add('hidden');
@@ -413,6 +419,7 @@ function onAdFinished() {
 
 // ===== Start Download =====
 async function startDownload() {
+  track('download_start', { format: selectedFormat ? selectedFormat.format_id : 'unknown' });
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.remove('hidden');
   setCircularProgress(0);
@@ -521,6 +528,7 @@ function showSuccess(file, filename) {
     st.classList.add('hidden');
   }
 
+  track('download_complete', { filename: filename });
   document.getElementById('successSection').classList.remove('hidden');
   showDownloadHint();
   // iOS: don't auto-click — navigator.share() requires a real user tap
@@ -665,6 +673,7 @@ function resetPage() {
 
 // ===== Pay Modal =====
 function openPayModal() {
+  track('open_subscribe');
   document.getElementById('payModal').classList.remove('hidden');
   document.getElementById('payOverlay').classList.remove('hidden');
 }
