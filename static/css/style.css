@@ -78,9 +78,16 @@ body {
 [data-theme="light"] .logo-name { color: #1a1a2e; }
 .logo-icon { font-size: 1.6rem; }
 .accent { color: var(--accent2); }
-.nav-links { display: flex; gap: 1.5rem; }
+.nav-links { display: flex; gap: 1.5rem; align-items: center; }
 .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; transition: color .2s; }
 .nav-links a:hover { color: var(--text); }
+.nav-cta {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff !important; padding: .3rem .9rem;
+  border-radius: 999px; font-size: .82rem !important;
+  font-weight: 700 !important; transition: opacity .2s !important;
+}
+.nav-cta:hover { opacity: .85; color: #fff !important; }
 
 /* ===== Ad Banners ===== */
 .ad-banner {
@@ -387,14 +394,37 @@ main { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding
 
 /* ===== Footer ===== */
 .footer {
-  text-align: center; padding: 2rem 1rem;
   border-top: 1px solid var(--border);
   color: var(--muted); font-size: .85rem;
   position: relative; z-index: 1;
+  padding: 3rem 1.5rem 2rem;
 }
-.footer-links { display: flex; gap: 1.5rem; justify-content: center; margin-top: .5rem; }
-.footer-links a { color: var(--muted); text-decoration: none; font-size: .82rem; }
-.footer-links a:hover { color: var(--text); }
+.footer-grid {
+  max-width: 860px; margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.8fr 1fr 1fr;
+  gap: 2.5rem;
+  text-align: right;
+}
+.footer-brand .footer-logo {
+  font-size: 1.1rem; font-weight: 800;
+  color: var(--text); margin-bottom: .6rem;
+}
+.footer-brand .footer-logo strong { color: var(--accent); }
+.footer-desc { font-size: .8rem; line-height: 1.7; margin-bottom: .8rem; }
+.footer-copy { font-size: .75rem; opacity: .6; }
+.footer-col { display: flex; flex-direction: column; gap: .6rem; }
+.footer-col-title {
+  font-size: .8rem; font-weight: 700;
+  color: var(--text); margin-bottom: .3rem;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.footer-col a { color: var(--muted); text-decoration: none; font-size: .83rem; transition: color .2s; }
+.footer-col a:hover { color: var(--accent); }
+@media (max-width: 600px) {
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+  .footer-brand { grid-column: 1 / -1; }
+}
 
 /* ===== Ad Modal (Interstitial) ===== */
 .ad-overlay {
