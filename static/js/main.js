@@ -424,17 +424,6 @@ function onAdFinished() {
 // ===== Start Download =====
 async function startDownload() {
   track('download_start', { format: selectedFormat ? selectedFormat.format_id : 'unknown' });
-
-  // Direct CDN download for the app — bypasses the server entirely
-  if (window.AndroidApp && window.AndroidApp.downloadFile && selectedFormat && selectedFormat.direct_url) {
-    const safeTitle = currentTitle.replace(/[\\/*?:"<>|]/g, '').trim().slice(0, 60) || 'video';
-    const filename = safeTitle + '.' + (selectedFormat.ext || 'mp4');
-    window.AndroidApp.downloadFile(selectedFormat.direct_url, filename);
-    track('download_complete', { filename: filename, method: 'direct_cdn' });
-    showSuccess('', filename);
-    return;
-  }
-
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.remove('hidden');
   setCircularProgress(0);
@@ -521,14 +510,9 @@ async function iosShareDownload(url, filename) {
 
 function showSuccess(file, filename) {
   const link = document.getElementById('downloadLink');
-  const isDirectCdn = !file;
-  lastDownloadUrl = isDirectCdn ? '' : `/api/file/${file}?name=${encodeURIComponent(filename)}`;
+  lastDownloadUrl = `/api/file/${file}?name=${encodeURIComponent(filename)}`;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
-  if (isDirectCdn) {
-    link.style.display = 'none';
-    document.getElementById('copyLinkBtn').style.display = 'none';
-  } else if (isIOS) {
+  if (isIOS) {
     link.href = '#';
     link.removeAttribute('download');
     link.textContent = '📲 اضغط هنا لحفظ الفيديو في الصور';
