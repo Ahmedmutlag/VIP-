@@ -120,6 +120,17 @@ DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 progress_store = {}
+info_cache = {}  # cache_id -> {info, expires}
+
+def _cleanup_info_cache():
+    while True:
+        time.sleep(120)
+        now = time.time()
+        expired = [k for k, v in list(info_cache.items()) if v["expires"] < now]
+        for k in expired:
+            info_cache.pop(k, None)
+
+threading.Thread(target=_cleanup_info_cache, daemon=True).start()
 
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
@@ -1564,6 +1575,9 @@ def get_info():
                 "filesize": None,
             })
 
+        cache_id = str(uuid.uuid4())
+        info_cache[cache_id] = {"info": info, "expires": time.time() + 600}
+
         return jsonify({
             "title": info.get("title", "فيديو"),
             "thumbnail": info.get("thumbnail") or next((t.get("url") for t in reversed(info.get("thumbnails") or []) if t.get("url")), None),
@@ -1571,6 +1585,7 @@ def get_info():
             "uploader": info.get("uploader") or info.get("channel"),
             "platform": info.get("extractor_key", ""),
             "formats": formats,
+            "cache_id": cache_id,
         })
 
     except yt_dlp.utils.DownloadError as e:
@@ -1613,6 +1628,7 @@ def start_download():
     data = request.get_json()
     url = (data or {}).get("url", "").strip()
     format_id = (data or {}).get("format_id", "bestvideo+bestaudio/best")
+    cache_id = (data or {}).get("cache_id", "")
 
     if not url:
         return jsonify({"error": "الرابط مطلوب"}), 400
@@ -1620,6 +1636,7 @@ def start_download():
     task_id = str(uuid.uuid4())
     platform = detect_platform(url)
     progress_store[task_id] = {"status": "starting", "percent": 0}
+    cached = info_cache.pop(cache_id, None) if cache_id else None
 
     def do_download():
         _start = time.time()
@@ -1656,8 +1673,11 @@ def start_download():
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                title = info.get("title", "video")
+                if cached:
+                    info = ydl.process_ie_result(cached["info"], download=True)
+                else:
+                    info = ydl.extract_info(url, download=True)
+                title = (info or {}).get("title", "video") if info else "video"
                 safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:60]
 
             found = list(DOWNLOAD_DIR.glob(f"{task_id}.*"))

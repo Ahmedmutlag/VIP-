@@ -114,6 +114,7 @@ document.getElementById('urlInput').addEventListener('keydown', e => {
 let currentUrl = '';
 let currentFormats = [];
 let currentThumbnail = '';
+let currentCacheId = '';
 let selectedFormat = null;
 let pollInterval = null;
 let pendingTaskId = null;
@@ -285,6 +286,7 @@ async function fetchInfo() {
 
     currentUrl = url;
     currentFormats = data.formats || [];
+    currentCacheId = data.cache_id || '';
     renderInfo(data);
     document.getElementById('infoSection').classList.remove('hidden');
   } catch {
@@ -429,7 +431,7 @@ async function startDownload() {
     const res = await fetch('/api/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: currentUrl, format_id: selectedFormat.format_id }),
+      body: JSON.stringify({ url: currentUrl, format_id: selectedFormat.format_id, cache_id: currentCacheId }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -656,6 +658,7 @@ function resetPage() {
   currentUrl = '';
   currentFormats = [];
   currentThumbnail = '';
+  currentCacheId = '';
   selectedFormat = null;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
