@@ -1550,12 +1550,14 @@ def get_info():
                 continue
             seen.add(key)
 
+            has_both = f.get("vcodec", "none") != "none" and f.get("acodec", "none") != "none"
             formats.append({
                 "format_id": f["format_id"],
                 "label": label,
                 "ext": ext,
                 "type": ftype,
                 "filesize": f.get("filesize") or f.get("filesize_approx"),
+                "direct_url": f.get("url") if has_both else None,
             })
 
         formats.sort(
