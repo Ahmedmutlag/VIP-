@@ -164,6 +164,10 @@ main { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding
   transition: border-color .25s; margin-bottom: 1.1rem;
 }
 .input-wrap:focus-within { border-color: var(--accent); }
+.input-wrap.platform-tiktok    { border-color: #69c9d0; box-shadow: 0 0 12px rgba(105,201,208,.2); }
+.input-wrap.platform-instagram { border-color: #e1306c; box-shadow: 0 0 12px rgba(225,48,108,.2); }
+.input-wrap.platform-facebook  { border-color: #1877f2; box-shadow: 0 0 12px rgba(24,119,242,.2); }
+.input-wrap.platform-pinterest { border-color: #e60023; box-shadow: 0 0 12px rgba(230,0,35,.2); }
 .input-icon { font-size: 1.1rem; flex-shrink: 0; }
 .input-wrap input {
   flex: 1; background: none; border: none; outline: none;

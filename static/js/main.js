@@ -110,6 +110,24 @@ document.getElementById('urlInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') fetchInfo();
 });
 
+document.getElementById('urlInput').addEventListener('input', function() {
+  const val = this.value.toLowerCase();
+  const wrap = this.closest('.input-wrap');
+  const icon = wrap.querySelector('.input-icon');
+  wrap.classList.remove('platform-tiktok','platform-instagram','platform-facebook','platform-pinterest');
+  if (val.includes('tiktok.com') || val.includes('vm.tiktok')) {
+    wrap.classList.add('platform-tiktok'); icon.textContent = '🎵';
+  } else if (val.includes('instagram.com')) {
+    wrap.classList.add('platform-instagram'); icon.textContent = '📸';
+  } else if (val.includes('facebook.com') || val.includes('fb.watch')) {
+    wrap.classList.add('platform-facebook'); icon.textContent = '📘';
+  } else if (val.includes('pinterest.com') || val.includes('pin.it')) {
+    wrap.classList.add('platform-pinterest'); icon.textContent = '📌';
+  } else {
+    icon.textContent = '🔗';
+  }
+});
+
 // ===== State =====
 let currentUrl = '';
 let currentFormats = [];
