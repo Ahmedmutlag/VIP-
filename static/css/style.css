@@ -131,6 +131,14 @@ main { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding
 }
 .hero-sub { color: var(--muted); font-size: 1.05rem; margin-bottom: 2rem; }
 
+.platforms-row { display: flex; gap: .75rem; justify-content: center; flex-wrap: wrap; margin-bottom: 2rem; }
+.platform-chip { display: flex; align-items: center; gap: .4rem; padding: .45rem 1rem; border-radius: 50px; font-size: .85rem; font-weight: 700; cursor: default; transition: transform .2s, box-shadow .2s; }
+.platform-chip:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+.platform-chip.tiktok    { background: rgba(0,0,0,.3); color: #fff; border: 1px solid #333; }
+.platform-chip.instagram { background: linear-gradient(135deg,rgba(193,53,132,.2),rgba(253,29,29,.1),rgba(252,176,69,.1)); color: #e1306c; border: 1px solid rgba(193,53,132,.3); }
+.platform-chip.facebook  { background: rgba(24,119,242,.15); color: #1877f2; border: 1px solid rgba(24,119,242,.3); }
+.platform-chip.pinterest { background: rgba(230,0,35,.15); color: #e60023; border: 1px solid rgba(230,0,35,.3); }
+
 /* ===== Card ===== */
 .card {
   background: rgba(22,22,31,.78);
