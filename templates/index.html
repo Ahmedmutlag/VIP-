@@ -313,6 +313,10 @@
         <p>تم معالجة الفيديو بنجاح</p>
         <a id="downloadLink" href="#" class="btn-download"><span>⬇️</span> تحميل الفيديو</a>
         <button id="copyLinkBtn" onclick="copyDownloadLink()" class="btn-ghost" style="margin-top:.5rem">🔗 نسخ رابط التحميل</button>
+        <div style="display:flex;gap:.5rem;margin-top:.5rem">
+          <button onclick="openVideoPlayer()" class="btn-ghost" style="flex:1;margin-top:0">🎬 معاينة</button>
+          <button onclick="generateShareCard()" class="btn-ghost" style="flex:1;margin-top:0">📸 بطاقة</button>
+        </div>
         <div id="downloadHint" style="margin-top:.75rem;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);border-radius:10px;padding:.6rem .9rem;font-size:.8rem;color:var(--muted);text-align:right;line-height:1.7"></div>
         <div style="margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--border)">
           <p style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">أعجبك الموقع؟ شاركه مع أصدقائك 👇</p>
@@ -360,7 +364,7 @@
     <div id="premiumOverlay" class="ad-overlay hidden" onclick="closePremiumModal()"></div>
 
     <!-- ===== App Download Banner ===== -->
-    <section id="appDownloadBanner" style="padding:0 0 .5rem">
+    <section id="appDownloadBanner" class="reveal" style="padding:0 0 .5rem">
       <div class="card" style="padding:1.5rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(6,182,212,.1));border:1px solid rgba(124,58,237,.3)">
         <div style="font-size:3rem;flex-shrink:0">📱</div>
         <div style="flex:1;min-width:180px">
@@ -374,7 +378,7 @@
     </section>
 
     <!-- ===== Platforms ===== -->
-    <section id="platforms" class="platforms-section">
+    <section id="platforms" class="platforms-section reveal">
       <h2 class="section-title">المنصات المدعومة</h2>
       <div class="platforms-grid" style="grid-template-columns:repeat(2,1fr);max-width:420px;margin:0 auto">
         <div class="platform-card featured">
@@ -460,7 +464,7 @@
     </section>
 
     <!-- ===== Guide: Download Without Watermark ===== -->
-    <section class="guide-section">
+    <section class="guide-section reveal">
       <div class="card" style="padding:1.8rem">
         <h2 style="font-size:1.3rem;font-weight:900;margin-bottom:.5rem">📖 كيف تحمّل بدون واترمارك؟</h2>
         <p style="color:var(--muted);font-size:.9rem;margin-bottom:1.2rem">دليل سريع لتحميل فيديوهات TikTok وInstagram وFacebook بجودة عالية وبدون علامة مائية</p>
@@ -486,7 +490,7 @@
     </section>
 
     <!-- ===== How It Works ===== -->
-    <section id="how" class="how-section">
+    <section id="how" class="how-section reveal">
       <h2 class="section-title">كيف يعمل؟</h2>
       <div class="steps-grid">
         <div class="step">
@@ -510,7 +514,7 @@
     </section>
 
     <!-- ===== SEO Descriptive Content ===== -->
-    <section style="padding:0 0 .5rem">
+    <section class="reveal" style="padding:0 0 .5rem">
       <div class="card" style="padding:1.8rem">
         <h2 style="font-size:1.2rem;font-weight:900;margin-bottom:.8rem">لماذا نزلها بلس؟</h2>
         <p style="color:var(--muted);font-size:.88rem;line-height:1.9">
@@ -523,7 +527,7 @@
     </section>
 
     <!-- ===== FAQ ===== -->
-    <section id="faq" style="padding:0 0 1rem">
+    <section id="faq" class="reveal" style="padding:0 0 1rem">
       <h2 class="section-title">الأسئلة الشائعة</h2>
       <div style="display:flex;flex-direction:column;gap:.7rem">
 
@@ -737,6 +741,36 @@
   </div>
   <div id="adOverlay" class="ad-overlay hidden" onclick="return false;"></div>
 
+
+  <!-- ===== Video Player Modal ===== -->
+  <div id="videoPlayerModal" class="ad-modal hidden">
+    <div class="ad-modal-box" style="max-width:520px">
+      <div class="ad-modal-header">
+        <span class="ad-modal-title">🎬 معاينة الفيديو</span>
+        <button onclick="closeVideoPlayer()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:.8rem">
+        <video id="videoPlayerEl" controls playsinline style="width:100%;border-radius:12px;background:#000;max-height:360px;display:block"></video>
+      </div>
+    </div>
+  </div>
+  <div id="videoPlayerOverlay" class="ad-overlay hidden" onclick="closeVideoPlayer()"></div>
+
+  <!-- ===== Share Card Modal ===== -->
+  <div id="shareCardModal" class="ad-modal hidden">
+    <div class="ad-modal-box" style="max-width:420px">
+      <div class="ad-modal-header">
+        <span class="ad-modal-title">📸 بطاقة المشاركة</span>
+        <button onclick="closeShareCardModal()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:1rem;text-align:center">
+        <img id="shareCardImg" style="width:100%;border-radius:12px;display:block" alt="share card" />
+        <p style="color:var(--muted);font-size:.8rem;margin:.7rem 0 .5rem">اضغط مطولاً لحفظها أو مشاركتها</p>
+        <button onclick="downloadShareCard()" style="width:100%;padding:.75rem;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:.95rem;font-weight:700;cursor:pointer">⬇️ تحميل البطاقة</button>
+      </div>
+    </div>
+  </div>
+  <div id="shareCardOverlay" class="ad-overlay hidden" onclick="closeShareCardModal()"></div>
 
   <script src="/static/js/main.js" defer></script>
   <script>
