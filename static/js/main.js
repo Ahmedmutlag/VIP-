@@ -99,11 +99,53 @@ document.getElementById('pasteBtn').addEventListener('click', async () => {
     } else {
       text = await navigator.clipboard.readText();
     }
-    if (text) document.getElementById('urlInput').value = text;
-    else document.getElementById('urlInput').focus();
+    if (text) {
+      document.getElementById('urlInput').value = text;
+      document.getElementById('urlInput').dispatchEvent(new Event('input'));
+    } else {
+      document.getElementById('urlInput').focus();
+    }
   } catch {
     document.getElementById('urlInput').focus();
   }
+});
+
+// Auto-detect clipboard on page load
+function isSupportedUrl(url) {
+  return /tiktok\.com|vm\.tiktok|instagram\.com|facebook\.com|fb\.watch|pinterest\.com|pin\.it/i.test(url);
+}
+
+function showClipboardToast(url) {
+  const platform = url.includes('tiktok') ? 'TikTok' : url.includes('instagram') ? 'Instagram' : url.includes('facebook') || url.includes('fb.watch') ? 'Facebook' : 'Pinterest';
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);background:#1e1e2e;border:1px solid #7c3aed;color:#f0f0f8;padding:.6rem 1.2rem;border-radius:12px;font-size:.85rem;font-family:Cairo,sans-serif;z-index:9999;animation:fadeInUp .3s ease;box-shadow:0 4px 20px rgba(124,58,237,.4);white-space:nowrap';
+  toast.textContent = `📋 تم اكتشاف رابط ${platform} — جاري الجلب...`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+window.addEventListener('load', () => {
+  const input = document.getElementById('urlInput');
+  if (input.value) return;
+  try {
+    if (window.AndroidClipboard) {
+      const text = window.AndroidClipboard.getText();
+      if (text && isSupportedUrl(text)) {
+        input.value = text;
+        input.dispatchEvent(new Event('input'));
+        showClipboardToast(text);
+        setTimeout(() => fetchInfo(), 800);
+      }
+    } else {
+      navigator.clipboard.readText().then(text => {
+        if (text && isSupportedUrl(text) && !input.value) {
+          input.value = text;
+          input.dispatchEvent(new Event('input'));
+          showClipboardToast(text);
+        }
+      }).catch(() => {});
+    }
+  } catch {}
 });
 
 document.getElementById('urlInput').addEventListener('keydown', e => {
