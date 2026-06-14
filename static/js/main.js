@@ -1,3 +1,8 @@
+// ===== Analytics Helper =====
+function track(event, params) {
+  if (typeof gtag === 'function') gtag('event', event, params || {});
+}
+
 // ===== Android App Install Tracking =====
 if (window.AndroidApp) {
   let deviceId = localStorage.getItem('_nzp_did');
@@ -94,21 +99,83 @@ document.getElementById('pasteBtn').addEventListener('click', async () => {
     } else {
       text = await navigator.clipboard.readText();
     }
-    if (text) document.getElementById('urlInput').value = text;
-    else document.getElementById('urlInput').focus();
+    if (text) {
+      document.getElementById('urlInput').value = text;
+      document.getElementById('urlInput').dispatchEvent(new Event('input'));
+    } else {
+      document.getElementById('urlInput').focus();
+    }
   } catch {
     document.getElementById('urlInput').focus();
   }
+});
+
+// Auto-detect clipboard on page load
+function isSupportedUrl(url) {
+  return /tiktok\.com|vm\.tiktok|instagram\.com|facebook\.com|fb\.watch|pinterest\.com|pin\.it/i.test(url);
+}
+
+function showClipboardToast(url) {
+  const platform = url.includes('tiktok') ? 'TikTok' : url.includes('instagram') ? 'Instagram' : url.includes('facebook') || url.includes('fb.watch') ? 'Facebook' : 'Pinterest';
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);background:#1e1e2e;border:1px solid #7c3aed;color:#f0f0f8;padding:.6rem 1.2rem;border-radius:12px;font-size:.85rem;font-family:Cairo,sans-serif;z-index:9999;animation:fadeInUp .3s ease;box-shadow:0 4px 20px rgba(124,58,237,.4);white-space:nowrap';
+  toast.textContent = `📋 تم اكتشاف رابط ${platform} — جاري الجلب...`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+window.addEventListener('load', () => {
+  const input = document.getElementById('urlInput');
+  if (input.value) return;
+  try {
+    if (window.AndroidClipboard) {
+      const text = window.AndroidClipboard.getText();
+      if (text && isSupportedUrl(text)) {
+        input.value = text;
+        input.dispatchEvent(new Event('input'));
+        showClipboardToast(text);
+        setTimeout(() => fetchInfo(), 800);
+      }
+    } else {
+      navigator.clipboard.readText().then(text => {
+        if (text && isSupportedUrl(text) && !input.value) {
+          input.value = text;
+          input.dispatchEvent(new Event('input'));
+          showClipboardToast(text);
+        }
+      }).catch(() => {});
+    }
+  } catch {}
 });
 
 document.getElementById('urlInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') fetchInfo();
 });
 
+document.getElementById('urlInput').addEventListener('input', function() {
+  const val = this.value.toLowerCase();
+  const wrap = this.closest('.input-wrap');
+  const icon = wrap.querySelector('.input-icon');
+  wrap.classList.remove('platform-tiktok','platform-instagram','platform-facebook','platform-pinterest');
+  if (val.includes('tiktok.com') || val.includes('vm.tiktok')) {
+    wrap.classList.add('platform-tiktok'); icon.textContent = '🎵';
+  } else if (val.includes('instagram.com')) {
+    wrap.classList.add('platform-instagram'); icon.textContent = '📸';
+  } else if (val.includes('facebook.com') || val.includes('fb.watch')) {
+    wrap.classList.add('platform-facebook'); icon.textContent = '📘';
+  } else if (val.includes('pinterest.com') || val.includes('pin.it')) {
+    wrap.classList.add('platform-pinterest'); icon.textContent = '📌';
+  } else {
+    icon.textContent = '🔗';
+  }
+});
+
 // ===== State =====
 let currentUrl = '';
 let currentFormats = [];
 let currentThumbnail = '';
+let currentCacheId = '';
+let currentTitle = '';
 let selectedFormat = null;
 let pollInterval = null;
 let pendingTaskId = null;
@@ -205,6 +272,27 @@ function toggleTheme() {
   if (btn) btn.textContent = saved === 'light' ? '🌙' : '☀️';
 })();
 
+// ===== Success Sound =====
+function playSuccessSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [[523.25, 0], [659.25, 0.13], [783.99, 0.26]].forEach(([freq, delay]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + delay;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.22, t + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      osc.start(t);
+      osc.stop(t + 0.5);
+    });
+  } catch {}
+}
+
 // ===== Confetti =====
 function launchConfetti() {
   const colors = ['#7c3aed','#a855f7','#f59e0b','#10b981','#06b6d4','#f97316','#fff'];
@@ -261,6 +349,7 @@ async function fetchInfo() {
   if (!url) { showError('الرجاء إدخال رابط الفيديو'); return; }
 
   hideError();
+  track('video_fetch', { url: url });
   setLoading(true);
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.add('hidden');
@@ -279,6 +368,8 @@ async function fetchInfo() {
 
     currentUrl = url;
     currentFormats = data.formats || [];
+    currentCacheId = data.cache_id || '';
+    currentTitle = data.title || 'video';
     renderInfo(data);
     document.getElementById('infoSection').classList.remove('hidden');
   } catch {
@@ -413,6 +504,7 @@ function onAdFinished() {
 
 // ===== Start Download =====
 async function startDownload() {
+  track('download_start', { format: selectedFormat ? selectedFormat.format_id : 'unknown' });
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.remove('hidden');
   setCircularProgress(0);
@@ -422,7 +514,7 @@ async function startDownload() {
     const res = await fetch('/api/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: currentUrl, format_id: selectedFormat.format_id }),
+      body: JSON.stringify({ url: currentUrl, format_id: selectedFormat.format_id, cache_id: currentCacheId }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -521,11 +613,20 @@ function showSuccess(file, filename) {
     st.classList.add('hidden');
   }
 
+  track('download_complete', { filename: filename });
   document.getElementById('successSection').classList.remove('hidden');
   showDownloadHint();
   // iOS: don't auto-click — navigator.share() requires a real user tap
-  if (!isIOS) link.click();
+  if (!isIOS) {
+    if (window.AndroidApp && window.AndroidApp.downloadFile) {
+      const absUrl = lastDownloadUrl.startsWith('http') ? lastDownloadUrl : (window.location.origin + lastDownloadUrl);
+      AndroidApp.downloadFile(absUrl, filename);
+    } else {
+      link.click();
+    }
+  }
   launchConfetti();
+  playSuccessSound();
   saveToHistory(filename, currentUrl);
 }
 
@@ -627,64 +728,10 @@ async function loadPublicStats() {
 loadPublicStats();
 renderHistory();
 
-// ===== Rating =====
-const stars = document.querySelectorAll('.star');
-let selectedStars = 0;
-
-function highlightStars(n, cls) {
-  stars.forEach((s, i) => {
-    s.classList.remove('active', 'hover-active');
-    if (i < n) s.classList.add(cls || 'active');
-  });
-}
-
-stars.forEach((s, idx) => {
-  s.addEventListener('mouseenter', () => {
-    highlightStars(idx + 1, 'hover-active');
-  });
-  s.addEventListener('mouseleave', () => {
-    highlightStars(selectedStars, 'active');
-  });
-  s.addEventListener('click', () => {
-    selectedStars = idx + 1;
-    highlightStars(selectedStars, 'active');
-    document.getElementById('submitRatingBtn').style.display = 'inline-block';
-    document.getElementById('ratingMsg').textContent = '';
-    document.getElementById('ratingMsg').style.color = 'var(--muted)';
-  });
-});
-
-const userRated = localStorage.getItem('vip_rated');
-if (userRated) {
-  selectedStars = parseInt(userRated);
-  highlightStars(selectedStars, 'active');
-  document.getElementById('ratingMsg').textContent = 'قيّمت سابقاً — يمكنك تغيير تقييمك';
-}
-
-function submitRating() {
-  if (!selectedStars) return;
-  const btn = document.getElementById('submitRatingBtn');
-  btn.disabled = true;
-  btn.textContent = 'جاري الإرسال...';
-  fetch('/api/rate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stars: selectedStars }),
-  }).then(r => r.json()).then(d => {
-    localStorage.setItem('vip_rated', selectedStars);
-    const msg = document.getElementById('ratingMsg');
-    msg.textContent = d.message + ' — متوسط: ' + d.avg + ' ⭐ (' + d.count + ' تقييم)';
-    msg.style.color = '#10b981';
-    btn.style.display = 'none';
-    loadPublicStats();
-  }).catch(() => {
-    btn.disabled = false;
-    btn.textContent = 'إرسال التقييم ★';
-  });
-}
 
 function resetPage() {
   if (pollInterval) clearInterval(pollInterval);
+  closeVideoPlayer();
   document.getElementById('urlInput').value = '';
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.add('hidden');
@@ -696,6 +743,8 @@ function resetPage() {
   currentUrl = '';
   currentFormats = [];
   currentThumbnail = '';
+  currentCacheId = '';
+  currentTitle = '';
   selectedFormat = null;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -713,6 +762,7 @@ function resetPage() {
 
 // ===== Pay Modal =====
 function openPayModal() {
+  track('open_subscribe');
   document.getElementById('payModal').classList.remove('hidden');
   document.getElementById('payOverlay').classList.remove('hidden');
 }
@@ -802,3 +852,100 @@ function shareNative() {
     });
   }
 }
+
+// ===== Video Player =====
+function openVideoPlayer() {
+  const video = document.getElementById('videoPlayerEl');
+  video.src = lastDownloadUrl;
+  document.getElementById('videoPlayerModal').classList.remove('hidden');
+  document.getElementById('videoPlayerOverlay').classList.remove('hidden');
+  video.play().catch(() => {});
+}
+
+function closeVideoPlayer() {
+  const video = document.getElementById('videoPlayerEl');
+  if (!video) return;
+  video.pause();
+  video.src = '';
+  document.getElementById('videoPlayerModal').classList.add('hidden');
+  document.getElementById('videoPlayerOverlay').classList.add('hidden');
+}
+
+// ===== Share Card =====
+function generateShareCard() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 800; canvas.height = 450;
+  const c = canvas.getContext('2d');
+
+  const bg = c.createLinearGradient(0, 450, 800, 0);
+  bg.addColorStop(0, '#0a0a0f');
+  bg.addColorStop(0.6, '#16161f');
+  bg.addColorStop(1, '#1a0a2e');
+  c.fillStyle = bg; c.fillRect(0, 0, 800, 450);
+
+  const glow = c.createRadialGradient(400, 200, 0, 400, 200, 320);
+  glow.addColorStop(0, 'rgba(124,58,237,0.4)');
+  glow.addColorStop(0.5, 'rgba(6,182,212,0.15)');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = glow; c.fillRect(0, 0, 800, 450);
+
+  for (let i = 0; i < 35; i++) {
+    c.beginPath();
+    c.arc(Math.random() * 800, Math.random() * 450, Math.random() * 1.8 + 0.4, 0, Math.PI * 2);
+    c.fillStyle = `rgba(255,255,255,${(Math.random() * 0.3 + 0.08).toFixed(2)})`; c.fill();
+  }
+
+  c.textAlign = 'center';
+  c.font = '56px serif'; c.fillText('⬇️', 400, 110);
+
+  c.font = 'bold 42px Cairo, Arial, sans-serif';
+  c.fillStyle = '#f0f0f8'; c.fillText('نزلها بلس', 400, 178);
+
+  const lg = c.createLinearGradient(180, 0, 620, 0);
+  lg.addColorStop(0, 'transparent'); lg.addColorStop(0.3, '#7c3aed');
+  lg.addColorStop(0.7, '#06b6d4'); lg.addColorStop(1, 'transparent');
+  c.strokeStyle = lg; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(180, 198); c.lineTo(620, 198); c.stroke();
+
+  c.font = '26px Cairo, Arial, sans-serif';
+  c.fillStyle = '#a855f7'; c.fillText('تم التحميل بنجاح! 🎉', 400, 252);
+
+  if (currentTitle) {
+    const t = currentTitle.length > 42 ? currentTitle.slice(0, 42) + '...' : currentTitle;
+    c.font = '19px Cairo, Arial, sans-serif';
+    c.fillStyle = 'rgba(240,240,248,0.72)'; c.fillText(t, 400, 305);
+  }
+
+  c.font = 'bold 21px monospace';
+  c.fillStyle = '#06b6d4'; c.fillText('www.vip-dl.com', 400, 395);
+
+  c.strokeStyle = 'rgba(124,58,237,0.5)'; c.lineWidth = 3;
+  c.strokeRect(2, 2, 796, 446);
+
+  document.getElementById('shareCardImg').src = canvas.toDataURL('image/png');
+  document.getElementById('shareCardModal').classList.remove('hidden');
+  document.getElementById('shareCardOverlay').classList.remove('hidden');
+}
+
+function closeShareCardModal() {
+  document.getElementById('shareCardModal').classList.add('hidden');
+  document.getElementById('shareCardOverlay').classList.add('hidden');
+}
+
+function downloadShareCard() {
+  const src = document.getElementById('shareCardImg').src;
+  if (!src) return;
+  const a = document.createElement('a'); a.download = 'nazzilha-plus.png'; a.href = src; a.click();
+}
+
+// ===== Scroll Reveal =====
+(function initReveal() {
+  if (!('IntersectionObserver' in window)) {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+    return;
+  }
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+}());
