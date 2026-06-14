@@ -463,7 +463,7 @@ def clean_old_files():
     while True:
         now = time.time()
         for f in DOWNLOAD_DIR.iterdir():
-            if f.is_file() and (now - f.stat().st_mtime) > 10800:  # 3 hours
+            if f.is_file() and (now - f.stat().st_mtime) > 3600:  # 1 hour
                 try:
                     f.unlink()
                 except Exception:
@@ -1640,6 +1640,15 @@ def start_download():
     progress_store[task_id] = {"status": "starting", "percent": 0}
     cached = info_cache.pop(cache_id, None) if cache_id else None
 
+    # Check available disk space before starting (need at least 300 MB)
+    import shutil
+    try:
+        free_mb = shutil.disk_usage(DOWNLOAD_DIR).free // (1024 * 1024)
+        if free_mb < 300:
+            return jsonify({"error": "السيرفر ممتلئ مؤقتاً، حاول بعد دقيقة"}), 503
+    except Exception:
+        pass
+
     def do_download():
         _start = time.time()
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
@@ -1652,6 +1661,10 @@ def start_download():
             "noplaylist": True,
             "nocheckcertificate": True,
             "prefer_ffmpeg": True,
+            "socket_timeout": 30,
+            "retries": 5,
+            "fragment_retries": 5,
+            "http_chunk_size": 10485760,
             "progress_hooks": [make_progress_hook(task_id)],
             "postprocessors": [
                 {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"},
@@ -1697,7 +1710,18 @@ def start_download():
                 record_download(platform, False, "الملف لم يُوجد", duration=time.time()-_start)
         except Exception as e:
             err = str(e)[:200]
-            progress_store[task_id] = {"status": "error", "error": err}
+            err_lower = err.lower()
+            if "no space left" in err_lower or "disk" in err_lower:
+                friendly = "السيرفر ممتلئ مؤقتاً، حاول بعد دقيقة"
+            elif "timed out" in err_lower or "timeout" in err_lower or "socket" in err_lower:
+                friendly = "انتهت مهلة التحميل، الفيديو كبير جداً أو الاتصال بطيء — حاول مرة أخرى"
+            elif "fragment" in err_lower:
+                friendly = "فشل تحميل أجزاء الفيديو، حاول بجودة أقل"
+            elif "memory" in err_lower:
+                friendly = "الفيديو كبير جداً على السيرفر، حاول بجودة أقل"
+            else:
+                friendly = err
+            progress_store[task_id] = {"status": "error", "error": friendly}
             record_download(platform, False, err, duration=time.time()-_start)
 
     threading.Thread(target=do_download, daemon=True).start()
