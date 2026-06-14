@@ -1802,14 +1802,22 @@ def start_download():
 
             found = list(DOWNLOAD_DIR.glob(f"{task_id}.*"))
             if found:
-                ext = found[0].suffix
-                progress_store[task_id] = {
-                    "status": "done",
-                    "percent": 100,
-                    "file": task_id + ext,
-                    "filename": safe_title + ext,
-                }
-                record_download(platform, True, duration=time.time()-_start)
+                ext = found[0].suffix.lower()
+                valid_exts = {".mp4", ".webm", ".mkv", ".m4a", ".mp3", ".mov", ".avi", ".flv", ".ts"}
+                if ext not in valid_exts:
+                    # yt-dlp saved an HTML error page instead of a real video
+                    try: found[0].unlink()
+                    except Exception: pass
+                    progress_store[task_id] = {"status": "error", "error": "فشل التحميل من المنصة — الفيديو غير متاح أو محمي، جرب رابطاً آخر"}
+                    record_download(platform, False, f"bad file ext: {ext}", duration=time.time()-_start)
+                else:
+                    progress_store[task_id] = {
+                        "status": "done",
+                        "percent": 100,
+                        "file": task_id + ext,
+                        "filename": safe_title + ext,
+                    }
+                    record_download(platform, True, duration=time.time()-_start)
             else:
                 progress_store[task_id] = {"status": "error", "error": "الملف لم يُوجد"}
                 record_download(platform, False, "الملف لم يُوجد", duration=time.time()-_start)
