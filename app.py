@@ -28,7 +28,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import yt_dlp
 
 
-# ===== Auto-update yt-dlp =====
+# ===== Manual yt-dlp update (admin-only, not on startup) =====
 def auto_update_ytdlp():
     try:
         subprocess.run(
@@ -38,9 +38,6 @@ def auto_update_ytdlp():
         stats["ytdlp_updated"] = now().strftime("%Y-%m-%d %H:%M")
     except Exception:
         pass
-
-
-threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 
 _server_start = time.time()
 _last_activity = time.time()
@@ -142,6 +139,7 @@ RESET_SECRET = os.environ.get("RESET_SECRET", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 INSTAGRAM_COOKIES = os.environ.get("INSTAGRAM_COOKIES", "")  # Netscape cookies.txt content
 FACEBOOK_COOKIES  = os.environ.get("FACEBOOK_COOKIES",  "")  # Netscape cookies.txt content
+TIKTOK_COOKIES    = os.environ.get("TIKTOK_COOKIES",    "")  # Netscape cookies.txt content
 
 reset_tokens = {}  # token -> {"expires": datetime}
 
@@ -426,43 +424,61 @@ def get_cookies_file():
         return None
 
 
-def get_facebook_cookies_file():
-    """Write FACEBOOK_COOKIES env var to a temp file for yt-dlp."""
-    if not FACEBOOK_COOKIES:
+def _write_cookies_file(content):
+    if not content:
         return None
     import tempfile
     try:
         tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-        tmp.write(FACEBOOK_COOKIES)
+        tmp.write(content)
         tmp.close()
         return tmp.name
     except Exception:
         return None
 
 
+def get_facebook_cookies_file():
+    return _write_cookies_file(FACEBOOK_COOKIES)
+
+
 def apply_platform_opts(url, ydl_opts):
     """Add platform-specific yt-dlp headers/cookies."""
     url_lower = url.lower()
+
     if "tiktok.com" in url_lower or "vm.tiktok" in url_lower:
-        ydl_opts.setdefault("http_headers", {})["User-Agent"] = (
-            "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/114.0.0.0 Mobile Safari/537.36"
-        )
-        ydl_opts["extractor_args"] = {"tiktok": {"webpage_download": ["true"]}}
+        tk_file = _write_cookies_file(TIKTOK_COOKIES)
+        if tk_file:
+            ydl_opts["cookiefile"] = tk_file
+        ydl_opts.setdefault("http_headers", {}).update({
+            "User-Agent": (
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                "Version/17.0 Mobile/15E148 Safari/604.1"
+            ),
+            "Referer": "https://www.tiktok.com/",
+        })
+        ydl_opts["extractor_args"] = {
+            "tiktok": {"webpage_download": ["true"], "api": ["webapp_v2"]}
+        }
+
     elif "facebook.com" in url_lower or "fb.watch" in url_lower:
-        fb_file = get_facebook_cookies_file()
+        fb_file = _write_cookies_file(FACEBOOK_COOKIES)
         if fb_file:
             ydl_opts["cookiefile"] = fb_file
-        ydl_opts.setdefault("http_headers", {})["User-Agent"] = (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
+        ydl_opts.setdefault("http_headers", {}).update({
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/125.0.0.0 Safari/537.36"
+            ),
+            "Referer": "https://www.facebook.com/",
+        })
+
     elif "instagram.com" in url_lower:
         ig_file = get_cookies_file()
         if ig_file:
             ydl_opts["cookiefile"] = ig_file
+
     return ydl_opts
 
 
