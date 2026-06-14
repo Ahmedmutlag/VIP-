@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import uuid
 import threading
@@ -9,6 +10,10 @@ import json
 import smtplib
 import secrets
 import urllib.request
+
+# Force unbuffered output so logs appear immediately in Render
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
@@ -1567,14 +1572,15 @@ def get_info():
         return jsonify({"error": "الرابط مطلوب"}), 400
 
     ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
+        "quiet": False,
+        "no_warnings": False,
         "skip_download": True,
         "noplaylist": True,
         "nocheckcertificate": True,
     }
 
     apply_platform_opts(url, ydl_opts)
+    print(f"[INFO] platform={detect_platform(url)} url={url[:80]}", flush=True)
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1650,12 +1656,14 @@ def get_info():
 
     except yt_dlp.utils.DownloadError as e:
         msg = str(e)
+        print(f"[INFO FAIL] platform={detect_platform(url)} url={url[:80]} err={msg[:200]}", flush=True)
         if "Unsupported URL" in msg:
             return jsonify({"error": "هذا الموقع غير مدعوم حالياً"}), 422
         if "Private video" in msg or "login" in msg.lower():
             return jsonify({"error": "الفيديو خاص أو يتطلب تسجيل دخول"}), 403
         return jsonify({"error": "تعذّر جلب معلومات الفيديو، تحقق من الرابط"}), 400
-    except Exception:
+    except Exception as e:
+        print(f"[INFO ERROR] platform={detect_platform(url)} url={url[:80]} err={str(e)[:200]}", flush=True)
         return jsonify({"error": "حدث خطأ غير متوقع"}), 500
 
 
