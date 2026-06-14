@@ -1793,8 +1793,8 @@ def start_download():
             "format": format_id,
             "outtmpl": output_path,
             "merge_output_format": "mp4",
-            "quiet": True,
-            "no_warnings": True,
+            "quiet": False,
+            "no_warnings": False,
             "noplaylist": True,
             "nocheckcertificate": True,
             "prefer_ffmpeg": True,
@@ -1818,6 +1818,7 @@ def start_download():
             }]
 
         apply_platform_opts(url, ydl_opts)
+        print(f"[DOWNLOAD] platform={platform} url={url[:80]} format={ydl_opts.get('format')}", flush=True)
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1833,12 +1834,13 @@ def start_download():
                 ext = found[0].suffix.lower()
                 valid_exts = {".mp4", ".webm", ".mkv", ".m4a", ".mp3", ".mov", ".avi", ".flv", ".ts"}
                 if ext not in valid_exts:
-                    # yt-dlp saved an HTML error page instead of a real video
+                    print(f"[DOWNLOAD ERROR] bad ext={ext} platform={platform} url={url[:80]}", flush=True)
                     try: found[0].unlink()
                     except Exception: pass
                     progress_store[task_id] = {"status": "error", "error": "فشل التحميل من المنصة — الفيديو غير متاح أو محمي، جرب رابطاً آخر"}
                     record_download(platform, False, f"bad file ext: {ext}", duration=time.time()-_start)
                 else:
+                    print(f"[DOWNLOAD OK] platform={platform} ext={ext} title={safe_title[:40]}", flush=True)
                     progress_store[task_id] = {
                         "status": "done",
                         "percent": 100,
@@ -1874,6 +1876,7 @@ def start_download():
                 friendly = "الفيديو غير موجود أو تم حذفه"
             else:
                 friendly = err
+            print(f"[DOWNLOAD FAIL] platform={platform} err={err[:120]}", flush=True)
             progress_store[task_id] = {"status": "error", "error": friendly}
             record_download(platform, False, err, duration=time.time()-_start)
 
