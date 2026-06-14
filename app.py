@@ -136,7 +136,6 @@ ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "ahmed.alabdan2@gmail.com")
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 RESET_SECRET = os.environ.get("RESET_SECRET", "")
-SMTP_PASS = os.environ.get("SMTP_PASS", "")
 INSTAGRAM_COOKIES = os.environ.get("INSTAGRAM_COOKIES", "")  # Netscape cookies.txt content
 FACEBOOK_COOKIES  = os.environ.get("FACEBOOK_COOKIES",  "")  # Netscape cookies.txt content
 TIKTOK_COOKIES    = os.environ.get("TIKTOK_COOKIES",    "")  # Netscape cookies.txt content
@@ -478,6 +477,14 @@ def apply_platform_opts(url, ydl_opts):
         ig_file = get_cookies_file()
         if ig_file:
             ydl_opts["cookiefile"] = ig_file
+        ydl_opts.setdefault("http_headers", {}).update({
+            "User-Agent": (
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                "Version/17.0 Mobile/15E148 Safari/604.1"
+            ),
+            "Referer": "https://www.instagram.com/",
+        })
 
     return ydl_opts
 
@@ -1535,7 +1542,7 @@ def change_password():
     new_pass = (data or {}).get("new_pass", "")
     new_user = (data or {}).get("new_user", "").strip()
 
-    if current != ADMIN_PASS:
+    if not verify_password(ADMIN_PASS, current):
         return jsonify({"error": "كلمة السر الحالية غير صحيحة"}), 401
     if len(new_pass) < 6:
         return jsonify({"error": "كلمة السر الجديدة يجب أن تكون 6 أحرف على الأقل"}), 400
