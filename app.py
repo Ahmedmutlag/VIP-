@@ -29,7 +29,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import yt_dlp
 
 
-YTDLP_CONSTRAINT = "yt-dlp<2026.06.01"  # pin to May 2026 — June 9 broke TikTok/Facebook
+YTDLP_CONSTRAINT = "yt-dlp==2026.5.3"
 
 def auto_update_ytdlp():
     """Install/downgrade yt-dlp to the pinned constraint."""
