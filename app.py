@@ -10,10 +10,6 @@ import json
 import smtplib
 import secrets
 import urllib.request
-
-# Force unbuffered output so logs appear immediately in Render
-sys.stdout.reconfigure(line_buffering=True)
-sys.stderr.reconfigure(line_buffering=True)
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
@@ -1572,8 +1568,8 @@ def get_info():
         return jsonify({"error": "الرابط مطلوب"}), 400
 
     ydl_opts = {
-        "quiet": False,
-        "no_warnings": False,
+        "quiet": True,
+        "no_warnings": True,
         "skip_download": True,
         "noplaylist": True,
         "nocheckcertificate": True,
