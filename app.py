@@ -28,16 +28,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import yt_dlp
 
 
-# ===== Manual yt-dlp update (admin-only, not on startup) =====
+YTDLP_CONSTRAINT = "yt-dlp<2026.06.01"  # pin to May 2026 — June 9 broke TikTok/Facebook
+
 def auto_update_ytdlp():
+    """Install/downgrade yt-dlp to the pinned constraint."""
     try:
         subprocess.run(
-            ["pip", "install", "-U", "yt-dlp", "--quiet", "--break-system-packages"],
+            ["pip", "install", YTDLP_CONSTRAINT, "--quiet", "--break-system-packages"],
             timeout=120, check=False
         )
         stats["ytdlp_updated"] = now().strftime("%Y-%m-%d %H:%M")
     except Exception:
         pass
+
+# Run on startup to force the pinned version even if Render cached a newer one
+threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 
 _server_start = time.time()
 _last_activity = time.time()
@@ -1331,15 +1336,15 @@ def check_updates():
 def admin_update_ytdlp():
     def do_update():
         try:
-            result = subprocess.run(
-                ["pip", "install", "-U", "yt-dlp", "--break-system-packages"],
+            subprocess.run(
+                ["pip", "install", YTDLP_CONSTRAINT, "--break-system-packages"],
                 capture_output=True, text=True, timeout=120
             )
             stats["ytdlp_updated"] = now().strftime("%Y-%m-%d %H:%M")
         except Exception:
             pass
     threading.Thread(target=do_update, daemon=True).start()
-    return jsonify({"message": "جاري التحديث..."})
+    return jsonify({"message": f"جاري تثبيت {YTDLP_CONSTRAINT}..."})
 
 
 @app.route("/admin/api/clear-files", methods=["POST"])
