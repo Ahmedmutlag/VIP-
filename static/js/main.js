@@ -531,30 +531,54 @@ async function startDownload() {
   }
 }
 
+let _pollStartTime = 0;
+
 function pollProgress(taskId) {
   if (pollInterval) clearInterval(pollInterval);
+  _pollStartTime = Date.now();
 
   pollInterval = setInterval(async () => {
     try {
       const res = await fetch(`/api/progress/${taskId}`);
       const data = await res.json();
+      const elapsed = Math.floor((Date.now() - _pollStartTime) / 1000);
+      const msgEl = document.getElementById('progressMsg');
 
       if (data.status === 'downloading') {
         const pct = data.percent || 0;
         setCircularProgress(pct);
         document.getElementById('progressPercent').textContent = pct + '%';
+        document.querySelector('.progress-label').textContent = 'جاري التحميل...';
         document.getElementById('progressSpeed').textContent = data.speed ? '⚡ ' + data.speed : '';
         document.getElementById('progressEta').textContent = data.eta ? '⏱ ' + data.eta : '';
-      } else if (data.status === 'processing' || data.status === 'starting') {
-        document.querySelector('.progress-label').textContent = 'جاري المعالجة...';
-        setCircularProgress(90);
-        document.getElementById('progressPercent').textContent = '90%';
+        if (msgEl) {
+          if (elapsed > 90) msgEl.textContent = '📡 فيديو طويل جداً — يحتاج دقيقتين تقريباً، لا تغلق التطبيق';
+          else if (elapsed > 40) msgEl.textContent = '⏳ فيديو كبير — استمر الانتظار قليلاً...';
+          else msgEl.textContent = '';
+        }
+      } else if (data.status === 'processing') {
+        document.querySelector('.progress-label').textContent = 'جاري الدمج...';
+        setCircularProgress(95);
+        document.getElementById('progressPercent').textContent = '95%';
+        document.getElementById('progressSpeed').textContent = '';
+        document.getElementById('progressEta').textContent = '';
+        if (msgEl) msgEl.textContent = '🔧 يتم دمج الصوت والصورة...';
+      } else if (data.status === 'starting') {
+        document.querySelector('.progress-label').textContent = 'جاري الاتصال...';
+        setCircularProgress(0);
+        document.getElementById('progressPercent').textContent = '0%';
+        if (msgEl) {
+          if (elapsed > 15) msgEl.textContent = '📡 جاري الاتصال بالسيرفر...';
+          else msgEl.textContent = '';
+        }
       } else if (data.status === 'done') {
         clearInterval(pollInterval);
+        if (msgEl) msgEl.textContent = '';
         document.getElementById('progressSection').classList.add('hidden');
         showSuccess(data.file, data.filename || 'video.mp4');
       } else if (data.status === 'error') {
         clearInterval(pollInterval);
+        if (msgEl) msgEl.textContent = '';
         document.getElementById('progressSection').classList.add('hidden');
         document.getElementById('infoSection').classList.remove('hidden');
         showError(data.error || '');
@@ -739,6 +763,8 @@ function resetPage() {
   document.getElementById('skeletonSection').classList.add('hidden');
   setCircularProgress(0);
   document.getElementById('progressPercent').textContent = '0%';
+  const pm = document.getElementById('progressMsg');
+  if (pm) pm.textContent = '';
   hideError();
   currentUrl = '';
   currentFormats = [];

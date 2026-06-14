@@ -1570,7 +1570,7 @@ def get_info():
         has_best = any(f["label"] == "أفضل جودة" for f in formats)
         if not has_best and formats:
             formats.insert(0, {
-                "format_id": "bestvideo+bestaudio/best",
+                "format_id": "best[ext=mp4]/bestvideo+bestaudio/best",
                 "label": "أفضل جودة",
                 "ext": "mp4",
                 "type": "video",
@@ -1622,6 +1622,80 @@ def proxy_thumbnail():
         return resp
     except Exception:
         return "", 502
+
+
+@app.route("/api/direct-url", methods=["POST"])
+@limiter.limit("20 per minute")
+def get_direct_url():
+    data = request.get_json()
+    url = (data or {}).get("url", "").strip()
+    if not url:
+        return jsonify({"has_direct": False}), 400
+
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "noplaylist": True,
+        "nocheckcertificate": True,
+        "format": "best[ext=mp4]/best",
+        "socket_timeout": 15,
+    }
+
+    if "instagram.com" in url.lower():
+        cookies_file = get_cookies_file()
+        if cookies_file:
+            ydl_opts["cookiefile"] = cookies_file
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+        if not info:
+            return jsonify({"has_direct": False})
+
+        title = info.get("title", "video")
+        safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:60]
+        direct_url = None
+        ext = "mp4"
+
+        # Single format result (pre-muxed)
+        if info.get("url") and info.get("vcodec", "none") != "none" and info.get("acodec", "none") != "none":
+            direct_url = info["url"]
+            ext = info.get("ext", "mp4")
+        elif info.get("formats"):
+            for f in reversed(info["formats"]):
+                if (f.get("vcodec", "none") != "none" and
+                        f.get("acodec", "none") != "none" and
+                        f.get("ext") == "mp4" and
+                        f.get("url")):
+                    direct_url = f["url"]
+                    ext = f.get("ext", "mp4")
+                    break
+            if not direct_url:
+                for f in reversed(info["formats"]):
+                    if (f.get("vcodec", "none") != "none" and
+                            f.get("acodec", "none") != "none" and
+                            f.get("url")):
+                        direct_url = f["url"]
+                        ext = f.get("ext", "mp4")
+                        break
+
+        if not direct_url:
+            return jsonify({"has_direct": False})
+
+        referer = "https://www.tiktok.com/" if "tiktok" in url.lower() else \
+                  "https://www.instagram.com/" if "instagram" in url.lower() else \
+                  "https://www.facebook.com/" if "facebook" in url.lower() else url
+
+        return jsonify({
+            "has_direct": True,
+            "url": direct_url,
+            "filename": safe_title + "." + ext,
+            "referer": referer,
+        })
+    except Exception:
+        return jsonify({"has_direct": False})
 
 
 @app.route("/api/download", methods=["POST"])
