@@ -1513,10 +1513,19 @@ def get_info():
         "nocheckcertificate": True,
     }
 
-    if "instagram.com" in url.lower():
+    url_lower = url.lower()
+    if "instagram.com" in url_lower:
         cookies_file = get_cookies_file()
         if cookies_file:
             ydl_opts["cookiefile"] = cookies_file
+    elif "tiktok.com" in url_lower or "vm.tiktok" in url_lower:
+        ydl_opts["http_headers"] = {
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+        }
+    elif "facebook.com" in url_lower or "fb.watch" in url_lower:
+        ydl_opts["http_headers"] = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1667,11 +1676,19 @@ def start_download():
                 "preferredquality": "320",
             }]
 
-        # Instagram requires cookies for public and private content
-        if "instagram.com" in url.lower():
+        url_lower = url.lower()
+        if "instagram.com" in url_lower:
             cookies_file = get_cookies_file()
             if cookies_file:
                 ydl_opts["cookiefile"] = cookies_file
+        elif "tiktok.com" in url_lower or "vm.tiktok" in url_lower:
+            ydl_opts["http_headers"] = {
+                "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+            }
+        elif "facebook.com" in url_lower or "fb.watch" in url_lower:
+            ydl_opts["http_headers"] = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+            }
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
