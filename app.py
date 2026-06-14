@@ -32,7 +32,7 @@ import yt_dlp
 def auto_update_ytdlp():
     try:
         subprocess.run(
-            ["pip", "install", "yt-dlp==2026.3.17", "--quiet", "--break-system-packages"],
+            ["pip", "install", "yt-dlp==2024.12.13", "--quiet", "--break-system-packages"],
             timeout=120, check=False
         )
         stats["ytdlp_updated"] = now().strftime("%Y-%m-%d %H:%M")
@@ -120,17 +120,6 @@ DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 progress_store = {}
-info_cache = {}  # cache_id -> {info, expires}
-
-def _cleanup_info_cache():
-    while True:
-        time.sleep(120)
-        now = time.time()
-        expired = [k for k, v in list(info_cache.items()) if v["expires"] < now]
-        for k in expired:
-            info_cache.pop(k, None)
-
-threading.Thread(target=_cleanup_info_cache, daemon=True).start()
 
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
@@ -1513,20 +1502,10 @@ def get_info():
         "nocheckcertificate": True,
     }
 
-    url_lower = url.lower()
-    if "instagram.com" in url_lower:
+    if "instagram.com" in url.lower():
         cookies_file = get_cookies_file()
         if cookies_file:
             ydl_opts["cookiefile"] = cookies_file
-    elif "tiktok.com" in url_lower or "vm.tiktok" in url_lower:
-        ydl_opts["http_headers"] = {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-        }
-        ydl_opts["extractor_args"] = {"tiktok": {"api": ["mobile"]}}
-    elif "facebook.com" in url_lower or "fb.watch" in url_lower:
-        ydl_opts["http_headers"] = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-        }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1560,14 +1539,12 @@ def get_info():
                 continue
             seen.add(key)
 
-            has_both = f.get("vcodec", "none") != "none" and f.get("acodec", "none") != "none"
             formats.append({
                 "format_id": f["format_id"],
                 "label": label,
                 "ext": ext,
                 "type": ftype,
                 "filesize": f.get("filesize") or f.get("filesize_approx"),
-                "direct_url": f.get("url") if has_both else None,
             })
 
         formats.sort(
@@ -1587,9 +1564,6 @@ def get_info():
                 "filesize": None,
             })
 
-        cache_id = str(uuid.uuid4())
-        info_cache[cache_id] = {"info": info, "expires": time.time() + 600}
-
         return jsonify({
             "title": info.get("title", "فيديو"),
             "thumbnail": info.get("thumbnail") or next((t.get("url") for t in reversed(info.get("thumbnails") or []) if t.get("url")), None),
@@ -1597,7 +1571,6 @@ def get_info():
             "uploader": info.get("uploader") or info.get("channel"),
             "platform": info.get("extractor_key", ""),
             "formats": formats,
-            "cache_id": cache_id,
         })
 
     except yt_dlp.utils.DownloadError as e:
@@ -1640,7 +1613,6 @@ def start_download():
     data = request.get_json()
     url = (data or {}).get("url", "").strip()
     format_id = (data or {}).get("format_id", "bestvideo+bestaudio/best")
-    cache_id = (data or {}).get("cache_id", "")
 
     if not url:
         return jsonify({"error": "الرابط مطلوب"}), 400
@@ -1648,7 +1620,6 @@ def start_download():
     task_id = str(uuid.uuid4())
     platform = detect_platform(url)
     progress_store[task_id] = {"status": "starting", "percent": 0}
-    cached = info_cache.pop(cache_id, None) if cache_id else None
 
     def do_download():
         _start = time.time()
@@ -1677,27 +1648,16 @@ def start_download():
                 "preferredquality": "320",
             }]
 
-        url_lower = url.lower()
-        if "instagram.com" in url_lower:
+        # Instagram requires cookies for public and private content
+        if "instagram.com" in url.lower():
             cookies_file = get_cookies_file()
             if cookies_file:
                 ydl_opts["cookiefile"] = cookies_file
-        elif "tiktok.com" in url_lower or "vm.tiktok" in url_lower:
-            ydl_opts["http_headers"] = {
-                "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-            }
-        elif "facebook.com" in url_lower or "fb.watch" in url_lower:
-            ydl_opts["http_headers"] = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-            }
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                if cached:
-                    info = ydl.process_ie_result(cached["info"], download=True)
-                else:
-                    info = ydl.extract_info(url, download=True)
-                title = (info or {}).get("title", "video") if info else "video"
+                info = ydl.extract_info(url, download=True)
+                title = info.get("title", "video")
                 safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:60]
 
             found = list(DOWNLOAD_DIR.glob(f"{task_id}.*"))

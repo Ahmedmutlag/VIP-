@@ -1,8 +1,3 @@
-// ===== Analytics Helper =====
-function track(event, params) {
-  if (typeof gtag === 'function') gtag('event', event, params || {});
-}
-
 // ===== Android App Install Tracking =====
 if (window.AndroidApp) {
   let deviceId = localStorage.getItem('_nzp_did');
@@ -114,8 +109,6 @@ document.getElementById('urlInput').addEventListener('keydown', e => {
 let currentUrl = '';
 let currentFormats = [];
 let currentThumbnail = '';
-let currentCacheId = '';
-let currentTitle = '';
 let selectedFormat = null;
 let pollInterval = null;
 let pendingTaskId = null;
@@ -268,7 +261,6 @@ async function fetchInfo() {
   if (!url) { showError('الرجاء إدخال رابط الفيديو'); return; }
 
   hideError();
-  track('video_fetch', { url: url });
   setLoading(true);
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.add('hidden');
@@ -287,8 +279,6 @@ async function fetchInfo() {
 
     currentUrl = url;
     currentFormats = data.formats || [];
-    currentCacheId = data.cache_id || '';
-    currentTitle = data.title || 'video';
     renderInfo(data);
     document.getElementById('infoSection').classList.remove('hidden');
   } catch {
@@ -423,7 +413,6 @@ function onAdFinished() {
 
 // ===== Start Download =====
 async function startDownload() {
-  track('download_start', { format: selectedFormat ? selectedFormat.format_id : 'unknown' });
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.remove('hidden');
   setCircularProgress(0);
@@ -433,7 +422,7 @@ async function startDownload() {
     const res = await fetch('/api/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: currentUrl, format_id: selectedFormat.format_id, cache_id: currentCacheId }),
+      body: JSON.stringify({ url: currentUrl, format_id: selectedFormat.format_id }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -532,18 +521,10 @@ function showSuccess(file, filename) {
     st.classList.add('hidden');
   }
 
-  track('download_complete', { filename: filename });
   document.getElementById('successSection').classList.remove('hidden');
   showDownloadHint();
   // iOS: don't auto-click — navigator.share() requires a real user tap
-  if (!isIOS) {
-    if (window.AndroidApp && window.AndroidApp.downloadFile) {
-      const absUrl = lastDownloadUrl.startsWith('http') ? lastDownloadUrl : (window.location.origin + lastDownloadUrl);
-      AndroidApp.downloadFile(absUrl, filename);
-    } else {
-      link.click();
-    }
-  }
+  if (!isIOS) link.click();
   launchConfetti();
   saveToHistory(filename, currentUrl);
 }
@@ -646,6 +627,61 @@ async function loadPublicStats() {
 loadPublicStats();
 renderHistory();
 
+// ===== Rating =====
+const stars = document.querySelectorAll('.star');
+let selectedStars = 0;
+
+function highlightStars(n, cls) {
+  stars.forEach((s, i) => {
+    s.classList.remove('active', 'hover-active');
+    if (i < n) s.classList.add(cls || 'active');
+  });
+}
+
+stars.forEach((s, idx) => {
+  s.addEventListener('mouseenter', () => {
+    highlightStars(idx + 1, 'hover-active');
+  });
+  s.addEventListener('mouseleave', () => {
+    highlightStars(selectedStars, 'active');
+  });
+  s.addEventListener('click', () => {
+    selectedStars = idx + 1;
+    highlightStars(selectedStars, 'active');
+    document.getElementById('submitRatingBtn').style.display = 'inline-block';
+    document.getElementById('ratingMsg').textContent = '';
+    document.getElementById('ratingMsg').style.color = 'var(--muted)';
+  });
+});
+
+const userRated = localStorage.getItem('vip_rated');
+if (userRated) {
+  selectedStars = parseInt(userRated);
+  highlightStars(selectedStars, 'active');
+  document.getElementById('ratingMsg').textContent = 'قيّمت سابقاً — يمكنك تغيير تقييمك';
+}
+
+function submitRating() {
+  if (!selectedStars) return;
+  const btn = document.getElementById('submitRatingBtn');
+  btn.disabled = true;
+  btn.textContent = 'جاري الإرسال...';
+  fetch('/api/rate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stars: selectedStars }),
+  }).then(r => r.json()).then(d => {
+    localStorage.setItem('vip_rated', selectedStars);
+    const msg = document.getElementById('ratingMsg');
+    msg.textContent = d.message + ' — متوسط: ' + d.avg + ' ⭐ (' + d.count + ' تقييم)';
+    msg.style.color = '#10b981';
+    btn.style.display = 'none';
+    loadPublicStats();
+  }).catch(() => {
+    btn.disabled = false;
+    btn.textContent = 'إرسال التقييم ★';
+  });
+}
 
 function resetPage() {
   if (pollInterval) clearInterval(pollInterval);
@@ -660,8 +696,6 @@ function resetPage() {
   currentUrl = '';
   currentFormats = [];
   currentThumbnail = '';
-  currentCacheId = '';
-  currentTitle = '';
   selectedFormat = null;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -679,7 +713,6 @@ function resetPage() {
 
 // ===== Pay Modal =====
 function openPayModal() {
-  track('open_subscribe');
   document.getElementById('payModal').classList.remove('hidden');
   document.getElementById('payOverlay').classList.remove('hidden');
 }
