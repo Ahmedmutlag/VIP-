@@ -2,5 +2,5 @@ flask>=3.0.0
 flask-cors>=4.0.0
 flask-limiter>=3.5.0
 flask-compress>=1.14
-yt-dlp<2026.06.09
+yt-dlp<2026.06.01
 gunicorn>=21.2.0
