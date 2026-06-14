@@ -1703,6 +1703,10 @@ def serve_file(filename):
     file_size = filepath.stat().st_size
     CHUNK = 512 * 1024  # 512 KB per chunk
 
+    import urllib.parse
+    encoded_name = urllib.parse.quote(download_name.encode("utf-8"))
+    content_disposition = f"attachment; filename*=UTF-8''{encoded_name}"
+
     range_header = request.headers.get("Range")
     if range_header:
         try:
@@ -1728,7 +1732,7 @@ def serve_file(filename):
 
     status = 206 if range_header else 200
     headers = {
-        "Content-Disposition": f'attachment; filename="{download_name}"',
+        "Content-Disposition": content_disposition,
         "Accept-Ranges": "bytes",
         "Content-Length": str(content_length),
         "Cache-Control": "no-store, no-transform",  # prevent any proxy/compress from altering the stream
