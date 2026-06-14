@@ -949,3 +949,17 @@ function downloadShareCard() {
   }, { threshold: 0.12 });
   document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 }());
+
+// ===== Share Intent receiver (called from Android) =====
+window.receiveSharedUrl = function(text) {
+  const input = document.getElementById('urlInput');
+  if (!input || !text) return;
+  const urlMatch = text.match(/https?:\/\/[^\s]+/);
+  const url = urlMatch ? urlMatch[0] : text;
+  if (isSupportedUrl(url)) {
+    input.value = url;
+    input.dispatchEvent(new Event('input'));
+    showClipboardToast(url);
+    setTimeout(() => fetchInfo(), 600);
+  }
+};
