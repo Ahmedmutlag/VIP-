@@ -562,8 +562,8 @@ main { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding
 
 /* ===== Scroll Reveal ===== */
 .reveal {
-  opacity: 0;
-  transform: translateY(28px);
+  opacity: 1;
+  transform: translateY(0);
   transition: opacity .65s ease, transform .65s ease;
 }
 .reveal.visible {
