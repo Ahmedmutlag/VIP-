@@ -29,7 +29,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import yt_dlp
 
 
-YTDLP_CONSTRAINT = "yt-dlp==2026.5.3"
+YTDLP_CONSTRAINT = "yt-dlp==2026.3.17"
 
 def auto_update_ytdlp():
     """Install/downgrade yt-dlp to the pinned constraint."""
