@@ -1820,49 +1820,15 @@ def serve_file(filename):
         return jsonify({"error": "الملف غير موجود أو انتهت صلاحيته"}), 404
 
     download_name = request.args.get("name", filename)
-    file_size = filepath.stat().st_size
-    CHUNK = 512 * 1024  # 512 KB per chunk
-
-    range_header = request.headers.get("Range")
-    if range_header:
-        try:
-            byte_start = int(range_header.replace("bytes=", "").split("-")[0])
-        except Exception:
-            byte_start = 0
-    else:
-        byte_start = 0
-
-    byte_end = file_size - 1
-    content_length = file_size - byte_start
-
-    def stream_file(start):
-        with open(filepath, "rb") as f:
-            f.seek(start)
-            remaining = file_size - start
-            while remaining > 0:
-                data = f.read(min(CHUNK, remaining))
-                if not data:
-                    break
-                remaining -= len(data)
-                yield data
-
-    status = 206 if range_header else 200
-    headers = {
-        "Content-Disposition": f'attachment; filename="{download_name}"',
-        "Accept-Ranges": "bytes",
-        "Content-Length": str(content_length),
-        "Cache-Control": "no-store, no-transform",  # prevent any proxy/compress from altering the stream
-        "Content-Encoding": "identity",              # tell Flask-Compress to skip this response
-    }
-    if range_header:
-        headers["Content-Range"] = f"bytes {byte_start}-{byte_end}/{file_size}"
-    return Response(stream_file(byte_start), status=status,
-                    mimetype="video/mp4", headers=headers,
-                    direct_passthrough=True)
-
-    resp = send_file(filepath, as_attachment=True, download_name=download_name)
-    resp.headers["Accept-Ranges"] = "bytes"
-    resp.headers["Content-Length"] = str(file_size)
+    resp = send_file(
+        filepath,
+        as_attachment=True,
+        download_name=download_name,
+        mimetype="video/mp4",
+        conditional=True,
+    )
+    resp.headers["Cache-Control"] = "no-store"
+    resp.headers["Content-Encoding"] = "identity"
     return resp
 
 
