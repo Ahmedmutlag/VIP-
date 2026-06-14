@@ -141,6 +141,7 @@ SMTP_PASS = os.environ.get("SMTP_PASS", "")
 RESET_SECRET = os.environ.get("RESET_SECRET", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 INSTAGRAM_COOKIES = os.environ.get("INSTAGRAM_COOKIES", "")  # Netscape cookies.txt content
+FACEBOOK_COOKIES  = os.environ.get("FACEBOOK_COOKIES",  "")  # Netscape cookies.txt content
 
 reset_tokens = {}  # token -> {"expires": datetime}
 
@@ -423,6 +424,46 @@ def get_cookies_file():
         return tmp.name
     except Exception:
         return None
+
+
+def get_facebook_cookies_file():
+    """Write FACEBOOK_COOKIES env var to a temp file for yt-dlp."""
+    if not FACEBOOK_COOKIES:
+        return None
+    import tempfile
+    try:
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+        tmp.write(FACEBOOK_COOKIES)
+        tmp.close()
+        return tmp.name
+    except Exception:
+        return None
+
+
+def apply_platform_opts(url, ydl_opts):
+    """Add platform-specific yt-dlp headers/cookies."""
+    url_lower = url.lower()
+    if "tiktok.com" in url_lower or "vm.tiktok" in url_lower:
+        ydl_opts.setdefault("http_headers", {})["User-Agent"] = (
+            "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/114.0.0.0 Mobile Safari/537.36"
+        )
+        ydl_opts["extractor_args"] = {"tiktok": {"webpage_download": ["true"]}}
+    elif "facebook.com" in url_lower or "fb.watch" in url_lower:
+        fb_file = get_facebook_cookies_file()
+        if fb_file:
+            ydl_opts["cookiefile"] = fb_file
+        ydl_opts.setdefault("http_headers", {})["User-Agent"] = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+    elif "instagram.com" in url_lower:
+        ig_file = get_cookies_file()
+        if ig_file:
+            ydl_opts["cookiefile"] = ig_file
+    return ydl_opts
 
 
 def detect_platform(url):
@@ -1513,10 +1554,7 @@ def get_info():
         "nocheckcertificate": True,
     }
 
-    if "instagram.com" in url.lower():
-        cookies_file = get_cookies_file()
-        if cookies_file:
-            ydl_opts["cookiefile"] = cookies_file
+    apply_platform_opts(url, ydl_opts)
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1642,10 +1680,7 @@ def get_direct_url():
         "socket_timeout": 15,
     }
 
-    if "instagram.com" in url.lower():
-        cookies_file = get_cookies_file()
-        if cookies_file:
-            ydl_opts["cookiefile"] = cookies_file
+    apply_platform_opts(url, ydl_opts)
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1754,11 +1789,7 @@ def start_download():
                 "preferredquality": "320",
             }]
 
-        # Instagram requires cookies for public and private content
-        if "instagram.com" in url.lower():
-            cookies_file = get_cookies_file()
-            if cookies_file:
-                ydl_opts["cookiefile"] = cookies_file
+        apply_platform_opts(url, ydl_opts)
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1793,6 +1824,18 @@ def start_download():
                 friendly = "فشل تحميل أجزاء الفيديو، حاول بجودة أقل"
             elif "memory" in err_lower:
                 friendly = "الفيديو كبير جداً على السيرفر، حاول بجودة أقل"
+            elif "confirm your age" in err_lower or "age-restricted" in err_lower:
+                friendly = "هذا الفيديو مقيّد بعمر ولا يمكن تحميله"
+            elif "429" in err or "too many" in err_lower or "rate limit" in err_lower:
+                friendly = "المنصة تمنع التحميل مؤقتاً بسبب الضغط — حاول بعد دقيقة"
+            elif "sign in" in err_lower or "log in" in err_lower or "login required" in err_lower:
+                friendly = "الفيديو يتطلب تسجيل دخول، جرب فيديو عاماً آخر"
+            elif "private" in err_lower or "not available" in err_lower:
+                friendly = "الفيديو غير متاح أو خاص"
+            elif "403" in err or "forbidden" in err_lower:
+                friendly = "المنصة ترفض التحميل — حاول مرة أخرى بعد دقيقة"
+            elif "404" in err or "not found" in err_lower:
+                friendly = "الفيديو غير موجود أو تم حذفه"
             else:
                 friendly = err
             progress_store[task_id] = {"status": "error", "error": friendly}
