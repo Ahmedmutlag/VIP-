@@ -99,75 +99,15 @@ document.getElementById('pasteBtn').addEventListener('click', async () => {
     } else {
       text = await navigator.clipboard.readText();
     }
-    if (text) {
-      document.getElementById('urlInput').value = text;
-      document.getElementById('urlInput').dispatchEvent(new Event('input'));
-    } else {
-      document.getElementById('urlInput').focus();
-    }
+    if (text) document.getElementById('urlInput').value = text;
+    else document.getElementById('urlInput').focus();
   } catch {
     document.getElementById('urlInput').focus();
   }
 });
 
-// Auto-detect clipboard on page load
-function isSupportedUrl(url) {
-  return /tiktok\.com|vm\.tiktok|instagram\.com|facebook\.com|fb\.watch|pinterest\.com|pin\.it/i.test(url);
-}
-
-function showClipboardToast(url) {
-  const platform = url.includes('tiktok') ? 'TikTok' : url.includes('instagram') ? 'Instagram' : url.includes('facebook') || url.includes('fb.watch') ? 'Facebook' : 'Pinterest';
-  const toast = document.createElement('div');
-  toast.style.cssText = 'position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);background:#1e1e2e;border:1px solid #7c3aed;color:#f0f0f8;padding:.6rem 1.2rem;border-radius:12px;font-size:.85rem;font-family:Cairo,sans-serif;z-index:9999;animation:fadeInUp .3s ease;box-shadow:0 4px 20px rgba(124,58,237,.4);white-space:nowrap';
-  toast.textContent = `📋 تم اكتشاف رابط ${platform} — جاري الجلب...`;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
-}
-
-window.addEventListener('load', () => {
-  const input = document.getElementById('urlInput');
-  if (input.value) return;
-  try {
-    if (window.AndroidClipboard) {
-      const text = window.AndroidClipboard.getText();
-      if (text && isSupportedUrl(text)) {
-        input.value = text;
-        input.dispatchEvent(new Event('input'));
-        showClipboardToast(text);
-        setTimeout(() => fetchInfo(), 800);
-      }
-    } else {
-      navigator.clipboard.readText().then(text => {
-        if (text && isSupportedUrl(text) && !input.value) {
-          input.value = text;
-          input.dispatchEvent(new Event('input'));
-          showClipboardToast(text);
-        }
-      }).catch(() => {});
-    }
-  } catch {}
-});
-
 document.getElementById('urlInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') fetchInfo();
-});
-
-document.getElementById('urlInput').addEventListener('input', function() {
-  const val = this.value.toLowerCase();
-  const wrap = this.closest('.input-wrap');
-  const icon = wrap.querySelector('.input-icon');
-  wrap.classList.remove('platform-tiktok','platform-instagram','platform-facebook','platform-pinterest');
-  if (val.includes('tiktok.com') || val.includes('vm.tiktok')) {
-    wrap.classList.add('platform-tiktok'); icon.textContent = '🎵';
-  } else if (val.includes('instagram.com')) {
-    wrap.classList.add('platform-instagram'); icon.textContent = '📸';
-  } else if (val.includes('facebook.com') || val.includes('fb.watch')) {
-    wrap.classList.add('platform-facebook'); icon.textContent = '📘';
-  } else if (val.includes('pinterest.com') || val.includes('pin.it')) {
-    wrap.classList.add('platform-pinterest'); icon.textContent = '📌';
-  } else {
-    icon.textContent = '🔗';
-  }
 });
 
 // ===== State =====
@@ -271,27 +211,6 @@ function toggleTheme() {
   const btn = document.getElementById('themeToggle');
   if (btn) btn.textContent = saved === 'light' ? '🌙' : '☀️';
 })();
-
-// ===== Success Sound =====
-function playSuccessSound() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [[523.25, 0], [659.25, 0.13], [783.99, 0.26]].forEach(([freq, delay]) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      const t = ctx.currentTime + delay;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.22, t + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-      osc.start(t);
-      osc.stop(t + 0.5);
-    });
-  } catch {}
-}
 
 // ===== Confetti =====
 function launchConfetti() {
@@ -531,54 +450,30 @@ async function startDownload() {
   }
 }
 
-let _pollStartTime = 0;
-
 function pollProgress(taskId) {
   if (pollInterval) clearInterval(pollInterval);
-  _pollStartTime = Date.now();
 
   pollInterval = setInterval(async () => {
     try {
       const res = await fetch(`/api/progress/${taskId}`);
       const data = await res.json();
-      const elapsed = Math.floor((Date.now() - _pollStartTime) / 1000);
-      const msgEl = document.getElementById('progressMsg');
 
       if (data.status === 'downloading') {
         const pct = data.percent || 0;
         setCircularProgress(pct);
         document.getElementById('progressPercent').textContent = pct + '%';
-        document.querySelector('.progress-label').textContent = 'جاري التحميل...';
         document.getElementById('progressSpeed').textContent = data.speed ? '⚡ ' + data.speed : '';
         document.getElementById('progressEta').textContent = data.eta ? '⏱ ' + data.eta : '';
-        if (msgEl) {
-          if (elapsed > 90) msgEl.textContent = '📡 فيديو طويل جداً — يحتاج دقيقتين تقريباً، لا تغلق التطبيق';
-          else if (elapsed > 40) msgEl.textContent = '⏳ فيديو كبير — استمر الانتظار قليلاً...';
-          else msgEl.textContent = '';
-        }
-      } else if (data.status === 'processing') {
-        document.querySelector('.progress-label').textContent = 'جاري الدمج...';
-        setCircularProgress(95);
-        document.getElementById('progressPercent').textContent = '95%';
-        document.getElementById('progressSpeed').textContent = '';
-        document.getElementById('progressEta').textContent = '';
-        if (msgEl) msgEl.textContent = '🔧 يتم دمج الصوت والصورة...';
-      } else if (data.status === 'starting') {
-        document.querySelector('.progress-label').textContent = 'جاري الاتصال...';
-        setCircularProgress(0);
-        document.getElementById('progressPercent').textContent = '0%';
-        if (msgEl) {
-          if (elapsed > 15) msgEl.textContent = '📡 جاري الاتصال بالسيرفر...';
-          else msgEl.textContent = '';
-        }
+      } else if (data.status === 'processing' || data.status === 'starting') {
+        document.querySelector('.progress-label').textContent = 'جاري المعالجة...';
+        setCircularProgress(90);
+        document.getElementById('progressPercent').textContent = '90%';
       } else if (data.status === 'done') {
         clearInterval(pollInterval);
-        if (msgEl) msgEl.textContent = '';
         document.getElementById('progressSection').classList.add('hidden');
         showSuccess(data.file, data.filename || 'video.mp4');
       } else if (data.status === 'error') {
         clearInterval(pollInterval);
-        if (msgEl) msgEl.textContent = '';
         document.getElementById('progressSection').classList.add('hidden');
         document.getElementById('infoSection').classList.remove('hidden');
         showError(data.error || '');
@@ -650,7 +545,6 @@ function showSuccess(file, filename) {
     }
   }
   launchConfetti();
-  playSuccessSound();
   saveToHistory(filename, currentUrl);
 }
 
@@ -755,7 +649,6 @@ renderHistory();
 
 function resetPage() {
   if (pollInterval) clearInterval(pollInterval);
-  closeVideoPlayer();
   document.getElementById('urlInput').value = '';
   document.getElementById('infoSection').classList.add('hidden');
   document.getElementById('progressSection').classList.add('hidden');
@@ -763,8 +656,6 @@ function resetPage() {
   document.getElementById('skeletonSection').classList.add('hidden');
   setCircularProgress(0);
   document.getElementById('progressPercent').textContent = '0%';
-  const pm = document.getElementById('progressMsg');
-  if (pm) pm.textContent = '';
   hideError();
   currentUrl = '';
   currentFormats = [];
@@ -878,114 +769,3 @@ function shareNative() {
     });
   }
 }
-
-// ===== Video Player =====
-function openVideoPlayer() {
-  const video = document.getElementById('videoPlayerEl');
-  video.src = lastDownloadUrl;
-  document.getElementById('videoPlayerModal').classList.remove('hidden');
-  document.getElementById('videoPlayerOverlay').classList.remove('hidden');
-  video.play().catch(() => {});
-}
-
-function closeVideoPlayer() {
-  const video = document.getElementById('videoPlayerEl');
-  if (!video) return;
-  video.pause();
-  video.src = '';
-  document.getElementById('videoPlayerModal').classList.add('hidden');
-  document.getElementById('videoPlayerOverlay').classList.add('hidden');
-}
-
-// ===== Share Card =====
-function generateShareCard() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 800; canvas.height = 450;
-  const c = canvas.getContext('2d');
-
-  const bg = c.createLinearGradient(0, 450, 800, 0);
-  bg.addColorStop(0, '#0a0a0f');
-  bg.addColorStop(0.6, '#16161f');
-  bg.addColorStop(1, '#1a0a2e');
-  c.fillStyle = bg; c.fillRect(0, 0, 800, 450);
-
-  const glow = c.createRadialGradient(400, 200, 0, 400, 200, 320);
-  glow.addColorStop(0, 'rgba(124,58,237,0.4)');
-  glow.addColorStop(0.5, 'rgba(6,182,212,0.15)');
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = glow; c.fillRect(0, 0, 800, 450);
-
-  for (let i = 0; i < 35; i++) {
-    c.beginPath();
-    c.arc(Math.random() * 800, Math.random() * 450, Math.random() * 1.8 + 0.4, 0, Math.PI * 2);
-    c.fillStyle = `rgba(255,255,255,${(Math.random() * 0.3 + 0.08).toFixed(2)})`; c.fill();
-  }
-
-  c.textAlign = 'center';
-  c.font = '56px serif'; c.fillText('⬇️', 400, 110);
-
-  c.font = 'bold 42px Cairo, Arial, sans-serif';
-  c.fillStyle = '#f0f0f8'; c.fillText('نزلها بلس', 400, 178);
-
-  const lg = c.createLinearGradient(180, 0, 620, 0);
-  lg.addColorStop(0, 'transparent'); lg.addColorStop(0.3, '#7c3aed');
-  lg.addColorStop(0.7, '#06b6d4'); lg.addColorStop(1, 'transparent');
-  c.strokeStyle = lg; c.lineWidth = 2;
-  c.beginPath(); c.moveTo(180, 198); c.lineTo(620, 198); c.stroke();
-
-  c.font = '26px Cairo, Arial, sans-serif';
-  c.fillStyle = '#a855f7'; c.fillText('تم التحميل بنجاح! 🎉', 400, 252);
-
-  if (currentTitle) {
-    const t = currentTitle.length > 42 ? currentTitle.slice(0, 42) + '...' : currentTitle;
-    c.font = '19px Cairo, Arial, sans-serif';
-    c.fillStyle = 'rgba(240,240,248,0.72)'; c.fillText(t, 400, 305);
-  }
-
-  c.font = 'bold 21px monospace';
-  c.fillStyle = '#06b6d4'; c.fillText('www.vip-dl.com', 400, 395);
-
-  c.strokeStyle = 'rgba(124,58,237,0.5)'; c.lineWidth = 3;
-  c.strokeRect(2, 2, 796, 446);
-
-  document.getElementById('shareCardImg').src = canvas.toDataURL('image/png');
-  document.getElementById('shareCardModal').classList.remove('hidden');
-  document.getElementById('shareCardOverlay').classList.remove('hidden');
-}
-
-function closeShareCardModal() {
-  document.getElementById('shareCardModal').classList.add('hidden');
-  document.getElementById('shareCardOverlay').classList.add('hidden');
-}
-
-function downloadShareCard() {
-  const src = document.getElementById('shareCardImg').src;
-  if (!src) return;
-  const a = document.createElement('a'); a.download = 'nazzilha-plus.png'; a.href = src; a.click();
-}
-
-// ===== Scroll Reveal =====
-(function initReveal() {
-  if (!('IntersectionObserver' in window)) {
-    document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
-    return;
-  }
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-  }, { threshold: 0.12 });
-  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-}());
-
-// ===== Share Intent receiver (called from Android) =====
-window.receiveSharedUrl = function(text) {
-  const input = document.getElementById('urlInput');
-  if (!input || !text) return;
-  const urlMatch = text.match(/https?:\/\/[^\s]+/);
-  const url = urlMatch ? urlMatch[0] : text;
-  if (isSupportedUrl(url)) {
-    input.value = url;
-    input.dispatchEvent(new Event('input'));
-    showClipboardToast(url);
-    setTimeout(() => fetchInfo(), 600);
-  }
-};

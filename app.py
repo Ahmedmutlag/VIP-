@@ -1,5 +1,4 @@
 import os
-import sys
 import re
 import uuid
 import threading
@@ -29,20 +28,18 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import yt_dlp
 
 
-YTDLP_CONSTRAINT = "yt-dlp==2026.3.17"
-
+# ===== Auto-update yt-dlp =====
 def auto_update_ytdlp():
-    """Install/downgrade yt-dlp to the pinned constraint."""
     try:
         subprocess.run(
-            ["pip", "install", YTDLP_CONSTRAINT, "--quiet", "--break-system-packages"],
+            ["pip", "install", "yt-dlp==2026.3.17", "--quiet", "--break-system-packages"],
             timeout=120, check=False
         )
         stats["ytdlp_updated"] = now().strftime("%Y-%m-%d %H:%M")
     except Exception:
         pass
 
-# Run on startup to force the pinned version even if Render cached a newer one
+
 threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 
 _server_start = time.time()
@@ -142,9 +139,8 @@ ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "ahmed.alabdan2@gmail.com")
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 RESET_SECRET = os.environ.get("RESET_SECRET", "")
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
 INSTAGRAM_COOKIES = os.environ.get("INSTAGRAM_COOKIES", "")  # Netscape cookies.txt content
-FACEBOOK_COOKIES  = os.environ.get("FACEBOOK_COOKIES",  "")  # Netscape cookies.txt content
-TIKTOK_COOKIES    = os.environ.get("TIKTOK_COOKIES",    "")  # Netscape cookies.txt content
 
 reset_tokens = {}  # token -> {"expires": datetime}
 
@@ -429,64 +425,6 @@ def get_cookies_file():
         return None
 
 
-def _write_cookies_file(content):
-    if not content:
-        return None
-    import tempfile
-    try:
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-        tmp.write(content)
-        tmp.close()
-        return tmp.name
-    except Exception:
-        return None
-
-
-def get_facebook_cookies_file():
-    return _write_cookies_file(FACEBOOK_COOKIES)
-
-
-def apply_platform_opts(url, ydl_opts):
-    """Add platform-specific yt-dlp headers/cookies."""
-    url_lower = url.lower()
-
-    if "tiktok.com" in url_lower or "vm.tiktok" in url_lower:
-        tk_file = _write_cookies_file(TIKTOK_COOKIES)
-        if tk_file:
-            ydl_opts["cookiefile"] = tk_file
-        ydl_opts.setdefault("http_headers", {}).update({
-            "User-Agent": (
-                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                "Version/17.0 Mobile/15E148 Safari/604.1"
-            ),
-            "Referer": "https://www.tiktok.com/",
-        })
-        ydl_opts["extractor_args"] = {
-            "tiktok": {"webpage_download": ["true"], "api": ["webapp_v2"]}
-        }
-
-    elif "facebook.com" in url_lower or "fb.watch" in url_lower:
-        fb_file = _write_cookies_file(FACEBOOK_COOKIES)
-        if fb_file:
-            ydl_opts["cookiefile"] = fb_file
-        ydl_opts.setdefault("http_headers", {}).update({
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/125.0.0.0 Safari/537.36"
-            ),
-            "Referer": "https://www.facebook.com/",
-        })
-
-    elif "instagram.com" in url_lower:
-        ig_file = get_cookies_file()
-        if ig_file:
-            ydl_opts["cookiefile"] = ig_file
-
-    return ydl_opts
-
-
 def detect_platform(url):
     url = url.lower()
     if "tiktok.com" in url or "vm.tiktok.com" in url:
@@ -525,7 +463,7 @@ def clean_old_files():
     while True:
         now = time.time()
         for f in DOWNLOAD_DIR.iterdir():
-            if f.is_file() and (now - f.stat().st_mtime) > 3600:  # 1 hour
+            if f.is_file() and (now - f.stat().st_mtime) > 10800:  # 3 hours
                 try:
                     f.unlink()
                 except Exception:
@@ -1329,15 +1267,15 @@ def check_updates():
 def admin_update_ytdlp():
     def do_update():
         try:
-            subprocess.run(
-                ["pip", "install", YTDLP_CONSTRAINT, "--break-system-packages"],
+            result = subprocess.run(
+                ["pip", "install", "-U", "yt-dlp", "--break-system-packages"],
                 capture_output=True, text=True, timeout=120
             )
             stats["ytdlp_updated"] = now().strftime("%Y-%m-%d %H:%M")
         except Exception:
             pass
     threading.Thread(target=do_update, daemon=True).start()
-    return jsonify({"message": f"جاري تثبيت {YTDLP_CONSTRAINT}..."})
+    return jsonify({"message": "جاري التحديث..."})
 
 
 @app.route("/admin/api/clear-files", methods=["POST"])
@@ -1540,7 +1478,7 @@ def change_password():
     new_pass = (data or {}).get("new_pass", "")
     new_user = (data or {}).get("new_user", "").strip()
 
-    if not verify_password(ADMIN_PASS, current):
+    if current != ADMIN_PASS:
         return jsonify({"error": "كلمة السر الحالية غير صحيحة"}), 401
     if len(new_pass) < 6:
         return jsonify({"error": "كلمة السر الجديدة يجب أن تكون 6 أحرف على الأقل"}), 400
@@ -1575,8 +1513,10 @@ def get_info():
         "nocheckcertificate": True,
     }
 
-    apply_platform_opts(url, ydl_opts)
-    print(f"[INFO] platform={detect_platform(url)} url={url[:80]}", flush=True)
+    if "instagram.com" in url.lower():
+        cookies_file = get_cookies_file()
+        if cookies_file:
+            ydl_opts["cookiefile"] = cookies_file
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1630,7 +1570,7 @@ def get_info():
         has_best = any(f["label"] == "أفضل جودة" for f in formats)
         if not has_best and formats:
             formats.insert(0, {
-                "format_id": "best[ext=mp4]/bestvideo+bestaudio/best",
+                "format_id": "bestvideo+bestaudio/best",
                 "label": "أفضل جودة",
                 "ext": "mp4",
                 "type": "video",
@@ -1652,14 +1592,12 @@ def get_info():
 
     except yt_dlp.utils.DownloadError as e:
         msg = str(e)
-        print(f"[INFO FAIL] platform={detect_platform(url)} url={url[:80]} err={msg[:200]}", flush=True)
         if "Unsupported URL" in msg:
             return jsonify({"error": "هذا الموقع غير مدعوم حالياً"}), 422
         if "Private video" in msg or "login" in msg.lower():
             return jsonify({"error": "الفيديو خاص أو يتطلب تسجيل دخول"}), 403
         return jsonify({"error": "تعذّر جلب معلومات الفيديو، تحقق من الرابط"}), 400
-    except Exception as e:
-        print(f"[INFO ERROR] platform={detect_platform(url)} url={url[:80]} err={str(e)[:200]}", flush=True)
+    except Exception:
         return jsonify({"error": "حدث خطأ غير متوقع"}), 500
 
 
@@ -1686,77 +1624,6 @@ def proxy_thumbnail():
         return "", 502
 
 
-@app.route("/api/direct-url", methods=["POST"])
-@limiter.limit("20 per minute")
-def get_direct_url():
-    data = request.get_json()
-    url = (data or {}).get("url", "").strip()
-    if not url:
-        return jsonify({"has_direct": False}), 400
-
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "noplaylist": True,
-        "nocheckcertificate": True,
-        "format": "best[ext=mp4]/best",
-        "socket_timeout": 15,
-    }
-
-    apply_platform_opts(url, ydl_opts)
-
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-
-        if not info:
-            return jsonify({"has_direct": False})
-
-        title = info.get("title", "video")
-        safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:60]
-        direct_url = None
-        ext = "mp4"
-
-        # Single format result (pre-muxed)
-        if info.get("url") and info.get("vcodec", "none") != "none" and info.get("acodec", "none") != "none":
-            direct_url = info["url"]
-            ext = info.get("ext", "mp4")
-        elif info.get("formats"):
-            for f in reversed(info["formats"]):
-                if (f.get("vcodec", "none") != "none" and
-                        f.get("acodec", "none") != "none" and
-                        f.get("ext") == "mp4" and
-                        f.get("url")):
-                    direct_url = f["url"]
-                    ext = f.get("ext", "mp4")
-                    break
-            if not direct_url:
-                for f in reversed(info["formats"]):
-                    if (f.get("vcodec", "none") != "none" and
-                            f.get("acodec", "none") != "none" and
-                            f.get("url")):
-                        direct_url = f["url"]
-                        ext = f.get("ext", "mp4")
-                        break
-
-        if not direct_url:
-            return jsonify({"has_direct": False})
-
-        referer = "https://www.tiktok.com/" if "tiktok" in url.lower() else \
-                  "https://www.instagram.com/" if "instagram" in url.lower() else \
-                  "https://www.facebook.com/" if "facebook" in url.lower() else url
-
-        return jsonify({
-            "has_direct": True,
-            "url": direct_url,
-            "filename": safe_title + "." + ext,
-            "referer": referer,
-        })
-    except Exception:
-        return jsonify({"has_direct": False})
-
-
 @app.route("/api/download", methods=["POST"])
 @limiter.limit("10 per minute")
 def start_download():
@@ -1773,15 +1640,6 @@ def start_download():
     progress_store[task_id] = {"status": "starting", "percent": 0}
     cached = info_cache.pop(cache_id, None) if cache_id else None
 
-    # Check available disk space before starting (need at least 300 MB)
-    import shutil
-    try:
-        free_mb = shutil.disk_usage(DOWNLOAD_DIR).free // (1024 * 1024)
-        if free_mb < 300:
-            return jsonify({"error": "السيرفر ممتلئ مؤقتاً، حاول بعد دقيقة"}), 503
-    except Exception:
-        pass
-
     def do_download():
         _start = time.time()
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
@@ -1789,15 +1647,11 @@ def start_download():
             "format": format_id,
             "outtmpl": output_path,
             "merge_output_format": "mp4",
-            "quiet": False,
-            "no_warnings": False,
+            "quiet": True,
+            "no_warnings": True,
             "noplaylist": True,
             "nocheckcertificate": True,
             "prefer_ffmpeg": True,
-            "socket_timeout": 30,
-            "retries": 5,
-            "fragment_retries": 5,
-            "http_chunk_size": 10485760,
             "progress_hooks": [make_progress_hook(task_id)],
             "postprocessors": [
                 {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"},
@@ -1813,8 +1667,11 @@ def start_download():
                 "preferredquality": "320",
             }]
 
-        apply_platform_opts(url, ydl_opts)
-        print(f"[DOWNLOAD] platform={platform} url={url[:80]} format={ydl_opts.get('format')}", flush=True)
+        # Instagram requires cookies for public and private content
+        if "instagram.com" in url.lower():
+            cookies_file = get_cookies_file()
+            if cookies_file:
+                ydl_opts["cookiefile"] = cookies_file
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1827,53 +1684,20 @@ def start_download():
 
             found = list(DOWNLOAD_DIR.glob(f"{task_id}.*"))
             if found:
-                ext = found[0].suffix.lower()
-                valid_exts = {".mp4", ".webm", ".mkv", ".m4a", ".mp3", ".mov", ".avi", ".flv", ".ts"}
-                if ext not in valid_exts:
-                    print(f"[DOWNLOAD ERROR] bad ext={ext} platform={platform} url={url[:80]}", flush=True)
-                    try: found[0].unlink()
-                    except Exception: pass
-                    progress_store[task_id] = {"status": "error", "error": "فشل التحميل من المنصة — الفيديو غير متاح أو محمي، جرب رابطاً آخر"}
-                    record_download(platform, False, f"bad file ext: {ext}", duration=time.time()-_start)
-                else:
-                    print(f"[DOWNLOAD OK] platform={platform} ext={ext} title={safe_title[:40]}", flush=True)
-                    progress_store[task_id] = {
-                        "status": "done",
-                        "percent": 100,
-                        "file": task_id + ext,
-                        "filename": safe_title + ext,
-                    }
-                    record_download(platform, True, duration=time.time()-_start)
+                ext = found[0].suffix
+                progress_store[task_id] = {
+                    "status": "done",
+                    "percent": 100,
+                    "file": task_id + ext,
+                    "filename": safe_title + ext,
+                }
+                record_download(platform, True, duration=time.time()-_start)
             else:
                 progress_store[task_id] = {"status": "error", "error": "الملف لم يُوجد"}
                 record_download(platform, False, "الملف لم يُوجد", duration=time.time()-_start)
         except Exception as e:
             err = str(e)[:200]
-            err_lower = err.lower()
-            if "no space left" in err_lower or "disk" in err_lower:
-                friendly = "السيرفر ممتلئ مؤقتاً، حاول بعد دقيقة"
-            elif "timed out" in err_lower or "timeout" in err_lower or "socket" in err_lower:
-                friendly = "انتهت مهلة التحميل، الفيديو كبير جداً أو الاتصال بطيء — حاول مرة أخرى"
-            elif "fragment" in err_lower:
-                friendly = "فشل تحميل أجزاء الفيديو، حاول بجودة أقل"
-            elif "memory" in err_lower:
-                friendly = "الفيديو كبير جداً على السيرفر، حاول بجودة أقل"
-            elif "confirm your age" in err_lower or "age-restricted" in err_lower:
-                friendly = "هذا الفيديو مقيّد بعمر ولا يمكن تحميله"
-            elif "429" in err or "too many" in err_lower or "rate limit" in err_lower:
-                friendly = "المنصة تمنع التحميل مؤقتاً بسبب الضغط — حاول بعد دقيقة"
-            elif "sign in" in err_lower or "log in" in err_lower or "login required" in err_lower:
-                friendly = "الفيديو يتطلب تسجيل دخول، جرب فيديو عاماً آخر"
-            elif "private" in err_lower or "not available" in err_lower:
-                friendly = "الفيديو غير متاح أو خاص"
-            elif "403" in err or "forbidden" in err_lower:
-                friendly = "المنصة ترفض التحميل — حاول مرة أخرى بعد دقيقة"
-            elif "404" in err or "not found" in err_lower:
-                friendly = "الفيديو غير موجود أو تم حذفه"
-            else:
-                friendly = err
-            print(f"[DOWNLOAD FAIL] platform={platform} err={err[:120]}", flush=True)
-            progress_store[task_id] = {"status": "error", "error": friendly}
+            progress_store[task_id] = {"status": "error", "error": err}
             record_download(platform, False, err, duration=time.time()-_start)
 
     threading.Thread(target=do_download, daemon=True).start()
@@ -1898,15 +1722,49 @@ def serve_file(filename):
         return jsonify({"error": "الملف غير موجود أو انتهت صلاحيته"}), 404
 
     download_name = request.args.get("name", filename)
-    resp = send_file(
-        filepath,
-        as_attachment=True,
-        download_name=download_name,
-        mimetype="video/mp4",
-        conditional=True,
-    )
-    resp.headers["Cache-Control"] = "no-store"
-    resp.headers["Content-Encoding"] = "identity"
+    file_size = filepath.stat().st_size
+    CHUNK = 512 * 1024  # 512 KB per chunk
+
+    range_header = request.headers.get("Range")
+    if range_header:
+        try:
+            byte_start = int(range_header.replace("bytes=", "").split("-")[0])
+        except Exception:
+            byte_start = 0
+    else:
+        byte_start = 0
+
+    byte_end = file_size - 1
+    content_length = file_size - byte_start
+
+    def stream_file(start):
+        with open(filepath, "rb") as f:
+            f.seek(start)
+            remaining = file_size - start
+            while remaining > 0:
+                data = f.read(min(CHUNK, remaining))
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+
+    status = 206 if range_header else 200
+    headers = {
+        "Content-Disposition": f'attachment; filename="{download_name}"',
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(content_length),
+        "Cache-Control": "no-store, no-transform",  # prevent any proxy/compress from altering the stream
+        "Content-Encoding": "identity",              # tell Flask-Compress to skip this response
+    }
+    if range_header:
+        headers["Content-Range"] = f"bytes {byte_start}-{byte_end}/{file_size}"
+    return Response(stream_file(byte_start), status=status,
+                    mimetype="video/mp4", headers=headers,
+                    direct_passthrough=True)
+
+    resp = send_file(filepath, as_attachment=True, download_name=download_name)
+    resp.headers["Accept-Ranges"] = "bytes"
+    resp.headers["Content-Length"] = str(file_size)
     return resp
 
 
