@@ -1522,6 +1522,7 @@ def get_info():
         ydl_opts["http_headers"] = {
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         }
+        ydl_opts["extractor_args"] = {"tiktok": {"api": ["mobile"]}}
     elif "facebook.com" in url_lower or "fb.watch" in url_lower:
         ydl_opts["http_headers"] = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
