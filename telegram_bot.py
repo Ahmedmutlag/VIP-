@@ -602,6 +602,89 @@ def handle_share(chat_id: int):
     send_message(chat_id, text, disable_web_page_preview=True)
 
 
+SUBSCRIBE_PLANS = [
+    {"days": 7,  "stars": 50,  "label": "7 أيام"},
+    {"days": 30, "stars": 150, "label": "30 يوم"},
+    {"days": 90, "stars": 500, "label": "90 يوم"},
+]
+
+SUBSCRIBE_KEYBOARD = {
+    "inline_keyboard": [
+        [{"text": f"⭐ {p['stars']} Stars — {p['label']}", "callback_data": f"sub:{p['days']}"}]
+        for p in SUBSCRIBE_PLANS
+    ] + [[{"text": "🔑 عندي كود — /redeem", "callback_data": "sub:code"}]]
+}
+
+
+def send_invoice(chat_id: int, days: int, stars: int, label: str):
+    return _post("sendInvoice", json={
+        "chat_id": chat_id,
+        "title": f"💎 بريميوم نزلها بلس — {label}",
+        "description": f"تحميلات غير محدودة لمدة {label} 🚀",
+        "payload": f"premium_{days}_{chat_id}",
+        "currency": "XTR",
+        "prices": [{"label": label, "amount": stars}],
+    })
+
+
+def handle_subscribe_menu(chat_id: int):
+    send_message(
+        chat_id,
+        "💎 <b>ترقية للبريميوم</b>\n\n"
+        "اختر الباقة المناسبة:\n\n"
+        "⭐ الدفع عبر Telegram Stars (مدمج داخل التطبيق)\n"
+        "✅ تفعيل فوري بعد الدفع",
+        reply_markup=SUBSCRIBE_KEYBOARD,
+    )
+
+
+def handle_subscribe_callback(chat_id: int, cq_id: str, plan: str):
+    answer_callback(cq_id)
+    if plan == "code":
+        send_message(chat_id, "🔑 أرسل كودك:\n/redeem XXXX-XXXXXXXX")
+        return
+    days = int(plan)
+    p = next((x for x in SUBSCRIBE_PLANS if x["days"] == days), None)
+    if not p:
+        return
+    send_invoice(chat_id, p["days"], p["stars"], p["label"])
+
+
+def handle_pre_checkout(query: dict):
+    _post("answerPreCheckoutQuery", json={
+        "pre_checkout_query_id": query.get("id"),
+        "ok": True,
+    })
+
+
+def handle_successful_payment(chat_id: int, payment: dict):
+    payload = payment.get("invoice_payload", "")
+    parts = payload.split("_")
+    if len(parts) < 2:
+        return
+    try:
+        days = int(parts[1])
+    except ValueError:
+        return
+    import datetime
+    expires = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+    premium_users[chat_id] = expires
+    stars = payment.get("total_amount", 0)
+    send_message(
+        chat_id,
+        f"🎉 <b>تم الدفع بنجاح!</b>\n\n"
+        f"⭐ دفعت: <b>{stars} Stars</b>\n"
+        f"💎 الباقة: <b>{days} يوم</b>\n"
+        f"📅 تنتهي في: <b>{expires}</b>\n\n"
+        "استمتع بتحميلات غير محدودة! 🚀"
+    )
+    notify_admins(
+        f"💰 <b>اشتراك جديد!</b>\n"
+        f"👤 Chat ID: <code>{chat_id}</code>\n"
+        f"⭐ {stars} Stars — {days} يوم"
+    )
+
+
 def handle_redeem(chat_id: int, code: str):
     if not code:
         send_message(chat_id, "💎 أرسل الكود هكذا:\n/redeem XXXX-XXXXXXXX")
@@ -655,13 +738,12 @@ def _progress_bar(percent: int) -> str:
 
 def handle_url(chat_id: int, url: str, first_name: str):
     if not check_download_limit(chat_id):
-        upgrade_btn = {"inline_keyboard": [[{"text": "💎 ترقية للبريميوم", "callback_data": "adm_premium_info"}]]}
         send_message(
             chat_id,
             f"⛔ <b>وصلت للحد اليومي المجاني ({FREE_DAILY_LIMIT} تحميلات)</b>\n\n"
             "🔄 يُجدَّد الحد غداً تلقائياً\n\n"
-            "💎 للحصول على تحميلات غير محدودة:\n"
-            "أرسل /redeem + كود البريميوم",
+            "💎 اشترك بالبريميوم للتحميل غير المحدود 👇",
+            reply_markup=SUBSCRIBE_KEYBOARD,
         )
         return
     platform = detect_platform(url)
@@ -919,6 +1001,8 @@ def handle_message(msg: dict):
         handle_redeem(chat_id, parts[1].strip() if len(parts) > 1 else "")
     elif text.startswith("/status"):
         handle_status(chat_id)
+    elif text.startswith("/subscribe") or text == "💎 بريميوم":
+        handle_subscribe_menu(chat_id)
     elif text == "🔥 الأكثر تحميلاً":
         handle_top(chat_id)
     elif text == "📲 حمّل فيديو":
@@ -960,6 +1044,9 @@ def handle_callback_query(cq: dict):
     elif data.startswith("adm:") and chat_id in ADMIN_IDS:
         action = data[4:]
         threading.Thread(target=handle_admin_callback, args=(chat_id, cq_id, action), daemon=True).start()
+    elif data.startswith("sub:"):
+        plan = data[4:]
+        threading.Thread(target=handle_subscribe_callback, args=(chat_id, cq_id, plan), daemon=True).start()
     else:
         answer_callback(cq_id)
 
@@ -967,9 +1054,16 @@ def handle_callback_query(cq: dict):
 def process_update(update: dict):
     try:
         if "message" in update:
-            handle_message(update["message"])
+            msg = update["message"]
+            if "successful_payment" in msg:
+                chat_id = msg.get("chat", {}).get("id", 0)
+                handle_successful_payment(chat_id, msg["successful_payment"])
+            else:
+                handle_message(msg)
         elif "callback_query" in update:
             handle_callback_query(update["callback_query"])
+        elif "pre_checkout_query" in update:
+            handle_pre_checkout(update["pre_checkout_query"])
     except Exception as e:
         log.exception("Error in process_update: %s", e)
 
