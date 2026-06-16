@@ -141,13 +141,13 @@ pending: dict[int, dict] = {}
 
 # ── Message handlers ───────────────────────────────────────────────────────────
 
-HELP_TEXT = """🤖 <b>بوت VIP-DL للتحميل</b>
+HELP_TEXT = """🤖 <b>بوت نزلها بلس للتحميل</b>
 
 أرسل لي رابط الفيديو مباشرةً وسأحمله لك!
 
 <b>المنصات المدعومة:</b>
 • TikTok  |  Instagram  |  Facebook
-• Twitter/X  |  YouTube  |  Pinterest  |  وأكثر
+• Twitter/X  |  Pinterest  |  وأكثر
 
 <b>الأوامر:</b>
 /start — رسالة الترحيب
@@ -155,8 +155,20 @@ HELP_TEXT = """🤖 <b>بوت VIP-DL للتحميل</b>
 /platforms — المنصات المدعومة
 /stats — إحصائيات الموقع
 /site — رابط الموقع
+/share — شارك البوت مع أصدقائك
 
 📎 فقط الصق الرابط وأنا أتولى الباقي!"""
+
+
+MAIN_KEYBOARD = {
+    "keyboard": [
+        [{"text": "📱 المنصات المدعومة"}, {"text": "📊 الإحصائيات"}],
+        [{"text": "🔥 الأكثر تحميلاً"}, {"text": "📣 شارك البوت"}],
+        [{"text": "🌐 الموقع"}, {"text": "ℹ️ المساعدة"}],
+    ],
+    "resize_keyboard": True,
+    "persistent": True,
+}
 
 
 def handle_start(chat_id: int, first_name: str):
@@ -166,15 +178,7 @@ def handle_start(chat_id: int, first_name: str):
         "من تيك توك، إنستغرام، فيسبوك وأكثر 🎯\n\n"
         "أرسل الرابط الآن وجرّب بنفسك 👇"
     )
-    keyboard = {
-        "keyboard": [
-            [{"text": "📱 المنصات المدعومة"}, {"text": "📊 الإحصائيات"}],
-            [{"text": "🌐 الموقع"}, {"text": "ℹ️ المساعدة"}],
-        ],
-        "resize_keyboard": True,
-        "persistent": True,
-    }
-    send_message(chat_id, text, reply_markup=keyboard)
+    send_message(chat_id, text, reply_markup=MAIN_KEYBOARD)
 
 
 def handle_help(chat_id: int):
@@ -214,12 +218,54 @@ def handle_platforms(chat_id: int):
         "📸 Instagram\n"
         "📘 Facebook\n"
         "🐦 Twitter / X\n"
-        "▶️ YouTube\n"
         "📌 Pinterest\n"
         "➕ والمئات من المواقع الأخرى!\n\n"
         "فقط أرسل الرابط وأنا أتولى الباقي 😉"
     )
     send_message(chat_id, text)
+
+
+def handle_top(chat_id: int):
+    data = site_stats()
+    if "error" in data:
+        send_message(chat_id, "⚠️ تعذّر جلب البيانات، حاول لاحقاً.")
+        return
+
+    platforms = data.get("platform_counts", {})
+    sorted_p = sorted(platforms.items(), key=lambda x: x[1], reverse=True)
+
+    lines = []
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    for i, (name, count) in enumerate(sorted_p[:5]):
+        if count > 0:
+            lines.append(f"{medals[i]} {name}: <b>{count:,}</b> تحميل")
+
+    text = (
+        "🔥 <b>الأكثر تحميلاً</b>\n\n"
+        + ("\n".join(lines) or "لا يوجد بيانات بعد")
+        + f"\n\n📊 الإجمالي: <b>{data.get('total_downloads', 0):,}</b>"
+    )
+    send_message(chat_id, text)
+
+
+def handle_share(chat_id: int):
+    text = (
+        "📣 <b>شارك بوت نزلها بلس مع أصدقائك!</b>\n\n"
+        "🔗 رابط البوت:\n"
+        "https://t.me/nazzilhaplus_bot\n\n"
+        "انسخ الرسالة أدناه وأرسلها لأصدقائك 👇\n\n"
+        "┄┄┄┄┄┄┄┄┄┄┄┄\n"
+        "🎬 جرّب بوت <b>نزلها بلس</b>!\n"
+        "نزّل أي فيديو من تيك توك، إنستغرام، فيسبوك وأكثر — مجاناً وبدون تسجيل ✨\n"
+        "👉 https://t.me/nazzilhaplus_bot"
+    )
+    send_message(chat_id, text, disable_web_page_preview=True)
+
+
+def _progress_bar(percent: int) -> str:
+    filled = int(percent / 10)
+    bar = "▓" * filled + "░" * (10 - filled)
+    return f"[{bar}] {percent}%"
 
 
 def handle_url(chat_id: int, url: str, first_name: str):
@@ -241,10 +287,22 @@ def handle_url(chat_id: int, url: str, first_name: str):
 
 def _finish_download(chat_id: int, task_id: str, url: str, title: str):
     deadline = time.time() + 300
+    last_percent = -1
+    progress_msg_id = None
 
     while time.time() < deadline:
         prog = site_progress(task_id)
         status = prog.get("status", "")
+        percent = prog.get("percent", 0)
+
+        if status == "downloading" and abs(percent - last_percent) >= 15:
+            last_percent = percent
+            bar_text = f"⬇️ جاري التحميل...\n{_progress_bar(percent)}"
+            if progress_msg_id:
+                _post("editMessageText", json={"chat_id": chat_id, "message_id": progress_msg_id, "text": bar_text})
+            else:
+                res = send_message(chat_id, bar_text)
+                progress_msg_id = (res.get("result") or {}).get("message_id")
 
         if status == "done":
             file_name = prog.get("file", "")
@@ -275,12 +333,16 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str):
 
         elif status == "error":
             err = prog.get("error", "خطأ غير معروف")
-            send_message(chat_id, f"❌ <b>فشل التحميل:</b>\n{err}")
+            retry_btn = {"inline_keyboard": [[
+                {"text": "🔄 حاول مرة أخرى", "url": SITE_URL},
+            ]]}
+            send_message(chat_id, f"❌ <b>فشل التحميل:</b>\n{err}", reply_markup=retry_btn)
             return
 
         time.sleep(3)
 
-    send_message(chat_id, "⏰ انتهت مهلة التحميل — حاول مرة أخرى.")
+    retry_btn = {"inline_keyboard": [[{"text": "🔄 حاول من الموقع", "url": SITE_URL}]]}
+    send_message(chat_id, "⏰ انتهت مهلة التحميل — حاول مرة أخرى.", reply_markup=retry_btn)
 
 
 def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
@@ -354,6 +416,10 @@ def handle_message(msg: dict):
         handle_site(chat_id)
     elif text.startswith("/platforms") or text == "📱 المنصات المدعومة":
         handle_platforms(chat_id)
+    elif text.startswith("/share") or text == "📣 شارك البوت":
+        handle_share(chat_id)
+    elif text == "🔥 الأكثر تحميلاً":
+        handle_top(chat_id)
     else:
         urls = URL_PATTERN.findall(text)
         if urls:
