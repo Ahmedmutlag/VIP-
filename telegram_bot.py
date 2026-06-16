@@ -147,7 +147,9 @@ def detect_platform(url: str) -> str:
 
 # ── User state ─────────────────────────────────────────────────────────────────
 pending: dict[int, dict] = {}
-known_users: dict[int, str] = {}  # chat_id -> first_name
+known_users: dict[int, str] = {}   # chat_id -> first_name
+blocked_users: set[int] = set()
+custom_welcome: list[str] = []     # [0] = custom text if set
 
 
 # ── Message handlers ───────────────────────────────────────────────────────────
@@ -210,12 +212,15 @@ PLATFORM_LABELS = {
 
 
 def handle_start(chat_id: int, first_name: str):
-    text = (
-        f"مرحباً {first_name} 🌟\n\n"
-        "نزّل أي فيديو تريده بضغطة واحدة!\n"
-        "من تيك توك، إنستغرام، فيسبوك وأكثر 🎯\n\n"
-        "أرسل الرابط الآن وجرّب بنفسك 👇"
-    )
+    if custom_welcome:
+        text = custom_welcome[0].replace("{name}", first_name)
+    else:
+        text = (
+            f"مرحباً {first_name} 🌟\n\n"
+            "نزّل أي فيديو تريده بضغطة واحدة!\n"
+            "من تيك توك، إنستغرام، فيسبوك وأكثر 🎯\n\n"
+            "أرسل الرابط الآن وجرّب بنفسك 👇"
+        )
     if chat_id in ADMIN_IDS:
         admin_kb = {
             "keyboard": [
@@ -301,9 +306,13 @@ def handle_top(chat_id: int):
 
 ADMIN_KEYBOARD = {
     "inline_keyboard": [
-        [{"text": "📊 إحصائيات مفصّلة", "callback_data": "adm:stats"}],
+        [{"text": "📊 الإحصائيات", "callback_data": "adm:stats"}, {"text": "👁️ الزوار", "callback_data": "adm:visitors"}],
+        [{"text": "⚡ حالة السيرفر", "callback_data": "adm:health"}, {"text": "🎟️ الأكواد", "callback_data": "adm:codes"}],
+        [{"text": "🎁 كود جديد 30 يوم", "callback_data": "adm:gencode:30"}, {"text": "🎁 كود 7 أيام", "callback_data": "adm:gencode:7"}],
         [{"text": "🗑️ تنظيف الملفات", "callback_data": "adm:clear"}, {"text": "🔄 تحديث yt-dlp", "callback_data": "adm:update"}],
         [{"text": "📢 رسالة جماعية", "callback_data": "adm:broadcast"}, {"text": "👥 المستخدمون", "callback_data": "adm:users"}],
+        [{"text": "🚫 حظر مستخدم", "callback_data": "adm:block"}, {"text": "✅ رفع حظر", "callback_data": "adm:unblock"}],
+        [{"text": "✏️ تعديل رسالة الترحيب", "callback_data": "adm:setwelcome"}],
         [{"text": "❌ إغلاق", "callback_data": "adm:close"}],
     ]
 }
@@ -328,7 +337,7 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
         platforms = data.get("platform_counts", {})
         platform_lines = "\n".join(f"  • {k}: <b>{v:,}</b>" for k, v in platforms.items() if v > 0) or "  لا بيانات"
         errors = data.get("recent_errors", [])
-        err_lines = "\n".join(f"  ⚠️ {e.get('platform','?')}: {e.get('error','')[:50]}" for e in errors) or "  لا أخطاء"
+        err_lines = "\n".join(f"  ⚠️ {e.get('platform','?')}: {str(e.get('error',''))[:50]}" for e in errors) or "  لا أخطاء"
         text = (
             "📊 <b>إحصائيات مفصّلة</b>\n\n"
             f"⬇️ إجمالي: <b>{data.get('total_downloads',0):,}</b>\n"
@@ -342,6 +351,80 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
             f"🔴 آخر الأخطاء:\n{err_lines}"
         )
         send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        return
+
+    if action == "visitors":
+        data = admin_api("visitor-stats")
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+            return
+        text = (
+            "👁️ <b>إحصائيات الزوار</b>\n\n"
+            f"📅 اليوم: <b>{data.get('today',0):,}</b> زيارة\n"
+            f"📆 أمس: <b>{data.get('yesterday',0):,}</b> زيارة\n"
+            f"📊 الأسبوع: <b>{data.get('week',0):,}</b> زيارة"
+        )
+        send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        return
+
+    if action == "health":
+        data = admin_api("health")
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+            return
+        idle = data.get('idle_sec', 0)
+        idle_str = f"{idle // 60}د {idle % 60}ث"
+        text = (
+            "⚡ <b>حالة السيرفر</b>\n\n"
+            f"🟢 الحالة: <b>Online</b>\n"
+            f"⏱ وقت التشغيل: <b>{data.get('uptime','?')}</b>\n"
+            f"💤 غير نشط منذ: <b>{idle_str}</b>\n"
+            f"💾 التخزين: <b>{data.get('storage_mb',0)} MB</b>\n"
+            f"⚡ مهام نشطة: <b>{data.get('active_tasks',0)}</b>"
+        )
+        send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        return
+
+    if action == "codes":
+        data = admin_api("codes")
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+            return
+        recent_lines = "\n".join(
+            f"  🎟 <code>{c['code']}</code> — {'✅ مستخدم' if c['used'] else '🔓 متاح'} ({c.get('days',0)} يوم)"
+            for c in data.get("recent", [])
+        ) or "  لا أكواد"
+        text = (
+            "🎟️ <b>أكواد البريميوم</b>\n\n"
+            f"📦 الإجمالي: <b>{data.get('total',0)}</b>\n"
+            f"✅ نشطة: <b>{data.get('active',0)}</b>\n"
+            f"🔓 غير مستخدمة: <b>{data.get('unused',0)}</b>\n"
+            f"❌ منتهية: <b>{data.get('expired',0)}</b>\n\n"
+            f"آخر الأكواد:\n{recent_lines}"
+        )
+        send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        return
+
+    if action.startswith("gencode:"):
+        days = int(action.split(":")[1])
+        data = admin_api(f"generate-code", "POST")
+        # pass days via json
+        try:
+            import requests as req
+            r = req.post(f"{SITE_URL}/bot-admin/generate-code",
+                        headers={"X-Bot-Token": BOT_TOKEN},
+                        json={"days": days}, timeout=15)
+            data = r.json()
+        except Exception as e:
+            data = {"error": str(e)}
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+        else:
+            send_message(chat_id,
+                f"🎁 <b>كود جديد ({days} يوم)</b>\n\n"
+                f"<code>{data.get('code','')}</code>\n\n"
+                f"انسخ الكود وأعطه للمستخدم.",
+                reply_markup=ADMIN_KEYBOARD)
         return
 
     if action == "clear":
@@ -360,13 +443,29 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
 
     if action == "users":
         count = len(known_users)
+        blocked_count = len(blocked_users)
         user_list = "\n".join(f"  • {name} (<code>{uid}</code>)" for uid, name in list(known_users.items())[-10:])
         text = (
             f"👥 <b>المستخدمون</b>\n\n"
-            f"إجمالي: <b>{count}</b> مستخدم\n\n"
+            f"إجمالي: <b>{count}</b> | محظور: <b>{blocked_count}</b>\n\n"
             f"آخر 10:\n{user_list or 'لا يوجد بعد'}"
         )
         send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        return
+
+    if action == "block":
+        pending[chat_id] = {"waiting_block": True}
+        send_message(chat_id, "🚫 أرسل Chat ID المستخدم الذي تريد حظره:")
+        return
+
+    if action == "unblock":
+        pending[chat_id] = {"waiting_unblock": True}
+        send_message(chat_id, "✅ أرسل Chat ID المستخدم الذي تريد رفع حظره:")
+        return
+
+    if action == "setwelcome":
+        pending[chat_id] = {"waiting_welcome": True}
+        send_message(chat_id, "✏️ أرسل نص رسالة الترحيب الجديدة:\n\n(أرسل /reset لإعادتها للافتراضي)")
         return
 
     if action == "broadcast":
@@ -538,6 +637,36 @@ def notify_admins(text: str):
         send_message(admin_id, text)
 
 
+def _daily_report():
+    import datetime
+    while True:
+        now = datetime.datetime.now()
+        next_midnight = (now + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        time.sleep((next_midnight - now).total_seconds())
+        try:
+            now = datetime.datetime.now()
+            data = site_stats()
+            users_count = len(known_users)
+            blocked_count = len(blocked_users)
+            if "error" not in data:
+                platforms = data.get("platform_counts", {})
+                platform_lines = "\n".join(f"  • {k}: {v:,}" for k, v in platforms.items() if v > 0) or "  لا بيانات"
+                report_text = (
+                    "📅 <b>التقرير اليومي</b>\n\n"
+                    f"📆 {now.strftime('%Y-%m-%d')}\n"
+                    f"⬇️ إجمالي التحميلات: <b>{data.get('total_downloads', 0):,}</b>\n"
+                    f"📅 تحميلات اليوم: <b>{data.get('today_downloads', 0):,}</b>\n"
+                    f"❌ فاشلة: <b>{data.get('failed_downloads', 0):,}</b>\n"
+                    f"👥 مستخدمو البوت: <b>{users_count}</b> | محظور: <b>{blocked_count}</b>\n\n"
+                    f"📱 المنصات:\n{platform_lines}"
+                )
+            else:
+                report_text = "📅 <b>التقرير اليومي</b>\n\n⚠️ تعذّر جلب البيانات."
+            notify_admins(report_text)
+        except Exception as e:
+            log.error("Daily report error: %s", e)
+
+
 # ── Routing ────────────────────────────────────────────────────────────────────
 
 def handle_message(msg: dict):
@@ -550,6 +679,45 @@ def handle_message(msg: dict):
         return
 
     known_users[chat_id] = first_name
+
+    if chat_id in blocked_users:
+        send_message(chat_id, "⛔ عذراً، تم تعليق حسابك. تواصل مع الدعم.")
+        return
+
+    # admin waiting-state handlers
+    if chat_id in ADMIN_IDS:
+        state = pending.get(chat_id, {})
+
+        if state.get("waiting_block"):
+            pending.pop(chat_id, None)
+            if text.lstrip("-").isdigit():
+                target_id = int(text)
+                blocked_users.add(target_id)
+                send_message(chat_id, f"✅ تم حظر المستخدم <code>{target_id}</code>.", reply_markup=ADMIN_KEYBOARD)
+            else:
+                send_message(chat_id, "❌ أرسل Chat ID رقمياً فقط.")
+            return
+
+        if state.get("waiting_unblock"):
+            pending.pop(chat_id, None)
+            if text.lstrip("-").isdigit():
+                target_id = int(text)
+                blocked_users.discard(target_id)
+                send_message(chat_id, f"✅ تم رفع الحظر عن <code>{target_id}</code>.", reply_markup=ADMIN_KEYBOARD)
+            else:
+                send_message(chat_id, "❌ أرسل Chat ID رقمياً فقط.")
+            return
+
+        if state.get("waiting_welcome"):
+            pending.pop(chat_id, None)
+            if text.strip() == "/reset":
+                custom_welcome.clear()
+                send_message(chat_id, "✅ أُعيدت رسالة الترحيب إلى الافتراضية.", reply_markup=ADMIN_KEYBOARD)
+            else:
+                custom_welcome.clear()
+                custom_welcome.append(text)
+                send_message(chat_id, "✅ تم حفظ رسالة الترحيب الجديدة!", reply_markup=ADMIN_KEYBOARD)
+            return
 
     # broadcast handler
     if pending.get(chat_id, {}).get("waiting_broadcast") and chat_id in ADMIN_IDS:
@@ -642,5 +810,6 @@ def setup_webhook():
         return
     webhook_url = f"{SITE_URL}/webhook/telegram/{BOT_TOKEN}"
     set_webhook(webhook_url)
+    threading.Thread(target=_daily_report, daemon=True, name="daily-report").start()
     if ADMIN_IDS:
         notify_admins("🟢 <b>البوت شغّال!</b>\nVIP-DL Bot انطلق بنجاح.")
