@@ -1882,6 +1882,32 @@ def internal_error(e):
     return render_template("404.html", error_code=500), 500
 
 
+@app.route(f"/webhook/telegram/<token>", methods=["POST"])
+def telegram_webhook(token):
+    if token != os.environ.get("TELEGRAM_BOT_TOKEN", ""):
+        return "Forbidden", 403
+    try:
+        from telegram_bot import process_update
+        update = request.get_json(force=True) or {}
+        threading.Thread(target=process_update, args=(update,), daemon=True).start()
+    except Exception as e:
+        app.logger.error("Webhook error: %s", e)
+    return "ok", 200
+
+
+def _setup_telegram_webhook():
+    if not os.environ.get("TELEGRAM_BOT_TOKEN"):
+        return
+    try:
+        from telegram_bot import setup_webhook
+        threading.Thread(target=setup_webhook, daemon=True, name="tg-webhook-setup").start()
+    except Exception as e:
+        app.logger.warning("Telegram webhook setup failed: %s", e)
+
+
+_setup_telegram_webhook()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=False, host="0.0.0.0", port=port)
