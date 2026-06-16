@@ -161,12 +161,20 @@ HELP_TEXT = """🤖 <b>بوت VIP-DL للتحميل</b>
 
 def handle_start(chat_id: int, first_name: str):
     text = (
-        f"أهلاً {first_name}! 👋\n\n"
-        "أنا بوت <b>VIP-DL</b> لتحميل الفيديوهات.\n"
-        "أرسل لي أي رابط فيديو وسأحمله لك مجاناً!\n\n"
-        "اكتب /help لعرض المساعدة."
+        f"مرحباً {first_name} 🌟\n\n"
+        "نزّل أي فيديو تريده بضغطة واحدة!\n"
+        "من تيك توك، إنستغرام، فيسبوك وأكثر 🎯\n\n"
+        "أرسل الرابط الآن وجرّب بنفسك 👇"
     )
-    send_message(chat_id, text)
+    keyboard = {
+        "keyboard": [
+            [{"text": "📱 المنصات المدعومة"}, {"text": "📊 الإحصائيات"}],
+            [{"text": "🌐 الموقع"}, {"text": "ℹ️ المساعدة"}],
+        ],
+        "resize_keyboard": True,
+        "persistent": True,
+    }
+    send_message(chat_id, text, reply_markup=keyboard)
 
 
 def handle_help(chat_id: int):
@@ -338,13 +346,13 @@ def handle_message(msg: dict):
 
     if text.startswith("/start"):
         handle_start(chat_id, first_name)
-    elif text.startswith("/help"):
+    elif text.startswith("/help") or text == "ℹ️ المساعدة":
         handle_help(chat_id)
-    elif text.startswith("/stats"):
+    elif text.startswith("/stats") or text == "📊 الإحصائيات":
         handle_stats(chat_id)
-    elif text.startswith("/site"):
+    elif text.startswith("/site") or text == "🌐 الموقع":
         handle_site(chat_id)
-    elif text.startswith("/platforms"):
+    elif text.startswith("/platforms") or text == "📱 المنصات المدعومة":
         handle_platforms(chat_id)
     else:
         urls = URL_PATTERN.findall(text)
