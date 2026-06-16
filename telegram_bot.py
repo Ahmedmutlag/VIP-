@@ -162,12 +162,39 @@ HELP_TEXT = """🤖 <b>بوت نزلها بلس للتحميل</b>
 
 MAIN_KEYBOARD = {
     "keyboard": [
-        [{"text": "📱 المنصات المدعومة"}, {"text": "📊 الإحصائيات"}],
-        [{"text": "🔥 الأكثر تحميلاً"}, {"text": "📣 شارك البوت"}],
-        [{"text": "🌐 الموقع"}, {"text": "ℹ️ المساعدة"}],
+        [{"text": "📲 حمّل فيديو"}],
+        [{"text": "📊 الإحصائيات"}, {"text": "🔥 الأكثر تحميلاً"}],
+        [{"text": "📣 شارك البوت"}, {"text": "ℹ️ المساعدة"}],
+        [{"text": "🌐 الموقع"}],
     ],
     "resize_keyboard": True,
     "persistent": True,
+}
+
+PLATFORMS_KEYBOARD = {
+    "inline_keyboard": [
+        [
+            {"text": "🎵 TikTok", "callback_data": "platform:tiktok"},
+            {"text": "📸 Instagram", "callback_data": "platform:instagram"},
+        ],
+        [
+            {"text": "📘 Facebook", "callback_data": "platform:facebook"},
+            {"text": "🐦 Twitter / X", "callback_data": "platform:twitter"},
+        ],
+        [
+            {"text": "📌 Pinterest", "callback_data": "platform:pinterest"},
+            {"text": "🌐 أخرى", "callback_data": "platform:other"},
+        ],
+    ]
+}
+
+PLATFORM_LABELS = {
+    "tiktok": "🎵 TikTok",
+    "instagram": "📸 Instagram",
+    "facebook": "📘 Facebook",
+    "twitter": "🐦 Twitter / X",
+    "pinterest": "📌 Pinterest",
+    "other": "🌐 منصة أخرى",
 }
 
 
@@ -246,6 +273,22 @@ def handle_top(chat_id: int):
         + f"\n\n📊 الإجمالي: <b>{data.get('total_downloads', 0):,}</b>"
     )
     send_message(chat_id, text)
+
+
+def handle_download_menu(chat_id: int):
+    _post("sendMessage", json={
+        "chat_id": chat_id,
+        "text": "🎬 <b>اختر المنصة التي تريد التحميل منها:</b>",
+        "parse_mode": "HTML",
+        "reply_markup": PLATFORMS_KEYBOARD,
+    })
+
+
+def handle_platform_selected(chat_id: int, callback_query_id: str, platform: str):
+    answer_callback(callback_query_id, "✅ تم الاختيار")
+    label = PLATFORM_LABELS.get(platform, "🌐 منصة أخرى")
+    pending[chat_id] = {"waiting_url": True, "platform": platform}
+    send_message(chat_id, f"👍 اخترت <b>{label}</b>\n\nأرسل الرابط الآن 👇")
 
 
 def handle_share(chat_id: int):
@@ -414,25 +457,29 @@ def handle_message(msg: dict):
         handle_stats(chat_id)
     elif text.startswith("/site") or text == "🌐 الموقع":
         handle_site(chat_id)
-    elif text.startswith("/platforms") or text == "📱 المنصات المدعومة":
+    elif text.startswith("/platforms"):
         handle_platforms(chat_id)
     elif text.startswith("/share") or text == "📣 شارك البوت":
         handle_share(chat_id)
     elif text == "🔥 الأكثر تحميلاً":
         handle_top(chat_id)
+    elif text == "📲 حمّل فيديو":
+        handle_download_menu(chat_id)
     else:
+        # إذا كان المستخدم في وضع انتظار رابط بعد اختيار منصة
+        waiting = pending.get(chat_id, {}).get("waiting_url")
         urls = URL_PATTERN.findall(text)
         if urls:
+            pending.pop(chat_id, None)
             threading.Thread(
                 target=handle_url,
                 args=(chat_id, urls[0], first_name),
                 daemon=True,
             ).start()
+        elif waiting:
+            send_message(chat_id, "❗ هذا ليس رابطاً صحيحاً، أرسل رابط الفيديو مباشرةً.")
         else:
-            send_message(
-                chat_id,
-                "❓ أرسل رابط فيديو لتحميله، أو اكتب /help للمساعدة."
-            )
+            send_message(chat_id, "❓ أرسل رابط فيديو لتحميله، أو اضغط 📲 حمّل فيديو.")
 
 
 def handle_callback_query(cq: dict):
@@ -447,6 +494,9 @@ def handle_callback_query(cq: dict):
             args=(chat_id, cq_id, format_id),
             daemon=True,
         ).start()
+    elif data.startswith("platform:"):
+        platform = data[9:]
+        handle_platform_selected(chat_id, cq_id, platform)
     else:
         answer_callback(cq_id)
 
