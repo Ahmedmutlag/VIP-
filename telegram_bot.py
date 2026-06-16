@@ -216,64 +216,9 @@ def handle_platforms(chat_id: int):
 
 def handle_url(chat_id: int, url: str, first_name: str):
     platform = detect_platform(url)
-    send_message(chat_id, f"🔍 جاري تحليل الرابط من <b>{platform}</b>...")
+    send_message(chat_id, f"⬇️ جاري التحميل من <b>{platform}</b> بأفضل جودة...")
 
-    info = site_info(url)
-    if "error" in info:
-        send_message(chat_id, f"❌ <b>خطأ:</b> {info['error']}")
-        return
-
-    title = info.get("title", "فيديو")
-    formats: list = info.get("formats", [])
-    cache_id = info.get("cache_id", "")
-
-    if not formats:
-        send_message(chat_id, "⚠️ لم يتم العثور على صيغ متاحة للتحميل.")
-        return
-
-    pending[chat_id] = {"url": url, "formats": formats, "cache_id": cache_id, "title": title}
-
-    buttons = []
-    for fmt in formats[:8]:
-        label = fmt.get("label", "")
-        fmt_id = fmt.get("format_id", "")
-        size_str = ""
-        size = fmt.get("filesize")
-        if size:
-            size_mb = size / (1024 * 1024)
-            size_str = f" ({size_mb:.1f} MB)"
-
-        btn_text = f"{'🎵' if fmt.get('type') == 'audio' else '🎬'} {label}{size_str}"
-        buttons.append([{"text": btn_text, "callback_data": f"dl:{fmt_id}"}])
-
-    reply_markup = {"inline_keyboard": buttons}
-    duration = info.get("duration")
-    duration_str = f" | ⏱ {duration // 60}:{duration % 60:02d}" if duration else ""
-    caption = f"🎬 <b>{title[:100]}</b>{duration_str}\n\nاختر الجودة:"
-
-    _post("sendMessage", json={
-        "chat_id": chat_id,
-        "text": caption,
-        "parse_mode": "HTML",
-        "reply_markup": reply_markup,
-    })
-
-
-def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
-    answer_callback(callback_query_id, "⏳ جاري التحميل...")
-
-    data = pending.get(chat_id)
-    if not data:
-        send_message(chat_id, "⚠️ انتهت الجلسة، أعد إرسال الرابط.")
-        return
-
-    url = data["url"]
-    cache_id = data.get("cache_id", "")
-    title = data.get("title", "فيديو")
-
-    send_message(chat_id, "⬇️ جاري التحميل، انتظر قليلاً...")
-
-    result = site_download(url, format_id, cache_id)
+    result = site_download(url, "bestvideo+bestaudio/best")
     if "error" in result:
         send_message(chat_id, f"❌ <b>خطأ:</b> {result['error']}")
         return
@@ -283,13 +228,15 @@ def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
         send_message(chat_id, "❌ فشل بدء التحميل.")
         return
 
+    _finish_download(chat_id, task_id, url, "فيديو")
+
+
+def _finish_download(chat_id: int, task_id: str, url: str, title: str):
     deadline = time.time() + 300
-    last_percent = -1
 
     while time.time() < deadline:
         prog = site_progress(task_id)
         status = prog.get("status", "")
-        percent = prog.get("percent", 0)
 
         if status == "done":
             file_name = prog.get("file", "")
@@ -315,22 +262,45 @@ def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
                 log.error("Failed to send file: %s", e)
                 send_message(chat_id, f"⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{SITE_URL}")
 
-            pending.pop(chat_id, None)
-            notify_admin_download(url, title, chat_id)
+            notify_admin_download(url, display_name, chat_id)
             return
 
         elif status == "error":
             err = prog.get("error", "خطأ غير معروف")
             send_message(chat_id, f"❌ <b>فشل التحميل:</b>\n{err}")
-            pending.pop(chat_id, None)
             return
-
-        elif status in ("downloading", "processing"):
-            last_percent = percent
 
         time.sleep(3)
 
-    send_message(chat_id, "⏰ انتهت مهلة التحميل. الفيديو كبير جداً أو الخادم مشغول — حاول مرة أخرى.")
+    send_message(chat_id, "⏰ انتهت مهلة التحميل — حاول مرة أخرى.")
+
+
+def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
+    answer_callback(callback_query_id, "⏳ جاري التحميل...")
+
+    data = pending.get(chat_id)
+    if not data:
+        send_message(chat_id, "⚠️ انتهت الجلسة، أعد إرسال الرابط.")
+        return
+
+    url = data["url"]
+    cache_id = data.get("cache_id", "")
+    title = data.get("title", "فيديو")
+    pending.pop(chat_id, None)
+
+    send_message(chat_id, "⬇️ جاري التحميل، انتظر قليلاً...")
+
+    result = site_download(url, format_id, cache_id)
+    if "error" in result:
+        send_message(chat_id, f"❌ <b>خطأ:</b> {result['error']}")
+        return
+
+    task_id = result.get("task_id", "")
+    if not task_id:
+        send_message(chat_id, "❌ فشل بدء التحميل.")
+        return
+
+    _finish_download(chat_id, task_id, url, title)
 
 
 # ── Admin notifications ────────────────────────────────────────────────────────
