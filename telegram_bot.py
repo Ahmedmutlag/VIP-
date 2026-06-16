@@ -1,11 +1,10 @@
 """
-VIP-DL Telegram Bot
+VIP-DL Telegram Bot — Webhook mode
 يدعم: تحميل فيديوهات، إشعارات الأدمن، إحصائيات الموقع
 """
 import os
 import re
 import time
-import json
 import logging
 import threading
 import requests
@@ -35,7 +34,7 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 def _post(method: str, **kwargs) -> dict:
     try:
-        r = requests.post(f"{API}/{method}", timeout=30, **kwargs)
+        r = requests.post(f"{API}/{method}", timeout=60, **kwargs)
         return r.json()
     except Exception as e:
         log.error("Telegram API error (%s): %s", method, e)
@@ -65,9 +64,14 @@ def answer_callback(callback_query_id: str, text: str = "") -> dict:
     return _post("answerCallbackQuery", json={"callback_query_id": callback_query_id, "text": text})
 
 
-def get_updates(offset: int = 0) -> list:
-    result = _post("getUpdates", json={"offset": offset, "timeout": 30, "limit": 100})
-    return result.get("result", [])
+def set_webhook(webhook_url: str) -> bool:
+    result = _post("setWebhook", json={"url": webhook_url, "max_connections": 10, "drop_pending_updates": True})
+    ok = result.get("ok", False)
+    if ok:
+        log.info("Webhook set: %s", webhook_url)
+    else:
+        log.error("Failed to set webhook: %s", result)
+    return ok
 
 
 # ── Site API helpers ───────────────────────────────────────────────────────────
@@ -131,12 +135,7 @@ def detect_platform(url: str) -> str:
     return "موقع غير معروف"
 
 
-def is_valid_url(url: str) -> bool:
-    return url.startswith("http://") or url.startswith("https://")
-
-
 # ── User state ─────────────────────────────────────────────────────────────────
-# Stores pending format selections: {chat_id: {url, formats, cache_id}}
 pending: dict[int, dict] = {}
 
 
@@ -284,10 +283,8 @@ def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
         send_message(chat_id, "❌ فشل بدء التحميل.")
         return
 
-    # Poll progress
-    deadline = time.time() + 300  # 5 minutes max
+    deadline = time.time() + 300
     last_percent = -1
-    progress_msg_sent = False
 
     while time.time() < deadline:
         prog = site_progress(task_id)
@@ -304,7 +301,7 @@ def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
                 return
 
             ext = file_path.suffix.lower()
-            caption_text = f"✅ <b>{display_name[:80]}</b>\n\n🤖 @VIPdl_bot | 🌐 {SITE_URL}"
+            caption_text = f"✅ <b>{display_name[:80]}</b>\n\n🤖 @nazzilhaplus_bot | 🌐 {SITE_URL}"
 
             file_size_mb = file_path.stat().st_size / (1024 * 1024)
             try:
@@ -328,10 +325,8 @@ def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
             pending.pop(chat_id, None)
             return
 
-        elif status in ("downloading", "processing") and percent != last_percent:
-            if not progress_msg_sent or abs(percent - last_percent) >= 20:
-                last_percent = percent
-                progress_msg_sent = True
+        elif status in ("downloading", "processing"):
+            last_percent = percent
 
         time.sleep(3)
 
@@ -356,7 +351,6 @@ def notify_admin_download(url: str, title: str, user_chat_id: int):
 
 
 def notify_admins(text: str):
-    """إرسال إشعار لجميع الأدمنز."""
     for admin_id in ADMIN_IDS:
         send_message(admin_id, text)
 
@@ -413,31 +407,20 @@ def handle_callback_query(cq: dict):
         answer_callback(cq_id)
 
 
-# ── Polling loop ───────────────────────────────────────────────────────────────
+def process_update(update: dict):
+    if "message" in update:
+        handle_message(update["message"])
+    elif "callback_query" in update:
+        handle_callback_query(update["callback_query"])
 
-def run_bot():
+
+# ── Webhook setup ──────────────────────────────────────────────────────────────
+
+def setup_webhook():
     if not BOT_TOKEN:
-        log.error("TELEGRAM_BOT_TOKEN غير مضبوط. البوت لن يعمل.")
+        log.warning("TELEGRAM_BOT_TOKEN غير مضبوط")
         return
-
-    log.info("VIP-DL Bot يعمل الآن...")
+    webhook_url = f"{SITE_URL}/webhook/telegram/{BOT_TOKEN}"
+    set_webhook(webhook_url)
     if ADMIN_IDS:
         notify_admins("🟢 <b>البوت شغّال!</b>\nVIP-DL Bot انطلق بنجاح.")
-
-    offset = 0
-    while True:
-        try:
-            updates = get_updates(offset)
-            for update in updates:
-                offset = update["update_id"] + 1
-                if "message" in update:
-                    handle_message(update["message"])
-                elif "callback_query" in update:
-                    handle_callback_query(update["callback_query"])
-        except Exception as e:
-            log.exception("خطأ في حلقة التحديثات: %s", e)
-            time.sleep(5)
-
-
-if __name__ == "__main__":
-    run_bot()
