@@ -30,6 +30,11 @@ API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
+# ── Ads config (disabled by default — toggle from admin panel) ─────────────────
+ADS_ENABLED: list[bool] = [os.environ.get("ADS_ENABLED", "false").lower() == "true"]
+ADS_PUBLISHER_ID = os.environ.get("ADS_PUBLISHER_ID", "")
+ADS_API_KEY = os.environ.get("ADS_API_KEY", "")
+
 # ── Telegram API helpers ───────────────────────────────────────────────────────
 
 def _post(method: str, **kwargs) -> dict:
@@ -120,6 +125,29 @@ def site_stats() -> dict:
         return r.json()
     except Exception as e:
         return {"error": str(e)}
+
+
+# ── Ad link shortener ─────────────────────────────────────────────────────────
+
+def shorten_url(target_url: str) -> str:
+    """Wrap target_url through AdFly. Returns target_url unchanged on failure."""
+    if not ADS_API_KEY or not ADS_PUBLISHER_ID:
+        return target_url
+    try:
+        r = requests.get(
+            "https://api.adf.ly/api.php",
+            params={
+                "key": ADS_API_KEY,
+                "uid": ADS_PUBLISHER_ID,
+                "advert_type": "int",
+                "url": target_url,
+            },
+            timeout=10,
+        )
+        shortened = r.text.strip()
+        return shortened if shortened.startswith("http") else target_url
+    except Exception:
+        return target_url
 
 
 # ── URL detection ──────────────────────────────────────────────────────────────
@@ -313,13 +341,24 @@ ADMIN_KEYBOARD = {
         [{"text": "📢 رسالة جماعية", "callback_data": "adm:broadcast"}, {"text": "👥 المستخدمون", "callback_data": "adm:users"}],
         [{"text": "🚫 حظر مستخدم", "callback_data": "adm:block"}, {"text": "✅ رفع حظر", "callback_data": "adm:unblock"}],
         [{"text": "✏️ تعديل رسالة الترحيب", "callback_data": "adm:setwelcome"}],
+        [{"text": "💰 الإعلانات: مُوقف ⚫", "callback_data": "adm:toggleads"}],
         [{"text": "❌ إغلاق", "callback_data": "adm:close"}],
     ]
 }
 
 
+def _build_admin_keyboard() -> dict:
+    ads_label = "💰 الإعلانات: مُفعَّل 🟢" if ADS_ENABLED[0] else "💰 الإعلانات: مُوقف ⚫"
+    kb = [row[:] for row in ADMIN_KEYBOARD["inline_keyboard"]]
+    for i, row in enumerate(kb):
+        for j, btn in enumerate(row):
+            if btn.get("callback_data") == "adm:toggleads":
+                kb[i][j] = {"text": ads_label, "callback_data": "adm:toggleads"}
+    return {"inline_keyboard": kb}
+
+
 def handle_admin_panel(chat_id: int):
-    send_message(chat_id, "🛠️ <b>لوحة تحكم الأدمن</b>\n\nاختر الإجراء:", reply_markup=ADMIN_KEYBOARD)
+    send_message(chat_id, "🛠️ <b>لوحة تحكم الأدمن</b>\n\nاختر الإجراء:", reply_markup=_build_admin_keyboard())
 
 
 def handle_admin_callback(chat_id: int, cq_id: str, action: str):
@@ -350,7 +389,7 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
             f"📱 المنصات:\n{platform_lines}\n\n"
             f"🔴 آخر الأخطاء:\n{err_lines}"
         )
-        send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        send_message(chat_id, text, reply_markup=_build_admin_keyboard())
         return
 
     if action == "visitors":
@@ -364,7 +403,7 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
             f"📆 أمس: <b>{data.get('yesterday',0):,}</b> زيارة\n"
             f"📊 الأسبوع: <b>{data.get('week',0):,}</b> زيارة"
         )
-        send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        send_message(chat_id, text, reply_markup=_build_admin_keyboard())
         return
 
     if action == "health":
@@ -382,7 +421,7 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
             f"💾 التخزين: <b>{data.get('storage_mb',0)} MB</b>\n"
             f"⚡ مهام نشطة: <b>{data.get('active_tasks',0)}</b>"
         )
-        send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        send_message(chat_id, text, reply_markup=_build_admin_keyboard())
         return
 
     if action == "codes":
@@ -402,7 +441,7 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
             f"❌ منتهية: <b>{data.get('expired',0)}</b>\n\n"
             f"آخر الأكواد:\n{recent_lines}"
         )
-        send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        send_message(chat_id, text, reply_markup=_build_admin_keyboard())
         return
 
     if action.startswith("gencode:"):
@@ -424,7 +463,7 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
                 f"🎁 <b>كود جديد ({days} يوم)</b>\n\n"
                 f"<code>{data.get('code','')}</code>\n\n"
                 f"انسخ الكود وأعطه للمستخدم.",
-                reply_markup=ADMIN_KEYBOARD)
+                reply_markup=_build_admin_keyboard())
         return
 
     if action == "clear":
@@ -432,13 +471,13 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
         if "error" in data:
             send_message(chat_id, f"❌ خطأ: {data['error']}")
         else:
-            send_message(chat_id, f"✅ تم حذف <b>{data.get('removed',0)}</b> ملف مؤقت.", reply_markup=ADMIN_KEYBOARD)
+            send_message(chat_id, f"✅ تم حذف <b>{data.get('removed',0)}</b> ملف مؤقت.", reply_markup=_build_admin_keyboard())
         return
 
     if action == "update":
         send_message(chat_id, "⏳ جاري تحديث yt-dlp في الخلفية...")
         admin_api("update-ytdlp", "POST")
-        send_message(chat_id, "✅ بدأ التحديث — قد يستغرق دقيقة.", reply_markup=ADMIN_KEYBOARD)
+        send_message(chat_id, "✅ بدأ التحديث — قد يستغرق دقيقة.", reply_markup=_build_admin_keyboard())
         return
 
     if action == "users":
@@ -450,7 +489,7 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
             f"إجمالي: <b>{count}</b> | محظور: <b>{blocked_count}</b>\n\n"
             f"آخر 10:\n{user_list or 'لا يوجد بعد'}"
         )
-        send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        send_message(chat_id, text, reply_markup=_build_admin_keyboard())
         return
 
     if action == "block":
@@ -466,6 +505,12 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
     if action == "setwelcome":
         pending[chat_id] = {"waiting_welcome": True}
         send_message(chat_id, "✏️ أرسل نص رسالة الترحيب الجديدة:\n\n(أرسل /reset لإعادتها للافتراضي)")
+        return
+
+    if action == "toggleads":
+        ADS_ENABLED[0] = not ADS_ENABLED[0]
+        status = "مُفعَّل 🟢" if ADS_ENABLED[0] else "مُوقف ⚫"
+        send_message(chat_id, f"💰 <b>وضع الإعلانات: {status}</b>", reply_markup=_build_admin_keyboard())
         return
 
     if action == "broadcast":
@@ -559,16 +604,30 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str):
             caption_text = f"✅ <b>{display_name[:80]}</b>\n\n🤖 @nazzilhaplus_bot | 🌐 {SITE_URL}"
 
             file_size_mb = file_path.stat().st_size / (1024 * 1024)
-            try:
-                if ext in (".mp3", ".m4a", ".ogg", ".wav"):
-                    send_audio(chat_id, str(file_path), caption_text)
-                elif file_size_mb <= 50:
-                    send_video(chat_id, str(file_path), caption_text)
-                else:
-                    send_document(chat_id, str(file_path), caption_text)
-            except Exception as e:
-                log.error("Failed to send file: %s", e)
-                send_message(chat_id, f"⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{SITE_URL}")
+
+            if ADS_ENABLED[0]:
+                # Ad-based flow: send a shortened link instead of the file directly
+                raw_url = f"{SITE_URL}/bot-dl/{task_id}"
+                ad_url = shorten_url(raw_url)
+                btn = {"inline_keyboard": [[{"text": "📥 تحميل الفيديو", "url": ad_url}]]}
+                send_message(
+                    chat_id,
+                    f"✅ جاهز! <b>{display_name[:80]}</b>\n\n"
+                    "اضغط الزر أدناه لتحميل الفيديو 👇\n"
+                    "<i>(تظهر إعلانات قصيرة لدعم الخدمة المجانية)</i>",
+                    reply_markup=btn,
+                )
+            else:
+                try:
+                    if ext in (".mp3", ".m4a", ".ogg", ".wav"):
+                        send_audio(chat_id, str(file_path), caption_text)
+                    elif file_size_mb <= 50:
+                        send_video(chat_id, str(file_path), caption_text)
+                    else:
+                        send_document(chat_id, str(file_path), caption_text)
+                except Exception as e:
+                    log.error("Failed to send file: %s", e)
+                    send_message(chat_id, f"⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{SITE_URL}")
 
             notify_admin_download(url, display_name, chat_id)
             return
@@ -693,7 +752,7 @@ def handle_message(msg: dict):
             if text.lstrip("-").isdigit():
                 target_id = int(text)
                 blocked_users.add(target_id)
-                send_message(chat_id, f"✅ تم حظر المستخدم <code>{target_id}</code>.", reply_markup=ADMIN_KEYBOARD)
+                send_message(chat_id, f"✅ تم حظر المستخدم <code>{target_id}</code>.", reply_markup=_build_admin_keyboard())
             else:
                 send_message(chat_id, "❌ أرسل Chat ID رقمياً فقط.")
             return
@@ -703,7 +762,7 @@ def handle_message(msg: dict):
             if text.lstrip("-").isdigit():
                 target_id = int(text)
                 blocked_users.discard(target_id)
-                send_message(chat_id, f"✅ تم رفع الحظر عن <code>{target_id}</code>.", reply_markup=ADMIN_KEYBOARD)
+                send_message(chat_id, f"✅ تم رفع الحظر عن <code>{target_id}</code>.", reply_markup=_build_admin_keyboard())
             else:
                 send_message(chat_id, "❌ أرسل Chat ID رقمياً فقط.")
             return
@@ -712,11 +771,11 @@ def handle_message(msg: dict):
             pending.pop(chat_id, None)
             if text.strip() == "/reset":
                 custom_welcome.clear()
-                send_message(chat_id, "✅ أُعيدت رسالة الترحيب إلى الافتراضية.", reply_markup=ADMIN_KEYBOARD)
+                send_message(chat_id, "✅ أُعيدت رسالة الترحيب إلى الافتراضية.", reply_markup=_build_admin_keyboard())
             else:
                 custom_welcome.clear()
                 custom_welcome.append(text)
-                send_message(chat_id, "✅ تم حفظ رسالة الترحيب الجديدة!", reply_markup=ADMIN_KEYBOARD)
+                send_message(chat_id, "✅ تم حفظ رسالة الترحيب الجديدة!", reply_markup=_build_admin_keyboard())
             return
 
     # broadcast handler
@@ -732,7 +791,7 @@ def handle_message(msg: dict):
                 sent += 1
             else:
                 failed += 1
-        send_message(chat_id, f"✅ أُرسلت لـ <b>{sent}</b> مستخدم\n❌ فشلت: <b>{failed}</b>", reply_markup=ADMIN_KEYBOARD)
+        send_message(chat_id, f"✅ أُرسلت لـ <b>{sent}</b> مستخدم\n❌ فشلت: <b>{failed}</b>", reply_markup=_build_admin_keyboard())
         return
 
     if text.startswith("/start"):

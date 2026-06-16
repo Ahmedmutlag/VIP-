@@ -2023,6 +2023,19 @@ def bot_admin_health():
     })
 
 
+@app.route("/bot-dl/<task_id>")
+def bot_download_file(task_id):
+    """Serve a completed download file for ad-based link flow."""
+    prog = progress_store.get(task_id, {})
+    if prog.get("status") != "done":
+        return "الملف غير متوفر أو انتهت مدته.", 404
+    file_name = prog.get("file", "")
+    file_path = DOWNLOAD_DIR / file_name
+    if not file_path.exists():
+        return "الملف غير موجود.", 404
+    return send_file(str(file_path), as_attachment=True, download_name=file_name)
+
+
 def _setup_telegram_webhook():
     if not os.environ.get("TELEGRAM_BOT_TOKEN"):
         return
