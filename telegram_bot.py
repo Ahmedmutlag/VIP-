@@ -251,8 +251,6 @@ def _save_welcome():
 
 
 def is_premium(chat_id: int) -> bool:
-    if chat_id in ADMIN_IDS:
-        return True
     exp = premium_users.get(chat_id)
     if not exp:
         return False
