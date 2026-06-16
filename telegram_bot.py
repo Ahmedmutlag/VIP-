@@ -745,8 +745,14 @@ def handle_adwatch_start(chat_id: int, cq_id: str):
     send_message(
         chat_id,
         "📺 <b>شاهد الإعلان ثم ارجع هنا</b>\n\n"
-        f'🔗 <a href="{ad_link}">اضغط هنا لفتح الإعلان</a>\n\n'
-        "⚠️ يجب فتح الرابط والانتظار حتى ينتهي الإعلان، ثم اضغط الزر 👇",
+        f'👉 <a href="{ad_link}">اضغط هنا لفتح الإعلان</a>\n\n'
+        "📋 <b>الخطوات:</b>\n"
+        "1️⃣ افتح الرابط أعلاه\n"
+        "2️⃣ <b>تجاهل</b> أزرار Download Now / Play Now\n"
+        "3️⃣ ضع ✓ على مربع <b>أنا لست روبوت</b>\n"
+        "4️⃣ اضغط زر <b>Click here to continue</b>\n"
+        "5️⃣ انتظر حتى يفتح الموقع تلقائياً\n\n"
+        "ثم ارجع هنا واضغط الزر 👇",
         reply_markup={"inline_keyboard": [[
             {"text": "✅ شاهدت الإعلان — حمّل الآن", "callback_data": "adwatch:done"}
         ]]},
@@ -766,7 +772,12 @@ def handle_adwatch_done(chat_id: int, cq_id: str):
         send_message(
             chat_id,
             "⚠️ <b>لم يتم التحقق من مشاهدة الإعلان</b>\n\n"
-            "يجب فتح الرابط أعلاه والانتظار حتى ينتهي الإعلان، ثم اضغط الزر مرة أخرى."
+            "تأكد أنك اتبعت الخطوات بشكل صحيح:\n"
+            "• لا تضغط على Download Now أو Play Now\n"
+            "• ضع ✓ على <b>أنا لست روبوت</b>\n"
+            "• اضغط <b>Click here to continue</b>\n"
+            "• انتظر حتى يفتح الموقع تلقائياً\n\n"
+            "ثم ارجع هنا واضغط الزر مجدداً 👇"
         )
         return
     pending.pop(chat_id, {})
