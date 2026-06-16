@@ -2049,6 +2049,29 @@ def bot_admin_redeem_code():
     return jsonify({"days": days, "expires_at": expires})
 
 
+@app.route("/adverify/<token>")
+def ad_verify(token):
+    """Called after user watches the ad via ShrinkMe. Marks the token as verified."""
+    try:
+        from telegram_bot import ad_verif_tokens, pending
+        chat_id = ad_verif_tokens.pop(token, None)
+        if chat_id and chat_id in pending:
+            pending[chat_id]["ad_verified"] = True
+    except Exception:
+        pass
+    return (
+        "<html><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<style>body{font-family:Arial;text-align:center;padding:40px;background:#0f0f0f;color:#fff}"
+        "h2{color:#4ade80}p{color:#aaa}.btn{display:inline-block;margin-top:20px;padding:14px 28px;"
+        "background:#5865F2;color:#fff;border-radius:10px;text-decoration:none;font-size:16px}</style></head>"
+        "<body><h2>✅ تم التحقق!</h2>"
+        "<p>يمكنك الآن العودة إلى بوت التلغرام والضغط على زر <b>شاهدت الإعلان</b></p>"
+        f"<a class='btn' href='https://t.me/nazzilhaplus_bot'>📲 العودة للبوت</a>"
+        "</body></html>"
+    ), 200
+
+
 @app.route("/bot-dl/<task_id>")
 def bot_download_file(task_id):
     """Serve a completed download file for ad-based link flow."""

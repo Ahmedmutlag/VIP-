@@ -7,6 +7,7 @@ import re
 import time
 import json
 import logging
+import secrets
 import threading
 import requests
 from pathlib import Path
@@ -221,6 +222,7 @@ def _save_json(path: Path, data) -> None:
 # ── User state ─────────────────────────────────────────────────────────────────
 pending: dict[int, dict] = {}
 known_users: dict[int, dict] = {}   # uid -> {"name": str, "username": str|None}
+ad_verif_tokens: dict[str, int] = {}  # token -> chat_id (cleared once verified)
 
 _premium_raw    = _load_json(_PREMIUM_FILE, {})
 premium_users: dict[int, str]  = {int(k): v for k, v in _premium_raw.items()}
@@ -734,12 +736,17 @@ def handle_adwatch_start(chat_id: int, cq_id: str):
     if not url:
         send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
         return
-    ad_link = make_ad_url(SITE_URL)
+    token = secrets.token_urlsafe(20)
+    pending[chat_id]["ad_token"] = token
+    pending[chat_id]["ad_verified"] = False
+    ad_verif_tokens[token] = chat_id
+    verify_url = f"{SITE_URL}/adverify/{token}"
+    ad_link = make_ad_url(verify_url)
     send_message(
         chat_id,
         "📺 <b>شاهد الإعلان ثم ارجع هنا</b>\n\n"
         f'🔗 <a href="{ad_link}">اضغط هنا لفتح الإعلان</a>\n\n'
-        "بعد مشاهدة الإعلان اضغط الزر أدناه 👇",
+        "⚠️ يجب فتح الرابط والانتظار حتى ينتهي الإعلان، ثم اضغط الزر 👇",
         reply_markup={"inline_keyboard": [[
             {"text": "✅ شاهدت الإعلان — حمّل الآن", "callback_data": "adwatch:done"}
         ]]},
@@ -748,12 +755,22 @@ def handle_adwatch_start(chat_id: int, cq_id: str):
 
 
 def handle_adwatch_done(chat_id: int, cq_id: str):
-    answer_callback(cq_id, "✅ جاري التحميل...")
-    data = pending.pop(chat_id, {})
+    data = pending.get(chat_id, {})
     url = data.get("ad_pending_url", "")
     if not url:
+        answer_callback(cq_id, "⚠️ انتهت الجلسة")
         send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
         return
+    if not data.get("ad_verified"):
+        answer_callback(cq_id, "❌ افتح رابط الإعلان أولاً!")
+        send_message(
+            chat_id,
+            "⚠️ <b>لم يتم التحقق من مشاهدة الإعلان</b>\n\n"
+            "يجب فتح الرابط أعلاه والانتظار حتى ينتهي الإعلان، ثم اضغط الزر مرة أخرى."
+        )
+        return
+    pending.pop(chat_id, {})
+    answer_callback(cq_id, "✅ جاري التحميل...")
     threading.Thread(target=_do_download, args=(chat_id, url), daemon=True).start()
 
 
