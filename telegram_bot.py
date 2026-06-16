@@ -220,7 +220,7 @@ def _save_json(path: Path, data) -> None:
 
 # ── User state ─────────────────────────────────────────────────────────────────
 pending: dict[int, dict] = {}
-known_users: dict[int, str] = {}
+known_users: dict[int, dict] = {}   # uid -> {"name": str, "username": str|None}
 
 _premium_raw    = _load_json(_PREMIUM_FILE, {})
 premium_users: dict[int, str]  = {int(k): v for k, v in _premium_raw.items()}
@@ -602,7 +602,12 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
     if action == "users":
         count = len(known_users)
         blocked_count = len(blocked_users)
-        user_list = "\n".join(f"  • {name} (<code>{uid}</code>)" for uid, name in list(known_users.items())[-10:])
+        user_list = "\n".join(
+            f"  • {(info.get('name','?') if isinstance(info,dict) else info)}"
+            f"{(' (@'+info.get('username')+')' if isinstance(info,dict) and info.get('username') else '')}"
+            f" <code>{uid}</code>"
+            for uid, info in list(known_users.items())[-10:]
+        )
         text = (
             f"👥 <b>المستخدمون</b>\n\n"
             f"إجمالي: <b>{count}</b> | محظور: <b>{blocked_count}</b>\n\n"
@@ -979,9 +984,15 @@ def notify_admin_download(url: str, title: str, user_chat_id: int):
     if not ADMIN_IDS:
         return
     platform = detect_platform(url)
+    user_info = known_users.get(user_chat_id, {})
+    user_name = user_info.get("name", "مجهول") if isinstance(user_info, dict) else str(user_info)
+    user_username = user_info.get("username") if isinstance(user_info, dict) else None
+    username_line = f"🔖 المعرف: @{user_username}\n" if user_username else ""
     text = (
         "📥 <b>تحميل جديد عبر البوت</b>\n\n"
-        f"👤 Chat ID: <code>{user_chat_id}</code>\n"
+        f"👤 الاسم: <b>{user_name}</b>\n"
+        f"{username_line}"
+        f"🆔 Chat ID: <code>{user_chat_id}</code>\n"
         f"📱 المنصة: {platform}\n"
         f"🎬 العنوان: {title[:80]}\n"
         f"🔗 الرابط: {url[:100]}"
@@ -1036,7 +1047,8 @@ def handle_message(msg: dict):
     if not text:
         return
 
-    known_users[chat_id] = first_name
+    username: str | None = msg.get("from", {}).get("username")
+    known_users[chat_id] = {"name": first_name, "username": username}
 
     if chat_id in blocked_users:
         send_message(chat_id, "⛔ عذراً، تم تعليق حسابك. تواصل مع الدعم.")
