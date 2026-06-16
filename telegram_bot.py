@@ -234,7 +234,7 @@ user_downloads: dict[int, dict] = {int(k): v for k, v in _downloads_raw.items()}
 _welcome_raw    = _load_json(_WELCOME_FILE, [])
 custom_welcome: list[str]      = _welcome_raw
 
-FREE_DAILY_LIMIT = 5
+FREE_DAILY_LIMIT = 3
 
 
 def _save_premium():
