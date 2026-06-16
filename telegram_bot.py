@@ -178,6 +178,54 @@ pending: dict[int, dict] = {}
 known_users: dict[int, str] = {}   # chat_id -> first_name
 blocked_users: set[int] = set()
 custom_welcome: list[str] = []     # [0] = custom text if set
+premium_users: dict[int, str] = {}   # chat_id -> expiry datetime str or "lifetime"
+user_downloads: dict[int, dict] = {} # chat_id -> {"date": "YYYY-MM-DD", "count": N}
+
+FREE_DAILY_LIMIT = 5
+
+
+def is_premium(chat_id: int) -> bool:
+    if chat_id in ADMIN_IDS:
+        return True
+    exp = premium_users.get(chat_id)
+    if not exp:
+        return False
+    if exp == "lifetime":
+        return True
+    import datetime
+    try:
+        return datetime.datetime.now() < datetime.datetime.strptime(exp, "%Y-%m-%d %H:%M")
+    except Exception:
+        return False
+
+
+def check_download_limit(chat_id: int) -> bool:
+    """Returns True if allowed, False if daily limit exceeded."""
+    if is_premium(chat_id):
+        return True
+    import datetime
+    today = datetime.date.today().isoformat()
+    data = user_downloads.setdefault(chat_id, {"date": today, "count": 0})
+    if data.get("date") != today:
+        data["date"] = today
+        data["count"] = 0
+    if data["count"] >= FREE_DAILY_LIMIT:
+        return False
+    data["count"] += 1
+    return True
+
+
+def redeem_code(chat_id: int, code: str) -> dict:
+    try:
+        r = requests.post(
+            f"{SITE_URL}/bot-admin/redeem-code",
+            headers={"X-Bot-Token": BOT_TOKEN},
+            json={"code": code.upper(), "chat_id": chat_id},
+            timeout=15,
+        )
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # ── Message handlers ───────────────────────────────────────────────────────────
@@ -197,8 +245,13 @@ HELP_TEXT = """🤖 <b>بوت نزلها بلس للتحميل</b>
 /stats — إحصائيات الموقع
 /site — رابط الموقع
 /share — شارك البوت مع أصدقائك
+/redeem — تفعيل كود بريميوم
+/status — حالة اشتراكك
 
-📎 فقط الصق الرابط وأنا أتولى الباقي!"""
+📎 فقط الصق الرابط وأنا أتولى الباقي!
+
+🆓 المجاني: <b>5 تحميلات/يوم</b>
+💎 البريميوم: <b>غير محدود</b>"""
 
 
 MAIN_KEYBOARD = {
@@ -549,6 +602,51 @@ def handle_share(chat_id: int):
     send_message(chat_id, text, disable_web_page_preview=True)
 
 
+def handle_redeem(chat_id: int, code: str):
+    if not code:
+        send_message(chat_id, "💎 أرسل الكود هكذا:\n/redeem XXXX-XXXXXXXX")
+        return
+    result = redeem_code(chat_id, code)
+    if "error" in result:
+        send_message(chat_id, f"❌ {result['error']}")
+        return
+    days = result.get("days", 30)
+    expires = result.get("expires_at", "")
+    premium_users[chat_id] = expires
+    send_message(
+        chat_id,
+        f"🎉 <b>تم تفعيل البريميوم!</b>\n\n"
+        f"💎 مدة الاشتراك: <b>{days} يوم</b>\n"
+        f"📅 ينتهي في: <b>{expires}</b>\n\n"
+        "استمتع بتحميلات غير محدودة! 🚀"
+    )
+
+
+def handle_status(chat_id: int):
+    import datetime
+    if chat_id in ADMIN_IDS:
+        send_message(chat_id, "👑 <b>أدمن</b> — وصول غير محدود")
+        return
+    if is_premium(chat_id):
+        exp = premium_users.get(chat_id, "")
+        if exp == "lifetime":
+            send_message(chat_id, "💎 <b>بريميوم مدى الحياة</b> ✅")
+        else:
+            send_message(chat_id, f"💎 <b>بريميوم نشط</b>\n📅 ينتهي: <b>{exp}</b>")
+    else:
+        today = datetime.date.today().isoformat()
+        data = user_downloads.get(chat_id, {})
+        used = data.get("count", 0) if data.get("date") == today else 0
+        remaining = max(0, FREE_DAILY_LIMIT - used)
+        send_message(
+            chat_id,
+            f"🆓 <b>حساب مجاني</b>\n\n"
+            f"⬇️ تحميلاتك اليوم: <b>{used}/{FREE_DAILY_LIMIT}</b>\n"
+            f"✅ متبقي: <b>{remaining}</b>\n\n"
+            "للترقية: /redeem + كود البريميوم"
+        )
+
+
 def _progress_bar(percent: int) -> str:
     filled = int(percent / 10)
     bar = "▓" * filled + "░" * (10 - filled)
@@ -556,6 +654,16 @@ def _progress_bar(percent: int) -> str:
 
 
 def handle_url(chat_id: int, url: str, first_name: str):
+    if not check_download_limit(chat_id):
+        upgrade_btn = {"inline_keyboard": [[{"text": "💎 ترقية للبريميوم", "callback_data": "adm_premium_info"}]]}
+        send_message(
+            chat_id,
+            f"⛔ <b>وصلت للحد اليومي المجاني ({FREE_DAILY_LIMIT} تحميلات)</b>\n\n"
+            "🔄 يُجدَّد الحد غداً تلقائياً\n\n"
+            "💎 للحصول على تحميلات غير محدودة:\n"
+            "أرسل /redeem + كود البريميوم",
+        )
+        return
     platform = detect_platform(url)
     send_message(chat_id, f"⬇️ جاري التحميل من <b>{platform}</b> بأفضل جودة...")
 
@@ -806,6 +914,11 @@ def handle_message(msg: dict):
         handle_platforms(chat_id)
     elif text.startswith("/share") or text == "📣 شارك البوت":
         handle_share(chat_id)
+    elif text.startswith("/redeem"):
+        parts = text.split(maxsplit=1)
+        handle_redeem(chat_id, parts[1].strip() if len(parts) > 1 else "")
+    elif text.startswith("/status"):
+        handle_status(chat_id)
     elif text == "🔥 الأكثر تحميلاً":
         handle_top(chat_id)
     elif text == "📲 حمّل فيديو":

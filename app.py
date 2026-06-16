@@ -2023,6 +2023,32 @@ def bot_admin_health():
     })
 
 
+@app.route("/bot-admin/redeem-code", methods=["POST"])
+def bot_admin_redeem_code():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    data = request.get_json() or {}
+    code = data.get("code", "").strip().upper()
+    chat_id = data.get("chat_id")
+    if not code:
+        return jsonify({"error": "الكود مطلوب"}), 400
+    codes = load_codes()
+    if code not in codes:
+        return jsonify({"error": "الكود غير صحيح"}), 404
+    entry = codes[code]
+    if entry.get("used"):
+        return jsonify({"error": "الكود مستخدم مسبقاً"}), 400
+    days = entry.get("days", 30)
+    from datetime import datetime as dt, timedelta
+    expires = (dt.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+    entry["used"] = True
+    entry["used_at"] = now().strftime("%Y-%m-%d %H:%M")
+    entry["expires_at"] = expires
+    entry["email"] = f"bot:{chat_id}"
+    save_codes(codes)
+    return jsonify({"days": days, "expires_at": expires})
+
+
 @app.route("/bot-dl/<task_id>")
 def bot_download_file(task_id):
     """Serve a completed download file for ad-based link flow."""
