@@ -5,6 +5,7 @@ VIP-DL Telegram Bot — Webhook mode
 import os
 import re
 import time
+import json
 import logging
 import threading
 import requests
@@ -173,15 +174,60 @@ def detect_platform(url: str) -> str:
     return "موقع غير معروف"
 
 
+# ── Persistence helpers ────────────────────────────────────────────────────────
+DATA_DIR = Path("bot_data")
+DATA_DIR.mkdir(exist_ok=True)
+
+_PREMIUM_FILE   = DATA_DIR / "premium_users.json"
+_BLOCKED_FILE   = DATA_DIR / "blocked_users.json"
+_DOWNLOADS_FILE = DATA_DIR / "user_downloads.json"
+_WELCOME_FILE   = DATA_DIR / "custom_welcome.json"
+
+def _load_json(path: Path, default):
+    try:
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        log.warning("Failed to load %s: %s", path, e)
+    return default
+
+def _save_json(path: Path, data) -> None:
+    try:
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        log.warning("Failed to save %s: %s", path, e)
+
+
 # ── User state ─────────────────────────────────────────────────────────────────
 pending: dict[int, dict] = {}
-known_users: dict[int, str] = {}   # chat_id -> first_name
-blocked_users: set[int] = set()
-custom_welcome: list[str] = []     # [0] = custom text if set
-premium_users: dict[int, str] = {}   # chat_id -> expiry datetime str or "lifetime"
-user_downloads: dict[int, dict] = {} # chat_id -> {"date": "YYYY-MM-DD", "count": N}
+known_users: dict[int, str] = {}
+
+_premium_raw    = _load_json(_PREMIUM_FILE, {})
+premium_users: dict[int, str]  = {int(k): v for k, v in _premium_raw.items()}
+
+_blocked_raw    = _load_json(_BLOCKED_FILE, [])
+blocked_users: set[int]        = set(_blocked_raw)
+
+_downloads_raw  = _load_json(_DOWNLOADS_FILE, {})
+user_downloads: dict[int, dict] = {int(k): v for k, v in _downloads_raw.items()}
+
+_welcome_raw    = _load_json(_WELCOME_FILE, [])
+custom_welcome: list[str]      = _welcome_raw
 
 FREE_DAILY_LIMIT = 5
+
+
+def _save_premium():
+    _save_json(_PREMIUM_FILE, {str(k): v for k, v in premium_users.items()})
+
+def _save_blocked():
+    _save_json(_BLOCKED_FILE, list(blocked_users))
+
+def _save_downloads():
+    _save_json(_DOWNLOADS_FILE, {str(k): v for k, v in user_downloads.items()})
+
+def _save_welcome():
+    _save_json(_WELCOME_FILE, custom_welcome)
 
 
 def is_premium(chat_id: int) -> bool:
@@ -212,6 +258,7 @@ def check_download_limit(chat_id: int) -> bool:
     if data["count"] >= FREE_DAILY_LIMIT:
         return False
     data["count"] += 1
+    _save_downloads()
     return True
 
 
@@ -670,6 +717,7 @@ def handle_successful_payment(chat_id: int, payment: dict):
     import datetime
     expires = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
     premium_users[chat_id] = expires
+    _save_premium()
     stars = payment.get("total_amount", 0)
     send_message(
         chat_id,
@@ -697,6 +745,7 @@ def handle_redeem(chat_id: int, code: str):
     days = result.get("days", 30)
     expires = result.get("expires_at", "")
     premium_users[chat_id] = expires
+    _save_premium()
     send_message(
         chat_id,
         f"🎉 <b>تم تفعيل البريميوم!</b>\n\n"
@@ -943,6 +992,7 @@ def handle_message(msg: dict):
             if text.lstrip("-").isdigit():
                 target_id = int(text)
                 blocked_users.add(target_id)
+                _save_blocked()
                 send_message(chat_id, f"✅ تم حظر المستخدم <code>{target_id}</code>.", reply_markup=_build_admin_keyboard())
             else:
                 send_message(chat_id, "❌ أرسل Chat ID رقمياً فقط.")
@@ -953,6 +1003,7 @@ def handle_message(msg: dict):
             if text.lstrip("-").isdigit():
                 target_id = int(text)
                 blocked_users.discard(target_id)
+                _save_blocked()
                 send_message(chat_id, f"✅ تم رفع الحظر عن <code>{target_id}</code>.", reply_markup=_build_admin_keyboard())
             else:
                 send_message(chat_id, "❌ أرسل Chat ID رقمياً فقط.")
@@ -962,10 +1013,12 @@ def handle_message(msg: dict):
             pending.pop(chat_id, None)
             if text.strip() == "/reset":
                 custom_welcome.clear()
+                _save_welcome()
                 send_message(chat_id, "✅ أُعيدت رسالة الترحيب إلى الافتراضية.", reply_markup=_build_admin_keyboard())
             else:
                 custom_welcome.clear()
                 custom_welcome.append(text)
+                _save_welcome()
                 send_message(chat_id, "✅ تم حفظ رسالة الترحيب الجديدة!", reply_markup=_build_admin_keyboard())
             return
 
