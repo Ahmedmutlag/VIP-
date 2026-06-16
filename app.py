@@ -1924,6 +1924,19 @@ def internal_error(e):
     return render_template("404.html", error_code=500), 500
 
 
+def _start_telegram_bot():
+    if not os.environ.get("TELEGRAM_BOT_TOKEN"):
+        return
+    try:
+        from telegram_bot import run_bot
+        threading.Thread(target=run_bot, daemon=True, name="telegram-bot").start()
+    except Exception as e:
+        app.logger.warning("Telegram bot failed to start: %s", e)
+
+
+_start_telegram_bot()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=False, host="0.0.0.0", port=port)
