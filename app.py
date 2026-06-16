@@ -1948,6 +1948,81 @@ def bot_admin_update_ytdlp():
     return jsonify({"status": "started"})
 
 
+@app.route("/bot-admin/visitor-stats")
+def bot_admin_visitor_stats():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    visitors = load_visitors()
+    today = now().date().isoformat()
+    yesterday = (now().date() - timedelta(days=1)).isoformat()
+    week_total = sum(visitors.get((now().date() - timedelta(days=i)).isoformat(), {}).get("count", 0) for i in range(7))
+    return jsonify({
+        "today": visitors.get(today, {}).get("count", 0),
+        "yesterday": visitors.get(yesterday, {}).get("count", 0),
+        "week": week_total,
+    })
+
+
+@app.route("/bot-admin/codes")
+def bot_admin_codes():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    codes = load_codes()
+    current_time = now()
+    active = unused = expired = 0
+    for v in codes.values():
+        if not v["used"]:
+            unused += 1
+        elif v.get("expires_at"):
+            try:
+                exp = datetime.strptime(v["expires_at"], "%Y-%m-%d %H:%M")
+                if current_time > exp:
+                    expired += 1
+                else:
+                    active += 1
+            except Exception:
+                active += 1
+        else:
+            active += 1
+    recent = []
+    for k, v in sorted(codes.items(), key=lambda x: x[1]["created_at"], reverse=True)[:5]:
+        recent.append({"code": k, "used": v["used"], "days": v.get("days", 0), "email": v.get("email", "")})
+    return jsonify({"total": len(codes), "active": active, "unused": unused, "expired": expired, "recent": recent})
+
+
+@app.route("/bot-admin/generate-code", methods=["POST"])
+def bot_admin_generate_code():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    data = request.get_json() or {}
+    days = int(data.get("days", 30))
+    import string
+    code = "VIP-" + "".join(__import__("random").choices(string.ascii_uppercase + string.digits, k=8))
+    codes = load_codes()
+    codes[code] = {"used": False, "email": "bot-generated", "days": days, "created_at": now().strftime("%Y-%m-%d %H:%M"), "used_at": None, "expires_at": None}
+    save_codes(codes)
+    return jsonify({"code": code, "days": days})
+
+
+@app.route("/bot-admin/health")
+def bot_admin_health():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    idle_sec = int(time.time() - _last_activity)
+    uptime_sec = int(time.time() - _server_start)
+    hours = uptime_sec // 3600
+    minutes = (uptime_sec % 3600) // 60
+    dl_files = list(DOWNLOAD_DIR.glob("*"))
+    storage_mb = round(sum(f.stat().st_size for f in dl_files if f.is_file()) / 1024 / 1024, 2)
+    return jsonify({
+        "status": "online",
+        "uptime": f"{hours}h {minutes}m",
+        "idle_sec": idle_sec,
+        "storage_mb": storage_mb,
+        "active_tasks": sum(1 for v in progress_store.values() if v.get("status") in ("downloading", "processing", "starting")),
+    })
+
+
 def _setup_telegram_webhook():
     if not os.environ.get("TELEGRAM_BOT_TOKEN"):
         return
