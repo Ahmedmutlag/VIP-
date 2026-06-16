@@ -718,35 +718,40 @@
     <button onclick="dismissInstall()" class="install-dismiss">✕</button>
   </div>
 
-  <!-- ===== Ad Interstitial Modal ===== -->
+  <!-- ===== Bot Redirect Modal ===== -->
   <div id="adModal" class="ad-modal hidden">
-    <div class="ad-modal-box">
+    <div class="ad-modal-box" style="max-width:420px;text-align:center">
       <div class="ad-modal-header">
-        <span class="ad-modal-title">📢 إعلان قصير</span>
-        <span class="ad-skip-info">يمكنك التخطي بعد <strong id="adCountdown">10</strong> ثواني</span>
+        <span class="ad-modal-title">📲 تحميل عبر البوت</span>
       </div>
 
-      <div class="ad-modal-content" style="padding:.8rem;min-height:200px;display:flex;align-items:center;justify-content:center">
-        <ins class="adsbygoogle"
-             style="display:block;width:100%;min-height:200px"
-             data-ad-client="ca-pub-9098461798177099"
-             data-ad-slot="auto"
-             data-ad-format="rectangle"
-             data-full-width-responsive="true"></ins>
-        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      <div class="ad-modal-content" style="padding:1.4rem 1rem">
+        <div style="font-size:3rem;margin-bottom:.6rem">🤖</div>
+        <p style="font-size:1rem;font-weight:600;margin-bottom:.4rem">نزّل الفيديو مجاناً عبر بوت نزلها بلس!</p>
+        <p style="font-size:.85rem;color:var(--muted);margin-bottom:1rem">
+          افتح البوت، الصق الرابط، واستلم الفيديو مباشرةً في تيليغرام ⚡
+        </p>
+        <div id="botRedirectUrl" style="
+          background:var(--card);border:1px solid var(--border);border-radius:8px;
+          padding:.5rem .8rem;font-size:.78rem;word-break:break-all;
+          color:var(--muted);margin-bottom:1rem;direction:ltr;text-align:left"></div>
+        <button onclick="copyBotUrl()" class="ad-skip-btn" style="margin-bottom:.6rem;width:100%;background:var(--border)">
+          📋 نسخ الرابط
+        </button>
+        <a id="openBotBtn" href="https://t.me/nazzilhaplus_bot" target="_blank"
+           class="ad-skip-btn" style="display:block;width:100%;text-decoration:none;box-sizing:border-box">
+          📲 فتح البوت الآن
+        </a>
       </div>
 
-      <div class="ad-modal-footer">
-        <div class="ad-progress-bar">
-          <div id="adProgressFill" class="ad-progress-fill"></div>
-        </div>
-        <button id="adSkipBtn" class="ad-skip-btn" disabled onclick="onAdFinished()">
-          تخطي والتحميل ⬇️
+      <div class="ad-modal-footer" style="padding-top:0">
+        <button onclick="closeAdModal()" style="background:none;border:none;color:var(--muted);font-size:.8rem;cursor:pointer;padding:.4rem">
+          إغلاق ✕
         </button>
       </div>
     </div>
   </div>
-  <div id="adOverlay" class="ad-overlay hidden" onclick="return false;"></div>
+  <div id="adOverlay" class="ad-overlay hidden" onclick="closeAdModal()"></div>
 
 
   <!-- ===== Video Player Modal ===== -->

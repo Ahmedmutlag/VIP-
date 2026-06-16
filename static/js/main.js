@@ -377,48 +377,28 @@ function handleDownloadClick() {
   }
 }
 
-// ===== Ad Modal =====
-let adTimer = null;
-
+// ===== Bot Redirect Modal =====
 function showAdModal() {
+  const url = document.getElementById('urlInput').value.trim();
+  document.getElementById('botRedirectUrl').textContent = url;
   document.getElementById('adModal').classList.remove('hidden');
   document.getElementById('adOverlay').classList.remove('hidden');
-
-  const countdownEl = document.getElementById('adCountdown');
-  const skipBtn = document.getElementById('adSkipBtn');
-  const progressFill = document.getElementById('adProgressFill');
-
-  let seconds = (typeof AD_WAIT_SECONDS !== 'undefined') ? AD_WAIT_SECONDS : 10;
-  skipBtn.disabled = true;
-  countdownEl.textContent = seconds;
-  progressFill.style.width = '0%';
-  progressFill.style.transition = 'none';
-
-  setTimeout(() => {
-    progressFill.style.transition = `width ${seconds}s linear`;
-    progressFill.style.width = '100%';
-  }, 50);
-
-  adTimer = setInterval(() => {
-    seconds--;
-    countdownEl.textContent = seconds;
-    if (seconds <= 0) {
-      clearInterval(adTimer);
-      skipBtn.disabled = false;
-      countdownEl.textContent = '0';
-    }
-  }, 1000);
+  // auto-copy URL
+  try { navigator.clipboard.writeText(url); } catch(e) {}
 }
 
 function closeAdModal() {
   document.getElementById('adModal').classList.add('hidden');
   document.getElementById('adOverlay').classList.add('hidden');
-  if (adTimer) clearInterval(adTimer);
 }
 
-function onAdFinished() {
-  closeAdModal();
-  startDownload();
+function copyBotUrl() {
+  const url = document.getElementById('botRedirectUrl').textContent;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = event.target;
+    btn.textContent = '✅ تم النسخ!';
+    setTimeout(() => { btn.textContent = '📋 نسخ الرابط'; }, 2000);
+  }).catch(() => {});
 }
 
 // ===== Start Download =====
