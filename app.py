@@ -1895,6 +1895,59 @@ def telegram_webhook(token):
     return "ok", 200
 
 
+def _bot_auth():
+    return request.headers.get("X-Bot-Token", "") == os.environ.get("TELEGRAM_BOT_TOKEN", "NONE")
+
+
+@app.route("/bot-admin/stats")
+def bot_admin_stats():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    try:
+        ytdlp_ver = yt_dlp.version.__version__
+    except Exception:
+        ytdlp_ver = "غير معروف"
+    dl_files = list(DOWNLOAD_DIR.glob("*"))
+    storage_mb = sum(f.stat().st_size for f in dl_files if f.is_file()) / (1024 * 1024)
+    active = sum(1 for v in progress_store.values() if v.get("status") in ("downloading", "processing", "starting"))
+    return jsonify({
+        "total_downloads": stats["total_downloads"],
+        "today_downloads": stats["today_downloads"],
+        "failed_downloads": stats["failed_downloads"],
+        "platform_counts": stats["platform_counts"],
+        "active_tasks": active,
+        "storage_mb": round(storage_mb, 1),
+        "temp_files": len(dl_files),
+        "ytdlp_version": ytdlp_ver,
+        "recent_errors": stats.get("recent_errors", [])[:5],
+        "server_time": now().strftime("%Y-%m-%d %H:%M:%S"),
+    })
+
+
+@app.route("/bot-admin/clear-files", methods=["POST"])
+def bot_admin_clear_files():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    removed = 0
+    for f in DOWNLOAD_DIR.glob("*"):
+        try:
+            f.unlink()
+            removed += 1
+        except Exception:
+            pass
+    return jsonify({"removed": removed})
+
+
+@app.route("/bot-admin/update-ytdlp", methods=["POST"])
+def bot_admin_update_ytdlp():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    def do_update():
+        subprocess.run(["pip", "install", "-U", "yt-dlp", "--quiet", "--break-system-packages"], timeout=120, check=False)
+    threading.Thread(target=do_update, daemon=True).start()
+    return jsonify({"status": "started"})
+
+
 def _setup_telegram_webhook():
     if not os.environ.get("TELEGRAM_BOT_TOKEN"):
         return

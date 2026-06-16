@@ -76,6 +76,16 @@ def set_webhook(webhook_url: str) -> bool:
 
 # ── Site API helpers ───────────────────────────────────────────────────────────
 
+def admin_api(endpoint: str, method: str = "GET") -> dict:
+    headers = {"X-Bot-Token": BOT_TOKEN}
+    try:
+        fn = requests.post if method == "POST" else requests.get
+        r = fn(f"{SITE_URL}/bot-admin/{endpoint}", headers=headers, timeout=30)
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def site_info(url: str) -> dict:
     try:
         r = requests.post(f"{SITE_URL}/api/info", json={"url": url}, timeout=60)
@@ -137,6 +147,7 @@ def detect_platform(url: str) -> str:
 
 # ── User state ─────────────────────────────────────────────────────────────────
 pending: dict[int, dict] = {}
+known_users: dict[int, str] = {}  # chat_id -> first_name
 
 
 # ── Message handlers ───────────────────────────────────────────────────────────
@@ -205,7 +216,20 @@ def handle_start(chat_id: int, first_name: str):
         "من تيك توك، إنستغرام، فيسبوك وأكثر 🎯\n\n"
         "أرسل الرابط الآن وجرّب بنفسك 👇"
     )
-    send_message(chat_id, text, reply_markup=MAIN_KEYBOARD)
+    if chat_id in ADMIN_IDS:
+        admin_kb = {
+            "keyboard": [
+                [{"text": "📲 حمّل فيديو"}],
+                [{"text": "📊 الإحصائيات"}, {"text": "🔥 الأكثر تحميلاً"}],
+                [{"text": "📣 شارك البوت"}, {"text": "ℹ️ المساعدة"}],
+                [{"text": "🌐 الموقع"}, {"text": "🛠️ لوحة التحكم"}],
+            ],
+            "resize_keyboard": True,
+            "persistent": True,
+        }
+        send_message(chat_id, text, reply_markup=admin_kb)
+    else:
+        send_message(chat_id, text, reply_markup=MAIN_KEYBOARD)
 
 
 def handle_help(chat_id: int):
@@ -273,6 +297,82 @@ def handle_top(chat_id: int):
         + f"\n\n📊 الإجمالي: <b>{data.get('total_downloads', 0):,}</b>"
     )
     send_message(chat_id, text)
+
+
+ADMIN_KEYBOARD = {
+    "inline_keyboard": [
+        [{"text": "📊 إحصائيات مفصّلة", "callback_data": "adm:stats"}],
+        [{"text": "🗑️ تنظيف الملفات", "callback_data": "adm:clear"}, {"text": "🔄 تحديث yt-dlp", "callback_data": "adm:update"}],
+        [{"text": "📢 رسالة جماعية", "callback_data": "adm:broadcast"}, {"text": "👥 المستخدمون", "callback_data": "adm:users"}],
+        [{"text": "❌ إغلاق", "callback_data": "adm:close"}],
+    ]
+}
+
+
+def handle_admin_panel(chat_id: int):
+    send_message(chat_id, "🛠️ <b>لوحة تحكم الأدمن</b>\n\nاختر الإجراء:", reply_markup=ADMIN_KEYBOARD)
+
+
+def handle_admin_callback(chat_id: int, cq_id: str, action: str):
+    answer_callback(cq_id)
+
+    if action == "close":
+        send_message(chat_id, "✅ تم إغلاق لوحة التحكم.")
+        return
+
+    if action == "stats":
+        data = admin_api("stats")
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+            return
+        platforms = data.get("platform_counts", {})
+        platform_lines = "\n".join(f"  • {k}: <b>{v:,}</b>" for k, v in platforms.items() if v > 0) or "  لا بيانات"
+        errors = data.get("recent_errors", [])
+        err_lines = "\n".join(f"  ⚠️ {e.get('platform','?')}: {e.get('error','')[:50]}" for e in errors) or "  لا أخطاء"
+        text = (
+            "📊 <b>إحصائيات مفصّلة</b>\n\n"
+            f"⬇️ إجمالي: <b>{data.get('total_downloads',0):,}</b>\n"
+            f"📅 اليوم: <b>{data.get('today_downloads',0):,}</b>\n"
+            f"❌ فاشلة: <b>{data.get('failed_downloads',0):,}</b>\n"
+            f"⚡ نشطة الآن: <b>{data.get('active_tasks',0)}</b>\n\n"
+            f"💾 التخزين: <b>{data.get('storage_mb',0)} MB</b> ({data.get('temp_files',0)} ملف)\n"
+            f"🤖 yt-dlp: <b>{data.get('ytdlp_version','?')}</b>\n"
+            f"🕐 الوقت: {data.get('server_time','')}\n\n"
+            f"📱 المنصات:\n{platform_lines}\n\n"
+            f"🔴 آخر الأخطاء:\n{err_lines}"
+        )
+        send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        return
+
+    if action == "clear":
+        data = admin_api("clear-files", "POST")
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+        else:
+            send_message(chat_id, f"✅ تم حذف <b>{data.get('removed',0)}</b> ملف مؤقت.", reply_markup=ADMIN_KEYBOARD)
+        return
+
+    if action == "update":
+        send_message(chat_id, "⏳ جاري تحديث yt-dlp في الخلفية...")
+        admin_api("update-ytdlp", "POST")
+        send_message(chat_id, "✅ بدأ التحديث — قد يستغرق دقيقة.", reply_markup=ADMIN_KEYBOARD)
+        return
+
+    if action == "users":
+        count = len(known_users)
+        user_list = "\n".join(f"  • {name} (<code>{uid}</code>)" for uid, name in list(known_users.items())[-10:])
+        text = (
+            f"👥 <b>المستخدمون</b>\n\n"
+            f"إجمالي: <b>{count}</b> مستخدم\n\n"
+            f"آخر 10:\n{user_list or 'لا يوجد بعد'}"
+        )
+        send_message(chat_id, text, reply_markup=ADMIN_KEYBOARD)
+        return
+
+    if action == "broadcast":
+        pending[chat_id] = {"waiting_broadcast": True}
+        send_message(chat_id, "📢 أرسل الرسالة التي تريد إرسالها لجميع المستخدمين:")
+        return
 
 
 def handle_download_menu(chat_id: int):
@@ -449,6 +549,24 @@ def handle_message(msg: dict):
     if not text:
         return
 
+    known_users[chat_id] = first_name
+
+    # broadcast handler
+    if pending.get(chat_id, {}).get("waiting_broadcast") and chat_id in ADMIN_IDS:
+        pending.pop(chat_id, None)
+        sent = 0
+        failed = 0
+        for uid in list(known_users.keys()):
+            if uid == chat_id:
+                continue
+            res = send_message(uid, f"📢 <b>رسالة من الإدارة:</b>\n\n{text}")
+            if res.get("ok"):
+                sent += 1
+            else:
+                failed += 1
+        send_message(chat_id, f"✅ أُرسلت لـ <b>{sent}</b> مستخدم\n❌ فشلت: <b>{failed}</b>", reply_markup=ADMIN_KEYBOARD)
+        return
+
     if text.startswith("/start"):
         handle_start(chat_id, first_name)
     elif text.startswith("/help") or text == "ℹ️ المساعدة":
@@ -465,6 +583,8 @@ def handle_message(msg: dict):
         handle_top(chat_id)
     elif text == "📲 حمّل فيديو":
         handle_download_menu(chat_id)
+    elif (text.startswith("/admin") or text == "🛠️ لوحة التحكم") and chat_id in ADMIN_IDS:
+        handle_admin_panel(chat_id)
     else:
         # إذا كان المستخدم في وضع انتظار رابط بعد اختيار منصة
         waiting = pending.get(chat_id, {}).get("waiting_url")
@@ -497,6 +617,9 @@ def handle_callback_query(cq: dict):
     elif data.startswith("platform:"):
         platform = data[9:]
         handle_platform_selected(chat_id, cq_id, platform)
+    elif data.startswith("adm:") and chat_id in ADMIN_IDS:
+        action = data[4:]
+        threading.Thread(target=handle_admin_callback, args=(chat_id, cq_id, action), daemon=True).start()
     else:
         answer_callback(cq_id)
 
