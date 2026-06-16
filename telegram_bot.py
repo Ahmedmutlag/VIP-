@@ -36,6 +36,26 @@ ADS_ENABLED: list[bool] = [os.environ.get("ADS_ENABLED", "false").lower() == "tr
 ADS_PUBLISHER_ID = os.environ.get("ADS_PUBLISHER_ID", "")
 ADS_API_KEY = os.environ.get("ADS_API_KEY", "")
 
+# ── Ad shortener for "watch ad" flow (OuoIO by default) ───────────────────────
+AD_SHORTENER_KEY = os.environ.get("AD_SHORTENER_KEY", "")
+AD_SHORTENER_SERVICE = os.environ.get("AD_SHORTENER_SERVICE", "ouo")
+
+def make_ad_url(target: str) -> str:
+    """Wrap target through an ad-shortener. Falls back to target on failure."""
+    if not AD_SHORTENER_KEY:
+        return target
+    try:
+        if AD_SHORTENER_SERVICE == "shrinkme":
+            r = requests.get("https://shrinkme.io/api",
+                params={"api": AD_SHORTENER_KEY, "url": target}, timeout=10)
+            return r.json().get("shortenedUrl", target)
+        else:  # ouo (default)
+            r = requests.get(f"https://ouo.io/api/{AD_SHORTENER_KEY}",
+                params={"s": target}, timeout=10)
+            return r.text.strip() or target
+    except Exception:
+        return target
+
 # ── Telegram API helpers ───────────────────────────────────────────────────────
 
 def _post(method: str, **kwargs) -> dict:
@@ -688,14 +708,50 @@ def handle_subscribe_menu(chat_id: int):
 
 def handle_subscribe_callback(chat_id: int, cq_id: str, plan: str):
     answer_callback(cq_id)
+    if plan == "menu":
+        handle_subscribe_menu(chat_id)
+        return
     if plan == "code":
         send_message(chat_id, "🔑 أرسل كودك:\n/redeem XXXX-XXXXXXXX")
         return
-    days = int(plan)
+    try:
+        days = int(plan)
+    except ValueError:
+        return
     p = next((x for x in SUBSCRIBE_PLANS if x["days"] == days), None)
     if not p:
         return
     send_invoice(chat_id, p["days"], p["stars"], p["label"])
+
+
+def handle_adwatch_start(chat_id: int, cq_id: str):
+    answer_callback(cq_id)
+    data = pending.get(chat_id, {})
+    url = data.get("ad_pending_url", "")
+    if not url:
+        send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
+        return
+    ad_link = make_ad_url(SITE_URL)
+    send_message(
+        chat_id,
+        "📺 <b>شاهد الإعلان ثم ارجع هنا</b>\n\n"
+        f'🔗 <a href="{ad_link}">اضغط هنا لفتح الإعلان</a>\n\n'
+        "بعد مشاهدة الإعلان اضغط الزر أدناه 👇",
+        reply_markup={"inline_keyboard": [[
+            {"text": "✅ شاهدت الإعلان — حمّل الآن", "callback_data": "adwatch:done"}
+        ]]},
+        disable_web_page_preview=True,
+    )
+
+
+def handle_adwatch_done(chat_id: int, cq_id: str):
+    answer_callback(cq_id, "✅ جاري التحميل...")
+    data = pending.pop(chat_id, {})
+    url = data.get("ad_pending_url", "")
+    if not url:
+        send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
+        return
+    threading.Thread(target=_do_download, args=(chat_id, url), daemon=True).start()
 
 
 def handle_pre_checkout(query: dict):
@@ -786,30 +842,35 @@ def _progress_bar(percent: int) -> str:
     return f"[{bar}] {percent}%"
 
 
-def handle_url(chat_id: int, url: str, first_name: str):
-    if not check_download_limit(chat_id):
-        send_message(
-            chat_id,
-            f"⛔ <b>وصلت للحد اليومي المجاني ({FREE_DAILY_LIMIT} تحميلات)</b>\n\n"
-            "🔄 يُجدَّد الحد غداً تلقائياً\n\n"
-            "💎 اشترك بالبريميوم للتحميل غير المحدود 👇",
-            reply_markup=SUBSCRIBE_KEYBOARD,
-        )
-        return
+def _do_download(chat_id: int, url: str):
+    """Start download without checking the daily limit."""
     platform = detect_platform(url)
     send_message(chat_id, f"⬇️ جاري التحميل من <b>{platform}</b> بأفضل جودة...")
-
     result = site_download(url, "bestvideo+bestaudio/best")
     if "error" in result:
         send_message(chat_id, f"❌ <b>خطأ:</b> {result['error']}")
         return
-
     task_id = result.get("task_id", "")
     if not task_id:
         send_message(chat_id, "❌ فشل بدء التحميل.")
         return
-
     _finish_download(chat_id, task_id, url, "فيديو")
+
+
+def handle_url(chat_id: int, url: str, first_name: str):
+    if not check_download_limit(chat_id):
+        pending[chat_id] = {"ad_pending_url": url}
+        send_message(
+            chat_id,
+            f"⛔ <b>وصلت للحد اليومي المجاني ({FREE_DAILY_LIMIT} تحميلات)</b>\n\n"
+            "اختر طريقة للمتابعة:",
+            reply_markup={"inline_keyboard": [
+                [{"text": "📺 شاهد إعلان وحمّل مجاناً", "callback_data": "adwatch:start"}],
+                [{"text": "💎 اشترك بالبريميوم", "callback_data": "sub:menu"}],
+            ]},
+        )
+        return
+    _do_download(chat_id, url)
 
 
 def _finish_download(chat_id: int, task_id: str, url: str, title: str):
@@ -1101,6 +1162,11 @@ def handle_callback_query(cq: dict):
     elif data.startswith("sub:"):
         plan = data[4:]
         threading.Thread(target=handle_subscribe_callback, args=(chat_id, cq_id, plan), daemon=True).start()
+    elif data == "adwatch:start":
+        threading.Thread(target=handle_adwatch_start, args=(chat_id, cq_id), daemon=True).start()
+    elif data == "adwatch:done":
+        # get first_name from known_users for context
+        threading.Thread(target=handle_adwatch_done, args=(chat_id, cq_id), daemon=True).start()
     else:
         answer_callback(cq_id)
 
