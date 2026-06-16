@@ -153,6 +153,7 @@ HELP_TEXT = """🤖 <b>بوت VIP-DL للتحميل</b>
 <b>الأوامر:</b>
 /start — رسالة الترحيب
 /help — هذه القائمة
+/platforms — المنصات المدعومة
 /stats — إحصائيات الموقع
 /site — رابط الموقع
 
@@ -197,6 +198,21 @@ def handle_stats(chat_id: int):
 
 def handle_site(chat_id: int):
     send_message(chat_id, f"🌐 موقع VIP-DL:\n{SITE_URL}")
+
+
+def handle_platforms(chat_id: int):
+    text = (
+        "📱 <b>المنصات المدعومة:</b>\n\n"
+        "🎵 TikTok\n"
+        "📸 Instagram\n"
+        "📘 Facebook\n"
+        "🐦 Twitter / X\n"
+        "▶️ YouTube\n"
+        "📌 Pinterest\n"
+        "➕ والمئات من المواقع الأخرى!\n\n"
+        "فقط أرسل الرابط وأنا أتولى الباقي 😉"
+    )
+    send_message(chat_id, text)
 
 
 def handle_url(chat_id: int, url: str, first_name: str):
@@ -364,6 +380,8 @@ def handle_message(msg: dict):
         handle_stats(chat_id)
     elif text.startswith("/site"):
         handle_site(chat_id)
+    elif text.startswith("/platforms"):
+        handle_platforms(chat_id)
     else:
         urls = URL_PATTERN.findall(text)
         if urls:
