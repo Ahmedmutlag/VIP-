@@ -452,10 +452,13 @@ def handle_callback_query(cq: dict):
 
 
 def process_update(update: dict):
-    if "message" in update:
-        handle_message(update["message"])
-    elif "callback_query" in update:
-        handle_callback_query(update["callback_query"])
+    try:
+        if "message" in update:
+            handle_message(update["message"])
+        elif "callback_query" in update:
+            handle_callback_query(update["callback_query"])
+    except Exception as e:
+        log.exception("Error in process_update: %s", e)
 
 
 # ── Webhook setup ──────────────────────────────────────────────────────────────
