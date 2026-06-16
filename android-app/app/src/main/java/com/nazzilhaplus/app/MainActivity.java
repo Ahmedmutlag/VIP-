@@ -1,20 +1,17 @@
 package com.nazzilhaplus.app;
 
 import android.Manifest;
-import android.app.DownloadManager;
-import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
-import android.content.BroadcastReceiver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
@@ -26,7 +23,15 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -112,62 +117,208 @@ public class MainActivity extends AppCompatActivity {
 
     private void startDownload(String url, String userAgent, String contentDisposition, String mimeType) {
         String filename = URLUtil.guessFileName(url, contentDisposition, mimeType);
-
-        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-        request.setTitle(filename);
-        request.setDescription("نزلها بلس");
-        request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "NazzilhaPlus/" + filename);
-        request.addRequestHeader("User-Agent", userAgent);
-        String cookie = CookieManager.getInstance().getCookie(url);
-        if (cookie != null) request.addRequestHeader("Cookie", cookie);
-
-        DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-        long downloadId = dm.enqueue(request);
-
         Toast.makeText(this, "⬇️ جاري التحميل...", Toast.LENGTH_SHORT).show();
+        new Thread(() -> downloadWithRetry(url, userAgent, filename)).start();
+    }
 
-        BroadcastReceiver receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-                if (id != downloadId) return;
+    private void downloadWithRetry(String url, String userAgent, String filename) {
+        int notifId = filename.hashCode();
+        NotificationManagerCompat nm = NotificationManagerCompat.from(this);
 
-                DownloadManager.Query query = new DownloadManager.Query();
-                query.setFilterById(downloadId);
-                Cursor cursor = dm.query(query);
-                if (cursor.moveToFirst()) {
-                    int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
-                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                        String localUri = cursor.getString(
-                                cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
-                        String path = Uri.parse(localUri).getPath();
-                        MediaScannerConnection.scanFile(context, new String[]{path}, null,
-                                (p, uri) -> runOnUiThread(() -> {
-                                    new androidx.appcompat.app.AlertDialog.Builder(MainActivity.this)
-                                        .setTitle("✅ اكتمل التحميل")
-                                        .setMessage("تم حفظ الفيديو في Downloads/NazzilhaPlus")
-                                        .setPositiveButton("فتح الفيديو", (d, w) -> {
-                                            Intent open = new Intent(Intent.ACTION_VIEW);
-                                            open.setDataAndType(uri, "video/*");
-                                            open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                                            try { startActivity(open); } catch (Exception ignored) {}
-                                        })
-                                        .setNegativeButton("حسناً", null)
-                                        .show();
-                                }));
-                    } else {
-                        runOnUiThread(() ->
-                                Toast.makeText(MainActivity.this,
-                                        "❌ فشل التحميل", Toast.LENGTH_SHORT).show());
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, NotificationReceiver.DOWNLOAD_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_sys_download)
+                .setContentTitle(filename)
+                .setContentText("جاري التحميل...")
+                .setProgress(100, 0, true)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true);
+        try { nm.notify(notifId, builder.build()); } catch (Exception ignored) {}
+
+        Uri[] resultUri = new Uri[]{null};
+        boolean success;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            success = downloadViaMediaStore(url, userAgent, filename, notifId, builder, nm, resultUri);
+        } else {
+            success = downloadViaFileSystem(url, userAgent, filename, notifId, builder, nm, resultUri);
+        }
+
+        nm.cancel(notifId);
+
+        if (success) {
+            final Uri fileUri = resultUri[0];
+            runOnUiThread(() -> showSuccessDialog(fileUri));
+        } else {
+            runOnUiThread(() -> Toast.makeText(this, "❌ فشل التحميل، يرجى المحاولة مجددًا", Toast.LENGTH_LONG).show());
+        }
+    }
+
+    @android.annotation.TargetApi(Build.VERSION_CODES.Q)
+    private boolean downloadViaMediaStore(String url, String userAgent, String filename,
+            int notifId, NotificationCompat.Builder builder, NotificationManagerCompat nm, Uri[] resultUri) {
+        Uri downloadUri = null;
+        int maxRetries = 5;
+
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                long existingSize = 0;
+
+                if (downloadUri == null) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Downloads.DISPLAY_NAME, filename);
+                    values.put(MediaStore.Downloads.MIME_TYPE, "video/mp4");
+                    values.put(MediaStore.Downloads.RELATIVE_PATH,
+                            Environment.DIRECTORY_DOWNLOADS + "/NazzilhaPlus");
+                    values.put(MediaStore.Downloads.IS_PENDING, 1);
+                    downloadUri = getContentResolver().insert(
+                            MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                    if (downloadUri == null) return false;
+                } else {
+                    android.database.Cursor c = getContentResolver().query(
+                            downloadUri, new String[]{MediaStore.Downloads.SIZE}, null, null, null);
+                    if (c != null) {
+                        if (c.moveToFirst()) existingSize = c.getLong(0);
+                        c.close();
                     }
                 }
-                cursor.close();
-                try { unregisterReceiver(this); } catch (Exception ignored) {}
+
+                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setRequestProperty("User-Agent", userAgent);
+                String cookie = CookieManager.getInstance().getCookie(url);
+                if (cookie != null) conn.setRequestProperty("Cookie", cookie);
+                if (existingSize > 0) {
+                    conn.setRequestProperty("Range", "bytes=" + existingSize + "-");
+                }
+                conn.setConnectTimeout(30_000);
+                conn.setReadTimeout(60_000);
+                conn.connect();
+
+                int code = conn.getResponseCode();
+                if (code != 200 && code != 206) break;
+
+                long totalSize = existingSize + conn.getContentLengthLong();
+                String mode = (code == 206 && existingSize > 0) ? "wa" : "w";
+
+                try (InputStream in = conn.getInputStream();
+                     OutputStream out = getContentResolver().openOutputStream(downloadUri, mode)) {
+                    if (out == null) break;
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    long downloaded = existingSize;
+                    while ((read = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, read);
+                        downloaded += read;
+                        if (totalSize > 0) {
+                            int pct = (int) (downloaded * 100L / totalSize);
+                            builder.setProgress(100, pct, false).setContentText(pct + "%");
+                            try { nm.notify(notifId, builder.build()); } catch (Exception ignored) {}
+                        }
+                    }
+                }
+
+                ContentValues done = new ContentValues();
+                done.put(MediaStore.Downloads.IS_PENDING, 0);
+                getContentResolver().update(downloadUri, done, null, null);
+                resultUri[0] = downloadUri;
+                return true;
+
+            } catch (Exception e) {
+                if (attempt < maxRetries - 1) {
+                    try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ignored) {}
+                }
             }
-        };
-        registerReceiver(receiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-                Build.VERSION.SDK_INT >= 33 ? Context.RECEIVER_EXPORTED : 0);
+        }
+
+        if (downloadUri != null) {
+            try { getContentResolver().delete(downloadUri, null, null); } catch (Exception ignored) {}
+        }
+        return false;
+    }
+
+    private boolean downloadViaFileSystem(String url, String userAgent, String filename,
+            int notifId, NotificationCompat.Builder builder, NotificationManagerCompat nm, Uri[] resultUri) {
+        File outputDir = new File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "NazzilhaPlus");
+        outputDir.mkdirs();
+        File outputFile = new File(outputDir, filename);
+        int maxRetries = 5;
+
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                long existingSize = outputFile.exists() ? outputFile.length() : 0;
+
+                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setRequestProperty("User-Agent", userAgent);
+                String cookie = CookieManager.getInstance().getCookie(url);
+                if (cookie != null) conn.setRequestProperty("Cookie", cookie);
+                if (existingSize > 0) {
+                    conn.setRequestProperty("Range", "bytes=" + existingSize + "-");
+                }
+                conn.setConnectTimeout(30_000);
+                conn.setReadTimeout(60_000);
+                conn.connect();
+
+                int code = conn.getResponseCode();
+                if (code != 200 && code != 206) break;
+
+                long totalSize = existingSize + conn.getContentLengthLong();
+                boolean append = (code == 206 && existingSize > 0);
+
+                try (InputStream in = conn.getInputStream();
+                     FileOutputStream out = new FileOutputStream(outputFile, append)) {
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    long downloaded = existingSize;
+                    while ((read = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, read);
+                        downloaded += read;
+                        if (totalSize > 0) {
+                            int pct = (int) (downloaded * 100L / totalSize);
+                            builder.setProgress(100, pct, false).setContentText(pct + "%");
+                            try { nm.notify(notifId, builder.build()); } catch (Exception ignored) {}
+                        }
+                    }
+                }
+
+                final String[] paths = {outputFile.getAbsolutePath()};
+                Uri[] scanned = new Uri[]{null};
+                Object lock = new Object();
+                MediaScannerConnection.scanFile(this, paths, null, (path, uri) -> {
+                    scanned[0] = uri;
+                    synchronized (lock) { lock.notifyAll(); }
+                });
+                synchronized (lock) {
+                    try { lock.wait(3000); } catch (InterruptedException ignored) {}
+                }
+                resultUri[0] = scanned[0] != null ? scanned[0] : Uri.fromFile(outputFile);
+                return true;
+
+            } catch (Exception e) {
+                if (attempt < maxRetries - 1) {
+                    try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ignored) {}
+                }
+            }
+        }
+        return false;
+    }
+
+    private void showSuccessDialog(Uri fileUri) {
+        androidx.appcompat.app.AlertDialog.Builder dialog =
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("✅ اكتمل التحميل")
+                        .setMessage("تم حفظ الفيديو في Downloads/NazzilhaPlus")
+                        .setNegativeButton("حسناً", null);
+
+        if (fileUri != null) {
+            dialog.setPositiveButton("فتح الفيديو", (d, w) -> {
+                Intent open = new Intent(Intent.ACTION_VIEW);
+                open.setDataAndType(fileUri, "video/*");
+                open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try { startActivity(open); } catch (Exception ignored) {}
+            });
+        }
+        dialog.show();
     }
 
     @Override
