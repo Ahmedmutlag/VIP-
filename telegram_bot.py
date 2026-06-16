@@ -740,19 +740,12 @@ def handle_adwatch_start(chat_id: int, cq_id: str):
     pending[chat_id]["ad_token"] = token
     pending[chat_id]["ad_verified"] = False
     ad_verif_tokens[token] = chat_id
-    verify_url = f"{SITE_URL}/adverify/{token}"
-    ad_link = make_ad_url(verify_url)
+    watch_url = f"{SITE_URL}/watch-ad/{token}"
     send_message(
         chat_id,
-        "📺 <b>شاهد الإعلان ثم ارجع هنا</b>\n\n"
-        f'👉 <a href="{ad_link}">اضغط هنا لفتح الإعلان</a>\n\n'
-        "📋 <b>الخطوات:</b>\n"
-        "1️⃣ افتح الرابط أعلاه\n"
-        "2️⃣ <b>تجاهل</b> أزرار Download Now / Play Now\n"
-        "3️⃣ ضع ✓ على مربع <b>أنا لست روبوت</b>\n"
-        "4️⃣ اضغط زر <b>Click here to continue</b>\n"
-        "5️⃣ انتظر حتى يفتح الموقع تلقائياً\n\n"
-        "ثم ارجع هنا واضغط الزر 👇",
+        "📺 <b>شاهد إعلاناً قصيراً واحصل على تحميل مجاني</b>\n\n"
+        f'👉 <a href="{watch_url}">اضغط هنا لفتح صفحة الإعلان</a>\n\n'
+        "⏱ انتظر 15 ثانية حتى يكتمل العداد، ثم ارجع هنا واضغط الزر 👇",
         reply_markup={"inline_keyboard": [[
             {"text": "✅ شاهدت الإعلان — حمّل الآن", "callback_data": "adwatch:done"}
         ]]},

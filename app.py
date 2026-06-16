@@ -2051,25 +2051,111 @@ def bot_admin_redeem_code():
 
 @app.route("/adverify/<token>")
 def ad_verify(token):
-    """Called after user watches the ad via ShrinkMe. Marks the token as verified."""
+    """Called by /watch-ad page JS after countdown. Marks token as verified."""
     try:
         from telegram_bot import ad_verif_tokens, pending
         chat_id = ad_verif_tokens.pop(token, None)
         if chat_id and chat_id in pending:
             pending[chat_id]["ad_verified"] = True
+            return jsonify({"ok": True}), 200
     except Exception:
         pass
-    return (
-        "<html><head><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<style>body{font-family:Arial;text-align:center;padding:40px;background:#0f0f0f;color:#fff}"
-        "h2{color:#4ade80}p{color:#aaa}.btn{display:inline-block;margin-top:20px;padding:14px 28px;"
-        "background:#5865F2;color:#fff;border-radius:10px;text-decoration:none;font-size:16px}</style></head>"
-        "<body><h2>✅ تم التحقق!</h2>"
-        "<p>يمكنك الآن العودة إلى بوت التلغرام والضغط على زر <b>شاهدت الإعلان</b></p>"
-        f"<a class='btn' href='https://t.me/nazzilhaplus_bot'>📲 العودة للبوت</a>"
-        "</body></html>"
-    ), 200
+    return jsonify({"ok": False}), 200
+
+
+_AD_ZONE_HTML = os.environ.get("AD_ZONE_HTML", "")
+_WATCH_AD_PAGE = """<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>شاهد إعلاناً — نزّلها بلس</title>
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:'Segoe UI',Arial,sans-serif;background:#0f0f0f;color:#fff;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:24px;text-align:center}}
+.logo{{font-size:2rem;margin-bottom:6px}}
+h1{{font-size:1.3rem;margin-bottom:6px}}
+.sub{{color:#888;font-size:.9rem;margin-bottom:20px}}
+#ad-zone{{width:100%;max-width:420px;min-height:90px;background:#161616;
+  border-radius:12px;margin:0 auto 20px;overflow:hidden;display:flex;
+  align-items:center;justify-content:center;color:#444;font-size:.8rem}}
+.ring-wrap{{position:relative;display:flex;align-items:center;justify-content:center;margin:4px auto 10px}}
+#tnum{{position:absolute;font-size:1.5rem;font-weight:700}}
+#tmsg{{color:#aaa;font-size:.9rem;margin-bottom:24px}}
+#done{{display:none}}
+.check{{font-size:3rem;margin-bottom:10px}}
+.green{{color:#4ade80}}
+.btn{{display:inline-block;margin-top:14px;padding:14px 32px;background:#5865F2;
+  color:#fff;border-radius:12px;text-decoration:none;font-size:1rem;font-weight:700}}
+</style>
+</head>
+<body>
+<div class="logo">📥 نزّلها بلس</div>
+
+<div id="watch">
+  <h1>إعلان قصير لتفعيل التحميل</h1>
+  <p class="sub">شكراً لدعمك — الإعلان يتيح لك تحميلاً مجانياً إضافياً</p>
+
+  <div id="ad-zone">
+    {AD_ZONE}
+  </div>
+
+  <div class="ring-wrap">
+    <svg width="90" height="90" style="transform:rotate(-90deg)">
+      <circle cx="45" cy="45" r="38" fill="none" stroke="#222" stroke-width="7"/>
+      <circle id="ring" cx="45" cy="45" r="38" fill="none" stroke="#5865F2"
+              stroke-width="7" stroke-dasharray="239" stroke-dashoffset="239"
+              style="transition:stroke-dashoffset 1s linear"/>
+    </svg>
+    <span id="tnum">15</span>
+  </div>
+  <p id="tmsg">يُفعَّل التحميل خلال <b id="ts">15</b> ثانية...</p>
+</div>
+
+<div id="done">
+  <div class="check">✅</div>
+  <h1 class="green">تم التحقق!</h1>
+  <p class="sub">ارجع الآن للبوت واضغط <b>شاهدت الإعلان</b></p>
+  <a class="btn" href="https://t.me/nazzilhaplus_bot">📲 العودة للبوت</a>
+</div>
+
+<script>
+var TOTAL=15, left=15;
+var ring=document.getElementById('ring');
+var circ=2*Math.PI*38;
+ring.style.strokeDashoffset=circ;
+
+var iv=setInterval(function(){{
+  left--;
+  document.getElementById('tnum').textContent=left;
+  document.getElementById('ts').textContent=left;
+  ring.style.strokeDashoffset=circ*(left/TOTAL);
+  if(left<=0){{clearInterval(iv);verify();}}
+}},1000);
+
+function verify(){{
+  fetch('/adverify/{TOKEN}')
+    .then(function(){{
+      document.getElementById('watch').style.display='none';
+      document.getElementById('done').style.display='block';
+    }})
+    .catch(function(){{
+      window.location.href='/adverify/{TOKEN}';
+    }});
+}}
+</script>
+</body>
+</html>"""
+
+
+@app.route("/watch-ad/<token>")
+def watch_ad(token):
+    """Countdown page with PropellerAds zone. Calls /adverify after timer ends."""
+    ad_html = _AD_ZONE_HTML or '<span>الإعلان</span>'
+    page = _WATCH_AD_PAGE.replace("{TOKEN}", token).replace("{AD_ZONE}", ad_html)
+    return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 @app.route("/bot-dl/<task_id>")
