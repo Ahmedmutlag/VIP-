@@ -2155,7 +2155,21 @@ function verify(){{
 def watch_ad(token):
     """Countdown page with PropellerAds zone. Calls /adverify after timer ends."""
     if _AADS_UNIT_ID:
-        ad_html = f'<script async src="//cdn.a-ads.com/{_AADS_UNIT_ID}.js"></script>'
+        u = _AADS_UNIT_ID
+        ad_html = (
+            f'<div style="position:absolute;z-index:99999">'
+            f'<input autocomplete="off" type="checkbox" id="aadsstickymqimziet" hidden/>'
+            f'<div style="padding-top:250px;padding-bottom:0">'
+            f'<div style="width:300px;height:250px;position:fixed;text-align:center;font-size:0;top:0;left:0;right:0;margin:auto">'
+            f'<label for="aadsstickymqimziet" style="bottom:-24px;right:0;position:absolute;border-radius:4px;background:rgba(248,248,249,.7);padding:4px;z-index:99999;cursor:pointer">'
+            f'<svg fill="#000" height="16" width="16" viewBox="0 0 490 490"><polygon points="456.851,0 245,212.564 33.149,0 0.708,32.337 212.669,245.004 0.708,457.678 33.149,490 245,277.443 456.851,490 489.292,457.678 277.331,245.004 489.292,32.337"/></svg>'
+            f'</label>'
+            f'<div style="width:300px;margin:auto;z-index:99998;height:auto">'
+            f'<iframe data-aa="{u}" src="//ad.a-ads.com/{u}/?size=300x250" style="border:0;padding:0;width:300px;height:250px;overflow:hidden;margin:auto"></iframe>'
+            f'</div></div>'
+            f'<style>#aadsstickymqimziet:checked+div{{display:none}}</style>'
+            f'</div></div>'
+        )
     elif _AD_ZONE_HTML:
         ad_html = _AD_ZONE_HTML
     else:
