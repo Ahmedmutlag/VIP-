@@ -2072,24 +2072,25 @@ _WATCH_AD_PAGE = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>شاهد إعلاناً — نزّلها بلس</title>
 <style>
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'Segoe UI',Arial,sans-serif;background:#0f0f0f;color:#fff;
-  min-height:100vh;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;padding:24px;text-align:center}}
-.logo{{font-size:2rem;margin-bottom:6px}}
-h1{{font-size:1.3rem;margin-bottom:6px}}
-.sub{{color:#888;font-size:.9rem;margin-bottom:20px}}
-#ad-zone{{width:100%;max-width:420px;min-height:90px;background:#161616;
-  border-radius:12px;margin:0 auto 20px;overflow:hidden;display:flex;
-  align-items:center;justify-content:center;color:#444;font-size:.8rem}}
-.ring-wrap{{position:relative;display:flex;align-items:center;justify-content:center;margin:4px auto 10px}}
-#tnum{{position:absolute;font-size:1.5rem;font-weight:700}}
-#tmsg{{color:#aaa;font-size:.9rem;margin-bottom:24px}}
-#done{{display:none}}
-.check{{font-size:3rem;margin-bottom:10px}}
-.green{{color:#4ade80}}
-.btn{{display:inline-block;margin-top:14px;padding:14px 32px;background:#5865F2;
-  color:#fff;border-radius:12px;text-decoration:none;font-size:1rem;font-weight:700}}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #fff;
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 24px; text-align: center; }
+.logo { font-size: 2rem; margin-bottom: 6px; }
+h1 { font-size: 1.3rem; margin-bottom: 6px; }
+.sub { color: #888; font-size: .9rem; margin-bottom: 20px; }
+#ad-zone { width: 300px; height: 250px; margin: 0 auto 20px; overflow: hidden;
+  background: #161616; border-radius: 8px; }
+.ring-wrap { position: relative; display: flex; align-items: center;
+  justify-content: center; margin: 4px auto 10px; width: 90px; height: 90px; }
+#tnum { position: absolute; font-size: 1.5rem; font-weight: 700; }
+#tmsg { color: #aaa; font-size: .9rem; margin-bottom: 24px; }
+#done { display: none; }
+.check { font-size: 3rem; margin-bottom: 10px; }
+.green { color: #4ade80; }
+.btn { display: inline-block; margin-top: 14px; padding: 14px 32px;
+  background: #5865F2; color: #fff; border-radius: 12px;
+  text-decoration: none; font-size: 1rem; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -2098,11 +2099,7 @@ h1{{font-size:1.3rem;margin-bottom:6px}}
 <div id="watch">
   <h1>إعلان قصير لتفعيل التحميل</h1>
   <p class="sub">شكراً لدعمك — الإعلان يتيح لك تحميلاً مجانياً إضافياً</p>
-
-  <div id="ad-zone">
-    {AD_ZONE}
-  </div>
-
+  <div id="ad-zone">{AD_ZONE}</div>
   <div class="ring-wrap">
     <svg width="90" height="90" style="transform:rotate(-90deg)">
       <circle cx="45" cy="45" r="38" fill="none" stroke="#222" stroke-width="7"/>
@@ -2123,29 +2120,29 @@ h1{{font-size:1.3rem;margin-bottom:6px}}
 </div>
 
 <script>
-var TOTAL=15, left=15;
-var ring=document.getElementById('ring');
-var circ=2*Math.PI*38;
-ring.style.strokeDashoffset=circ;
+var TOTAL = 15, left = 15;
+var ring = document.getElementById('ring');
+var circ = 2 * Math.PI * 38;
+ring.style.strokeDashoffset = circ;
 
-var iv=setInterval(function(){{
+var iv = setInterval(function() {
   left--;
-  document.getElementById('tnum').textContent=left;
-  document.getElementById('ts').textContent=left;
-  ring.style.strokeDashoffset=circ*(left/TOTAL);
-  if(left<=0){{clearInterval(iv);verify();}}
-}},1000);
+  document.getElementById('tnum').textContent = left;
+  document.getElementById('ts').textContent = left;
+  ring.style.strokeDashoffset = circ * (left / TOTAL);
+  if (left <= 0) { clearInterval(iv); verify(); }
+}, 1000);
 
-function verify(){{
+function verify() {
   fetch('/adverify/{TOKEN}')
-    .then(function(){{
-      document.getElementById('watch').style.display='none';
-      document.getElementById('done').style.display='block';
-    }})
-    .catch(function(){{
-      window.location.href='/adverify/{TOKEN}';
-    }});
-}}
+    .then(function() {
+      document.getElementById('watch').style.display = 'none';
+      document.getElementById('done').style.display = 'block';
+    })
+    .catch(function() {
+      window.location.href = '/adverify/{TOKEN}';
+    });
+}
 </script>
 </body>
 </html>"""
@@ -2153,22 +2150,14 @@ function verify(){{
 
 @app.route("/watch-ad/<token>")
 def watch_ad(token):
-    """Countdown page with PropellerAds zone. Calls /adverify after timer ends."""
+    """Countdown page with A-Ads zone. Calls /adverify after timer ends."""
     if _AADS_UNIT_ID:
         u = _AADS_UNIT_ID
         ad_html = (
-            f'<div style="position:absolute;z-index:99999">'
-            f'<input autocomplete="off" type="checkbox" id="aadsstickymqimziet" hidden/>'
-            f'<div style="padding-top:250px;padding-bottom:0">'
-            f'<div style="width:300px;height:250px;position:fixed;text-align:center;font-size:0;top:0;left:0;right:0;margin:auto">'
-            f'<label for="aadsstickymqimziet" style="bottom:-24px;right:0;position:absolute;border-radius:4px;background:rgba(248,248,249,.7);padding:4px;z-index:99999;cursor:pointer">'
-            f'<svg fill="#000" height="16" width="16" viewBox="0 0 490 490"><polygon points="456.851,0 245,212.564 33.149,0 0.708,32.337 212.669,245.004 0.708,457.678 33.149,490 245,277.443 456.851,490 489.292,457.678 277.331,245.004 489.292,32.337"/></svg>'
-            f'</label>'
-            f'<div style="width:300px;margin:auto;z-index:99998;height:auto">'
-            f'<iframe data-aa="{u}" src="//ad.a-ads.com/{u}/?size=300x250" style="border:0;padding:0;width:300px;height:250px;overflow:hidden;margin:auto"></iframe>'
-            f'</div></div>'
-            f'<style>#aadsstickymqimziet:checked+div{{display:none}}</style>'
-            f'</div></div>'
+            f'<iframe data-aa="{u}" src="https://ad.a-ads.com/{u}/?size=300x250"'
+            f' style="border:0;width:300px;height:250px;overflow:hidden;display:block;margin:auto"'
+            f' sandbox="allow-popups allow-same-origin allow-scripts allow-top-navigation-by-user-activation">'
+            f'</iframe>'
         )
     elif _AD_ZONE_HTML:
         ad_html = _AD_ZONE_HTML
