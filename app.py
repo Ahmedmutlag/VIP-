@@ -2063,6 +2063,7 @@ def ad_verify(token):
     return jsonify({"ok": False}), 200
 
 
+_AADS_UNIT_ID = os.environ.get("AADS_UNIT_ID", "")
 _AD_ZONE_HTML = os.environ.get("AD_ZONE_HTML", "")
 _WATCH_AD_PAGE = """<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -2153,7 +2154,12 @@ function verify(){{
 @app.route("/watch-ad/<token>")
 def watch_ad(token):
     """Countdown page with PropellerAds zone. Calls /adverify after timer ends."""
-    ad_html = _AD_ZONE_HTML or '<span>الإعلان</span>'
+    if _AADS_UNIT_ID:
+        ad_html = f'<script async src="//cdn.a-ads.com/{_AADS_UNIT_ID}.js"></script>'
+    elif _AD_ZONE_HTML:
+        ad_html = _AD_ZONE_HTML
+    else:
+        ad_html = ''
     page = _WATCH_AD_PAGE.replace("{TOKEN}", token).replace("{AD_ZONE}", ad_html)
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
