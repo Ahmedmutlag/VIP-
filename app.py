@@ -1633,6 +1633,7 @@ def start_download():
             "noplaylist": True,
             "nocheckcertificate": True,
             "prefer_ffmpeg": True,
+            "concurrent_fragment_downloads": 4,
             "progress_hooks": [make_progress_hook(task_id)],
             "postprocessors": [
                 {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"},

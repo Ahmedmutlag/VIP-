@@ -223,6 +223,7 @@ def _save_json(path: Path, data) -> None:
 pending: dict[int, dict] = {}
 known_users: dict[int, dict] = {}   # uid -> {"name": str, "username": str|None}
 ad_verif_tokens: dict[str, int] = {}  # token -> chat_id (cleared once verified)
+active_downloads: set[int] = set()  # chat_ids with a download in progress
 
 _premium_raw    = _load_json(_PREMIUM_FILE, {})
 premium_users: dict[int, str]  = {int(k): v for k, v in _premium_raw.items()}
@@ -870,20 +871,30 @@ def _progress_bar(percent: int) -> str:
 
 def _do_download(chat_id: int, url: str):
     """Start download without checking the daily limit."""
-    platform = detect_platform(url)
-    send_message(chat_id, f"⬇️ جاري التحميل من <b>{platform}</b> بأفضل جودة...")
-    result = site_download(url, "bestvideo+bestaudio/best")
-    if "error" in result:
-        send_message(chat_id, f"❌ <b>خطأ:</b> {result['error']}")
+    if chat_id in active_downloads:
+        send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
         return
-    task_id = result.get("task_id", "")
-    if not task_id:
-        send_message(chat_id, "❌ فشل بدء التحميل.")
-        return
-    _finish_download(chat_id, task_id, url, "فيديو")
+    active_downloads.add(chat_id)
+    try:
+        platform = detect_platform(url)
+        send_message(chat_id, f"⬇️ جاري التحميل من <b>{platform}</b> بأفضل جودة...")
+        result = site_download(url, "bestvideo+bestaudio/best")
+        if "error" in result:
+            send_message(chat_id, f"❌ <b>خطأ:</b> {result['error']}")
+            return
+        task_id = result.get("task_id", "")
+        if not task_id:
+            send_message(chat_id, "❌ فشل بدء التحميل.")
+            return
+        _finish_download(chat_id, task_id, url, "فيديو")
+    finally:
+        active_downloads.discard(chat_id)
 
 
 def handle_url(chat_id: int, url: str, first_name: str):
+    if chat_id in active_downloads:
+        send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
+        return
     if not check_download_limit(chat_id):
         pending[chat_id] = {"ad_pending_url": url}
         send_message(
@@ -967,7 +978,7 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str):
             send_message(chat_id, f"❌ <b>فشل التحميل:</b>\n{err}", reply_markup=retry_btn)
             return
 
-        time.sleep(3)
+        time.sleep(2)
 
     retry_btn = {"inline_keyboard": [[{"text": "🔄 حاول من الموقع", "url": SITE_URL}]]}
     send_message(chat_id, "⏰ انتهت مهلة التحميل — حاول مرة أخرى.", reply_markup=retry_btn)
