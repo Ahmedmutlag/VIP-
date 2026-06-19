@@ -2063,8 +2063,7 @@ def ad_verify(token):
     return jsonify({"ok": False}), 200
 
 
-_AADS_UNIT_ID = os.environ.get("AADS_UNIT_ID", "")
-_AD_ZONE_HTML = os.environ.get("AD_ZONE_HTML", "")
+_HILLTOPADS_LINK = os.environ.get("HILLTOPADS_DIRECT_LINK", "")
 _WATCH_AD_PAGE = """<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -2099,7 +2098,6 @@ h1 { font-size: 1.3rem; margin-bottom: 6px; }
 <div id="watch">
   <h1>إعلان قصير لتفعيل التحميل</h1>
   <p class="sub">شكراً لدعمك — الإعلان يتيح لك تحميلاً مجانياً إضافياً</p>
-  <div id="ad-zone">{AD_ZONE}</div>
   <div class="ring-wrap">
     <svg width="90" height="90" style="transform:rotate(-90deg)">
       <circle cx="45" cy="45" r="38" fill="none" stroke="#222" stroke-width="7"/>
@@ -2110,6 +2108,7 @@ h1 { font-size: 1.3rem; margin-bottom: 6px; }
     <span id="tnum">15</span>
   </div>
   <p id="tmsg">يُفعَّل التحميل خلال <b id="ts">15</b> ثانية...</p>
+  <p class="sub" style="margin-top:12px">سيفتح الإعلان تلقائياً...</p>
 </div>
 
 <div id="done">
@@ -2123,7 +2122,10 @@ h1 { font-size: 1.3rem; margin-bottom: 6px; }
 var TOTAL = 15, left = 15;
 var ring = document.getElementById('ring');
 var circ = 2 * Math.PI * 38;
+var htLink = "{HILLTOP_LINK}";
 ring.style.strokeDashoffset = circ;
+
+if (htLink) { window.open(htLink, '_blank'); }
 
 var iv = setInterval(function() {
   left--;
@@ -2151,19 +2153,8 @@ function verify() {
 @app.route("/watch-ad/<token>")
 def watch_ad(token):
     """Countdown page with A-Ads zone. Calls /adverify after timer ends."""
-    if _AADS_UNIT_ID:
-        u = _AADS_UNIT_ID
-        ad_html = (
-            f'<iframe data-aa="{u}" src="https://ad.a-ads.com/{u}/?size=300x250"'
-            f' style="border:0;width:300px;height:250px;overflow:hidden;display:block;margin:auto"'
-            f' sandbox="allow-popups allow-same-origin allow-scripts allow-top-navigation-by-user-activation">'
-            f'</iframe>'
-        )
-    elif _AD_ZONE_HTML:
-        ad_html = _AD_ZONE_HTML
-    else:
-        ad_html = ''
-    page = _WATCH_AD_PAGE.replace("{TOKEN}", token).replace("{AD_ZONE}", ad_html)
+    hl = _HILLTOPADS_LINK or ""
+    page = _WATCH_AD_PAGE.replace("{TOKEN}", token).replace("{AD_ZONE}", "").replace("{HILLTOP_LINK}", hl)
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
