@@ -2087,20 +2087,26 @@ _WATCH_AD_PAGE = """<!DOCTYPE html>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #fff;
   min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; padding: 20px; text-align: center; gap: 16px; }
-.logo { font-size: 2rem; }
-h1 { font-size: 1.25rem; }
-.sub { color: #888; font-size: .88rem; }
-.ring-wrap { position: relative; display: flex; align-items: center;
-  justify-content: center; width: 90px; height: 90px; }
-#tnum { position: absolute; font-size: 1.6rem; font-weight: 700; }
-.hint { color: #aaa; font-size: .85rem; }
+  justify-content: center; padding: 24px; text-align: center; gap: 20px; }
+.logo { font-size: 2.2rem; }
+h1 { font-size: 1.3rem; font-weight: 700; }
+.sub { color: #888; font-size: .9rem; }
+.counter-box { background: #1a1a2e; border: 3px solid #5865F2; border-radius: 20px;
+  padding: 28px 48px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.counter-num { font-size: 5rem; font-weight: 900; color: #5865F2; line-height: 1;
+  font-variant-numeric: tabular-nums; min-width: 2ch; }
+.counter-label { font-size: .85rem; color: #aaa; letter-spacing: 1px; text-transform: uppercase; }
+.progress-bar { width: 100%; max-width: 280px; height: 8px; background: #333;
+  border-radius: 99px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, #5865F2, #7289da);
+  border-radius: 99px; transition: width 1s linear; width: 0%; }
 #done { display: none; }
-.check { font-size: 3rem; }
+.check { font-size: 4rem; }
 .green { color: #4ade80; }
-.btn { display: inline-block; padding: 14px 36px; background: #5865F2; color: #fff;
-  border-radius: 12px; text-decoration: none; font-size: 1rem; font-weight: 700;
+.btn { display: inline-block; padding: 16px 40px; background: #5865F2; color: #fff;
+  border-radius: 14px; text-decoration: none; font-size: 1.05rem; font-weight: 700;
   cursor: pointer; border: none; }
+.btn-green { background: #22c55e; }
 </style>
 </head>
 <body>
@@ -2108,50 +2114,43 @@ h1 { font-size: 1.25rem; }
 <div class="logo">📥 نزّلها بلس</div>
 
 <div id="start">
-  <h1>تحميل مجاني إضافي</h1>
-  <p class="sub">اضغط الزر لفتح الإعلان وتفعيل التحميل</p>
-  <button class="btn" onclick="startAd()" style="font-size:1.1rem;padding:16px 36px">
+  <h1>احصل على تحميل مجاني</h1>
+  <p class="sub">اضغط الزر لفتح الإعلان وتشغيل العداد</p>
+  <button class="btn" onclick="startAd()" style="font-size:1.2rem;padding:18px 44px">
     📺 شاهد الإعلان
   </button>
 </div>
 
 <div id="watch" style="display:none">
-  <h1>جاري تشغيل الإعلان...</h1>
-  <p class="sub">انتظر حتى ينتهي العداد</p>
-  <div class="ring-wrap">
-    <svg width="90" height="90" style="transform:rotate(-90deg)">
-      <circle cx="45" cy="45" r="38" fill="none" stroke="#222" stroke-width="7"/>
-      <circle id="ring" cx="45" cy="45" r="38" fill="none" stroke="#5865F2"
-              stroke-width="7" stroke-dasharray="239" stroke-dashoffset="239"
-              style="transition:stroke-dashoffset 1s linear"/>
-    </svg>
-    <span id="tnum">15</span>
+  <h1>⏳ انتظر حتى ينتهي العداد</h1>
+  <div class="counter-box">
+    <div class="counter-num" id="tnum">15</div>
+    <div class="counter-label">ثانية</div>
   </div>
-  <p class="hint">يُفعَّل التحميل خلال <b id="ts">15</b> ثانية...</p>
+  <div class="progress-bar">
+    <div class="progress-fill" id="prog"></div>
+  </div>
+  <p class="sub">سيُفعَّل التحميل تلقائياً عند انتهاء العداد</p>
 </div>
 
 <div id="done">
   <div class="check">✅</div>
-  <h1 class="green">تم التحقق!</h1>
-  <p class="sub">ارجع الآن للبوت واضغط <b>شاهدت الإعلان</b></p>
-  <a class="btn" href="https://t.me/nazzilhaplus_bot">📲 العودة للبوت</a>
+  <h1 class="green">تم! يمكنك التحميل الآن</h1>
+  <p class="sub" style="margin-bottom:12px">ارجع للبوت واضغط <b>شاهدت الإعلان</b></p>
+  <a class="btn btn-green" href="https://t.me/nazzilhaplus_bot">📲 العودة للبوت</a>
 </div>
 
 <script>
 var TOTAL = 15, left = 15;
-var ring = document.getElementById('ring');
-var circ = 2 * Math.PI * 38;
 
 function startAd() {
   document.getElementById('start').style.display = 'none';
   document.getElementById('watch').style.display = 'block';
   window.open('/go-ad', '_blank');
-  ring.style.strokeDashoffset = circ;
   var iv = setInterval(function() {
     left--;
-    document.getElementById('tnum').textContent = left;
-    document.getElementById('ts').textContent = left;
-    ring.style.strokeDashoffset = circ * (left / TOTAL);
+    document.getElementById('tnum').textContent = left < 10 ? '0' + left : left;
+    document.getElementById('prog').style.width = ((TOTAL - left) / TOTAL * 100) + '%';
     if (left <= 0) { clearInterval(iv); verify(); }
   }, 1000);
 }
