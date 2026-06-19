@@ -195,7 +195,40 @@ def detect_platform(url: str) -> str:
     return "موقع غير معروف"
 
 
-# ── Persistence helpers ────────────────────────────────────────────────────────
+# ── Upstash Redis persistence ──────────────────────────────────────────────────
+_UPSTASH_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "").rstrip("/")
+_UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
+
+def _redis_get(key: str):
+    if not _UPSTASH_URL:
+        return None
+    try:
+        r = requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["GET", key],
+            timeout=10,
+        )
+        val = r.json().get("result")
+        return json.loads(val) if val else None
+    except Exception as e:
+        log.warning("Redis GET %s: %s", key, e)
+        return None
+
+def _redis_set(key: str, value) -> None:
+    if not _UPSTASH_URL:
+        return
+    try:
+        requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["SET", key, json.dumps(value, ensure_ascii=False)],
+            timeout=10,
+        )
+    except Exception as e:
+        log.warning("Redis SET %s: %s", key, e)
+
+# ── Local file fallback ────────────────────────────────────────────────────────
 DATA_DIR = Path("bot_data")
 DATA_DIR.mkdir(exist_ok=True)
 
@@ -218,6 +251,16 @@ def _save_json(path: Path, data) -> None:
     except Exception as e:
         log.warning("Failed to save %s: %s", path, e)
 
+def _load(redis_key: str, file_path: Path, default):
+    val = _redis_get(redis_key)
+    if val is not None:
+        return val
+    return _load_json(file_path, default)
+
+def _save(redis_key: str, file_path: Path, data) -> None:
+    _redis_set(redis_key, data)
+    _save_json(file_path, data)
+
 
 # ── User state ─────────────────────────────────────────────────────────────────
 pending: dict[int, dict] = {}
@@ -225,32 +268,32 @@ known_users: dict[int, dict] = {}   # uid -> {"name": str, "username": str|None}
 ad_verif_tokens: dict[str, int] = {}  # token -> chat_id (cleared once verified)
 active_downloads: set[int] = set()  # chat_ids with a download in progress
 
-_premium_raw    = _load_json(_PREMIUM_FILE, {})
+_premium_raw    = _load("premium_users", _PREMIUM_FILE, {})
 premium_users: dict[int, str]  = {int(k): v for k, v in _premium_raw.items()}
 
-_blocked_raw    = _load_json(_BLOCKED_FILE, [])
+_blocked_raw    = _load("blocked_users", _BLOCKED_FILE, [])
 blocked_users: set[int]        = set(_blocked_raw)
 
-_downloads_raw  = _load_json(_DOWNLOADS_FILE, {})
+_downloads_raw  = _load("user_downloads", _DOWNLOADS_FILE, {})
 user_downloads: dict[int, dict] = {int(k): v for k, v in _downloads_raw.items()}
 
-_welcome_raw    = _load_json(_WELCOME_FILE, [])
+_welcome_raw    = _load("custom_welcome", _WELCOME_FILE, [])
 custom_welcome: list[str]      = _welcome_raw
 
 FREE_DAILY_LIMIT = 3
 
 
 def _save_premium():
-    _save_json(_PREMIUM_FILE, {str(k): v for k, v in premium_users.items()})
+    _save("premium_users", _PREMIUM_FILE, {str(k): v for k, v in premium_users.items()})
 
 def _save_blocked():
-    _save_json(_BLOCKED_FILE, list(blocked_users))
+    _save("blocked_users", _BLOCKED_FILE, list(blocked_users))
 
 def _save_downloads():
-    _save_json(_DOWNLOADS_FILE, {str(k): v for k, v in user_downloads.items()})
+    _save("user_downloads", _DOWNLOADS_FILE, {str(k): v for k, v in user_downloads.items()})
 
 def _save_welcome():
-    _save_json(_WELCOME_FILE, custom_welcome)
+    _save("custom_welcome", _WELCOME_FILE, custom_welcome)
 
 
 def is_premium(chat_id: int) -> bool:
