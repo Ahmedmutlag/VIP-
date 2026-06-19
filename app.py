@@ -2064,7 +2064,8 @@ def ad_verify(token):
     return jsonify({"ok": False}), 200
 
 
-_HILLTOPADS_LINK = os.environ.get("HILLTOPADS_DIRECT_LINK", "")
+_AADS_UNIT = os.environ.get("AADS_UNIT_ID", "2444681")
+
 _WATCH_AD_PAGE = """<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -2075,36 +2076,39 @@ _WATCH_AD_PAGE = """<!DOCTYPE html>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #fff;
   min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; padding: 24px; text-align: center; }
-.logo { font-size: 2rem; margin-bottom: 6px; }
-h1 { font-size: 1.3rem; margin-bottom: 6px; }
-.sub { color: #888; font-size: .9rem; margin-bottom: 20px; }
+  justify-content: center; padding: 20px; text-align: center; gap: 16px; }
+.logo { font-size: 2rem; }
+h1 { font-size: 1.25rem; }
+.sub { color: #888; font-size: .88rem; }
+.ad-box { width: 100%; max-width: 360px; min-height: 60px; background: #1a1a1a;
+  border-radius: 10px; overflow: hidden; display: flex; align-items: center;
+  justify-content: center; }
+.ad-box iframe { display: block; border: 0; }
 .ring-wrap { position: relative; display: flex; align-items: center;
-  justify-content: center; margin: 4px auto 10px; width: 90px; height: 90px; }
-#tnum { position: absolute; font-size: 1.5rem; font-weight: 700; }
-#tmsg { color: #aaa; font-size: .9rem; margin-bottom: 24px; }
+  justify-content: center; width: 90px; height: 90px; }
+#tnum { position: absolute; font-size: 1.6rem; font-weight: 700; }
+.hint { color: #aaa; font-size: .85rem; }
 #done { display: none; }
-.check { font-size: 3rem; margin-bottom: 10px; }
+.check { font-size: 3rem; }
 .green { color: #4ade80; }
-.btn { display: inline-block; margin-top: 14px; padding: 14px 32px;
-  background: #5865F2; color: #fff; border-radius: 12px;
-  text-decoration: none; font-size: 1rem; font-weight: 700; }
+.btn { display: inline-block; padding: 14px 36px; background: #5865F2; color: #fff;
+  border-radius: 12px; text-decoration: none; font-size: 1rem; font-weight: 700; }
 </style>
 </head>
 <body>
+
 <div class="logo">📥 نزّلها بلس</div>
 
-<div id="start">
-  <h1>تحميل مجاني إضافي</h1>
-  <p class="sub">اضغط الزر لفتح الإعلان وتفعيل التحميل</p>
-  <button class="btn" onclick="startAd()" style="font-size:1.2rem;padding:18px 40px;cursor:pointer;border:none">
-    📺 شاهد الإعلان
-  </button>
-</div>
+<div id="watch">
+  <h1>شاهد الإعلان للحصول على تحميل مجاني</h1>
+  <p class="sub">الإعلان يظهر أدناه — انتظر حتى ينتهي العداد</p>
 
-<div id="watch" style="display:none">
-  <h1>جاري تشغيل الإعلان...</h1>
-  <p class="sub">انتظر حتى ينتهي العداد</p>
+  <div class="ad-box">
+    <iframe src="//ad.a-ads.com/{AADS_UNIT}?size=320x50"
+            style="width:320px;height:50px;overflow:hidden;background:transparent">
+    </iframe>
+  </div>
+
   <div class="ring-wrap">
     <svg width="90" height="90" style="transform:rotate(-90deg)">
       <circle cx="45" cy="45" r="38" fill="none" stroke="#222" stroke-width="7"/>
@@ -2114,7 +2118,7 @@ h1 { font-size: 1.3rem; margin-bottom: 6px; }
     </svg>
     <span id="tnum">15</span>
   </div>
-  <p id="tmsg">يُفعَّل التحميل خلال <b id="ts">15</b> ثانية...</p>
+  <p class="hint">يُفعَّل التحميل خلال <b id="ts">15</b> ثانية...</p>
 </div>
 
 <div id="done">
@@ -2128,22 +2132,16 @@ h1 { font-size: 1.3rem; margin-bottom: 6px; }
 var TOTAL = 15, left = 15;
 var ring = document.getElementById('ring');
 var circ = 2 * Math.PI * 38;
-var htLink = "{HILLTOP_LINK}";
-var iv = null;
 
-function startAd() {
-  document.getElementById('start').style.display = 'none';
-  document.getElementById('watch').style.display = 'block';
-  if (htLink) { window.open(htLink, '_blank'); }
-  ring.style.strokeDashoffset = circ;
-  iv = setInterval(function() {
-    left--;
-    document.getElementById('tnum').textContent = left;
-    document.getElementById('ts').textContent = left;
-    ring.style.strokeDashoffset = circ * (left / TOTAL);
-    if (left <= 0) { clearInterval(iv); verify(); }
-  }, 1000);
-}
+ring.style.strokeDashoffset = circ;
+
+var iv = setInterval(function() {
+  left--;
+  document.getElementById('tnum').textContent = left;
+  document.getElementById('ts').textContent = left;
+  ring.style.strokeDashoffset = circ * (left / TOTAL);
+  if (left <= 0) { clearInterval(iv); verify(); }
+}, 1000);
 
 function verify() {
   fetch('/adverify/{TOKEN}')
@@ -2162,9 +2160,8 @@ function verify() {
 
 @app.route("/watch-ad/<token>")
 def watch_ad(token):
-    """Countdown page with A-Ads zone. Calls /adverify after timer ends."""
-    hl = _HILLTOPADS_LINK or ""
-    page = _WATCH_AD_PAGE.replace("{TOKEN}", token).replace("{AD_ZONE}", "").replace("{HILLTOP_LINK}", hl)
+    """Countdown page — shows A-Ads banner, auto-starts 15s timer, then calls /adverify."""
+    page = _WATCH_AD_PAGE.replace("{TOKEN}", token).replace("{AADS_UNIT}", _AADS_UNIT)
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
