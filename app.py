@@ -2065,6 +2065,17 @@ def ad_verify(token):
 
 
 _AADS_UNIT = os.environ.get("AADS_UNIT_ID", "2444681")
+_HILLTOPADS_LINK = os.environ.get("HILLTOPADS_DIRECT_LINK", "")
+
+
+@app.route("/go-ad")
+def go_ad():
+    """Server-side redirect to the ad link. Update HILLTOPADS_DIRECT_LINK env var to change the destination."""
+    link = os.environ.get("HILLTOPADS_DIRECT_LINK", "")
+    if not link:
+        return "No ad link configured", 404
+    return redirect(link, code=302)
+
 
 _WATCH_AD_PAGE = """<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -2080,10 +2091,6 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #
 .logo { font-size: 2rem; }
 h1 { font-size: 1.25rem; }
 .sub { color: #888; font-size: .88rem; }
-.ad-box { width: 100%; max-width: 360px; min-height: 60px; background: #1a1a1a;
-  border-radius: 10px; overflow: hidden; display: flex; align-items: center;
-  justify-content: center; }
-.ad-box iframe { display: block; border: 0; }
 .ring-wrap { position: relative; display: flex; align-items: center;
   justify-content: center; width: 90px; height: 90px; }
 #tnum { position: absolute; font-size: 1.6rem; font-weight: 700; }
@@ -2092,23 +2099,25 @@ h1 { font-size: 1.25rem; }
 .check { font-size: 3rem; }
 .green { color: #4ade80; }
 .btn { display: inline-block; padding: 14px 36px; background: #5865F2; color: #fff;
-  border-radius: 12px; text-decoration: none; font-size: 1rem; font-weight: 700; }
+  border-radius: 12px; text-decoration: none; font-size: 1rem; font-weight: 700;
+  cursor: pointer; border: none; }
 </style>
 </head>
 <body>
 
 <div class="logo">📥 نزّلها بلس</div>
 
-<div id="watch">
-  <h1>شاهد الإعلان للحصول على تحميل مجاني</h1>
-  <p class="sub">الإعلان يظهر أدناه — انتظر حتى ينتهي العداد</p>
+<div id="start">
+  <h1>تحميل مجاني إضافي</h1>
+  <p class="sub">اضغط الزر لفتح الإعلان وتفعيل التحميل</p>
+  <button class="btn" onclick="startAd()" style="font-size:1.1rem;padding:16px 36px">
+    📺 شاهد الإعلان
+  </button>
+</div>
 
-  <div class="ad-box">
-    <iframe src="//ad.a-ads.com/{AADS_UNIT}?size=320x50"
-            style="width:320px;height:50px;overflow:hidden;background:transparent">
-    </iframe>
-  </div>
-
+<div id="watch" style="display:none">
+  <h1>جاري تشغيل الإعلان...</h1>
+  <p class="sub">انتظر حتى ينتهي العداد</p>
   <div class="ring-wrap">
     <svg width="90" height="90" style="transform:rotate(-90deg)">
       <circle cx="45" cy="45" r="38" fill="none" stroke="#222" stroke-width="7"/>
@@ -2133,15 +2142,19 @@ var TOTAL = 15, left = 15;
 var ring = document.getElementById('ring');
 var circ = 2 * Math.PI * 38;
 
-ring.style.strokeDashoffset = circ;
-
-var iv = setInterval(function() {
-  left--;
-  document.getElementById('tnum').textContent = left;
-  document.getElementById('ts').textContent = left;
-  ring.style.strokeDashoffset = circ * (left / TOTAL);
-  if (left <= 0) { clearInterval(iv); verify(); }
-}, 1000);
+function startAd() {
+  document.getElementById('start').style.display = 'none';
+  document.getElementById('watch').style.display = 'block';
+  window.open('/go-ad', '_blank');
+  ring.style.strokeDashoffset = circ;
+  var iv = setInterval(function() {
+    left--;
+    document.getElementById('tnum').textContent = left;
+    document.getElementById('ts').textContent = left;
+    ring.style.strokeDashoffset = circ * (left / TOTAL);
+    if (left <= 0) { clearInterval(iv); verify(); }
+  }, 1000);
+}
 
 function verify() {
   fetch('/adverify/{TOKEN}')
@@ -2160,8 +2173,8 @@ function verify() {
 
 @app.route("/watch-ad/<token>")
 def watch_ad(token):
-    """Countdown page — shows A-Ads banner, auto-starts 15s timer, then calls /adverify."""
-    page = _WATCH_AD_PAGE.replace("{TOKEN}", token).replace("{AADS_UNIT}", _AADS_UNIT)
+    """Countdown page — button opens /go-ad (server redirect), 15s timer, then /adverify."""
+    page = _WATCH_AD_PAGE.replace("{TOKEN}", token)
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
