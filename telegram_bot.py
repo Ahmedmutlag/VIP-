@@ -921,7 +921,7 @@ def _do_download(chat_id: int, url: str):
     try:
         platform = detect_platform(url)
         send_message(chat_id, f"⬇️ جاري التحميل من <b>{platform}</b> بأفضل جودة...")
-        result = site_download(url, "bestvideo+bestaudio/best")
+        result = site_download(url, "best[ext=mp4]/best[height<=720]/best")
         if "error" in result:
             send_message(chat_id, f"❌ <b>خطأ:</b> {result['error']}")
             return

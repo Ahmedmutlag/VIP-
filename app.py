@@ -1624,10 +1624,10 @@ def start_download():
     def do_download():
         _start = time.time()
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
+        needs_merge = "+" in format_id
         ydl_opts = {
             "format": format_id,
             "outtmpl": output_path,
-            "merge_output_format": "mp4",
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
@@ -1635,11 +1635,11 @@ def start_download():
             "prefer_ffmpeg": True,
             "concurrent_fragment_downloads": 4,
             "progress_hooks": [make_progress_hook(task_id)],
-            "postprocessors": [
-                {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"},
-                {"key": "FFmpegMetadata", "add_metadata": True},
-            ],
+            "postprocessors": [],
         }
+        if needs_merge:
+            ydl_opts["merge_output_format"] = "mp4"
+            ydl_opts["postprocessors"].append({"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"})
 
         if format_id in ("bestaudio", "bestaudio/best"):
             ydl_opts["format"] = "bestaudio/best"
