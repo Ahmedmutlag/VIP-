@@ -2122,8 +2122,8 @@ h1 { font-size: 1.3rem; font-weight: 700; }
 </div>
 
 <div id="watch" style="display:none">
-  <div style="background:#1a3a1a;border:2px solid #22c55e;border-radius:12px;padding:12px 20px;font-size:.95rem;color:#4ade80;">
-    ✅ الإعلان فُتح — <b>انتظر هنا</b> حتى ينتهي العداد
+  <div style="background:#1a2a3a;border:2px solid #5865F2;border-radius:12px;padding:12px 20px;font-size:.95rem;color:#93c5fd;">
+    📺 <b>شاهد الإعلان في التبويب الجديد</b> ثم ارجع هنا
   </div>
   <h1>⏳ انتظر حتى ينتهي العداد</h1>
   <div class="counter-box">
