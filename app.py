@@ -2078,8 +2078,6 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #
 .logo { font-size: 2rem; margin-bottom: 6px; }
 h1 { font-size: 1.3rem; margin-bottom: 6px; }
 .sub { color: #888; font-size: .9rem; margin-bottom: 20px; }
-#ad-zone { width: 300px; height: 250px; margin: 0 auto 20px; overflow: hidden;
-  background: #161616; border-radius: 8px; }
 .ring-wrap { position: relative; display: flex; align-items: center;
   justify-content: center; margin: 4px auto 10px; width: 90px; height: 90px; }
 #tnum { position: absolute; font-size: 1.5rem; font-weight: 700; }
@@ -2095,9 +2093,17 @@ h1 { font-size: 1.3rem; margin-bottom: 6px; }
 <body>
 <div class="logo">📥 نزّلها بلس</div>
 
-<div id="watch">
-  <h1>إعلان قصير لتفعيل التحميل</h1>
-  <p class="sub">شكراً لدعمك — الإعلان يتيح لك تحميلاً مجانياً إضافياً</p>
+<div id="start">
+  <h1>تحميل مجاني إضافي</h1>
+  <p class="sub">اضغط الزر لفتح الإعلان وتفعيل التحميل</p>
+  <button class="btn" onclick="startAd()" style="font-size:1.2rem;padding:18px 40px;cursor:pointer;border:none">
+    📺 شاهد الإعلان
+  </button>
+</div>
+
+<div id="watch" style="display:none">
+  <h1>جاري تشغيل الإعلان...</h1>
+  <p class="sub">انتظر حتى ينتهي العداد</p>
   <div class="ring-wrap">
     <svg width="90" height="90" style="transform:rotate(-90deg)">
       <circle cx="45" cy="45" r="38" fill="none" stroke="#222" stroke-width="7"/>
@@ -2108,7 +2114,6 @@ h1 { font-size: 1.3rem; margin-bottom: 6px; }
     <span id="tnum">15</span>
   </div>
   <p id="tmsg">يُفعَّل التحميل خلال <b id="ts">15</b> ثانية...</p>
-  <p class="sub" style="margin-top:12px">سيفتح الإعلان تلقائياً...</p>
 </div>
 
 <div id="done">
@@ -2123,17 +2128,21 @@ var TOTAL = 15, left = 15;
 var ring = document.getElementById('ring');
 var circ = 2 * Math.PI * 38;
 var htLink = "{HILLTOP_LINK}";
-ring.style.strokeDashoffset = circ;
+var iv = null;
 
-if (htLink) { window.open(htLink, '_blank'); }
-
-var iv = setInterval(function() {
-  left--;
-  document.getElementById('tnum').textContent = left;
-  document.getElementById('ts').textContent = left;
-  ring.style.strokeDashoffset = circ * (left / TOTAL);
-  if (left <= 0) { clearInterval(iv); verify(); }
-}, 1000);
+function startAd() {
+  document.getElementById('start').style.display = 'none';
+  document.getElementById('watch').style.display = 'block';
+  if (htLink) { window.open(htLink, '_blank'); }
+  ring.style.strokeDashoffset = circ;
+  iv = setInterval(function() {
+    left--;
+    document.getElementById('tnum').textContent = left;
+    document.getElementById('ts').textContent = left;
+    ring.style.strokeDashoffset = circ * (left / TOTAL);
+    if (left <= 0) { clearInterval(iv); verify(); }
+  }, 1000);
+}
 
 function verify() {
   fetch('/adverify/{TOKEN}')
