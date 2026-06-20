@@ -924,7 +924,7 @@ def _remaining_text(chat_id: int) -> str:
     return f"\n\n📊 تحميلاتك اليوم: <b>{used}/{FREE_DAILY_LIMIT}</b> | متبقي: <b>{remaining}</b>"
 
 
-def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[height<=720]/best"):
+def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[height<=720]/best", title: str = "فيديو"):
     """Start download without checking the daily limit."""
     if chat_id in active_downloads:
         send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
@@ -934,7 +934,7 @@ def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[he
         platform = detect_platform(url)
         is_audio = "bestaudio" in format_id
         label = "🎵 الصوت" if is_audio else f"من <b>{platform}</b>"
-        send_message(chat_id, f"⬇️ جاري التحميل {label} بأفضل جودة...")
+        send_message(chat_id, f"⬇️ جاري التحميل {label}...")
         result = site_download(url, format_id)
         if "error" in result:
             send_message(chat_id, f"❌ <b>خطأ:</b> {result['error']}")
@@ -943,7 +943,7 @@ def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[he
         if not task_id:
             send_message(chat_id, "❌ فشل بدء التحميل.")
             return
-        _finish_download(chat_id, task_id, url, "فيديو")
+        _finish_download(chat_id, task_id, url, title)
     finally:
         active_downloads.discard(chat_id)
 
@@ -963,6 +963,17 @@ def _handle_multiple_urls(chat_id: int, urls: list, first_name: str):
             time.sleep(1)
 
 
+def _fmt_duration(seconds) -> str:
+    if not seconds:
+        return ""
+    s = int(seconds)
+    h, remainder = divmod(s, 3600)
+    m, sec = divmod(remainder, 60)
+    if h:
+        return f"⏱️ {h}:{m:02d}:{sec:02d}"
+    return f"⏱️ {m}:{sec:02d}"
+
+
 def handle_url(chat_id: int, url: str, first_name: str):
     if chat_id in active_downloads:
         send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
@@ -980,16 +991,42 @@ def handle_url(chat_id: int, url: str, first_name: str):
         )
         return
     platform = detect_platform(url)
-    pending[chat_id] = {"fmt_url": url}
+    # Send a loading indicator and edit it in-place once info arrives
+    res = send_message(chat_id, f"🔍 جاري جلب معلومات الفيديو من <b>{platform}</b>...")
+    preview_msg_id = (res.get("result") or {}).get("message_id")
+
+    info = site_info(url)
+    if "error" not in info:
+        title = (info.get("title") or "فيديو")[:80]
+        uploader = (info.get("uploader") or "")[:40]
+        dur = _fmt_duration(info.get("duration"))
+        lines = [f"🎬 <b>{title}</b>"]
+        if uploader:
+            lines.append(f"👤 {uploader}")
+        if dur:
+            lines.append(dur)
+        lines.append(f"📱 {platform}")
+    else:
+        title = "فيديو"
+        lines = [f"🎬 <b>{platform}</b>"]
+
     rem = _remaining_text(chat_id)
-    send_message(
-        chat_id,
-        f"🎬 <b>{platform}</b> — اختر الصيغة:{rem}",
-        reply_markup={"inline_keyboard": [[
-            {"text": "🎬 فيديو", "callback_data": "fmt:video"},
-            {"text": "🎵 MP3", "callback_data": "fmt:audio"},
-        ]]}
-    )
+    lines.append(f"\nاختر الصيغة:{rem}")
+    text = "\n".join(lines)
+    kbd = {"inline_keyboard": [[
+        {"text": "🎬 فيديو", "callback_data": "fmt:video"},
+        {"text": "🎵 MP3", "callback_data": "fmt:audio"},
+    ]]}
+
+    pending[chat_id] = {"fmt_url": url, "title": title}
+
+    if preview_msg_id:
+        _post("editMessageText", json={
+            "chat_id": chat_id, "message_id": preview_msg_id,
+            "text": text, "parse_mode": "HTML", "reply_markup": kbd,
+        })
+    else:
+        send_message(chat_id, text, reply_markup=kbd)
 
 
 def _finish_download(chat_id: int, task_id: str, url: str, title: str):
@@ -1294,14 +1331,16 @@ def handle_callback_query(cq: dict):
         threading.Thread(target=handle_adwatch_done, args=(chat_id, cq_id), daemon=True).start()
     elif data.startswith("fmt:"):
         fmt = data[4:]
-        url = pending.get(chat_id, {}).get("fmt_url", "")
+        pdata = pending.get(chat_id, {})
+        url = pdata.get("fmt_url", "")
+        title = pdata.get("title", "فيديو")
         if not url:
             answer_callback(cq_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً")
             return
         pending.pop(chat_id, None)
         answer_callback(cq_id, "⏳ جاري التحميل...")
         format_id = "bestaudio/best" if fmt == "audio" else "best[ext=mp4]/best[height<=720]/best"
-        threading.Thread(target=_do_download, args=(chat_id, url, format_id), daemon=True).start()
+        threading.Thread(target=_do_download, args=(chat_id, url, format_id, title), daemon=True).start()
     else:
         answer_callback(cq_id)
 
