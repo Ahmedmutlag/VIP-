@@ -121,84 +121,6 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 progress_store = {}
 
-
-_COBALT_INSTANCES = [
-    "https://api.cobalt.tools",
-    "https://cobalt.rnr.cx",
-    "https://cobalt.api.timelessnesses.me",
-]
-
-def _cobalt_download(url: str, task_id: str, is_audio: bool = False) -> bool:
-    """Try cobalt instances in order. Returns True on success."""
-    _log = __import__("logging").getLogger("vip")
-    headers = {"Accept": "application/json", "Content-Type": "application/json"}
-    body = {
-        "url": url,
-        "videoQuality": "720",
-        "filenameStyle": "basic",
-        "downloadMode": "audio" if is_audio else "auto",
-    }
-
-    for instance in _COBALT_INSTANCES:
-        try:
-            resp = requests.post(f"{instance}/", headers=headers, json=body, timeout=20)
-            if not resp.ok:
-                _log.warning("Cobalt %s HTTP %s", instance, resp.status_code)
-                continue
-            data = resp.json()
-            status = data.get("status")
-            _log.info("Cobalt %s → status=%s", instance, status)
-
-            download_url = None
-            if status in ("redirect", "tunnel", "stream"):
-                download_url = data.get("url")
-            elif status == "picker":
-                for item in (data.get("picker") or []):
-                    if item.get("type") == "video":
-                        download_url = item.get("url")
-                        break
-                if not download_url:
-                    download_url = data.get("audio")
-
-            if not download_url:
-                _log.warning("Cobalt %s no URL in response: %s", instance, data)
-                continue
-
-            ext = ".mp3" if is_audio else ".mp4"
-            file_path = DOWNLOAD_DIR / f"{task_id}{ext}"
-            progress_store[task_id] = {"status": "downloading", "percent": 10}
-
-            dl = requests.get(download_url, stream=True, timeout=180,
-                              headers={"User-Agent": "Mozilla/5.0"}, allow_redirects=True)
-            dl.raise_for_status()
-
-            total = int(dl.headers.get("content-length", 0))
-            downloaded = 0
-            with open(file_path, "wb") as f:
-                for chunk in dl.iter_content(chunk_size=65536):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        if total:
-                            pct = min(95, int(downloaded / total * 100))
-                            progress_store[task_id]["percent"] = pct
-
-            if file_path.stat().st_size < 1024:
-                _log.warning("Cobalt %s file too small, skipping", instance)
-                file_path.unlink(missing_ok=True)
-                continue
-
-            progress_store[task_id] = {
-                "status": "done", "percent": 100,
-                "file": task_id + ext, "filename": "YouTube Video" + ext,
-            }
-            return True
-
-        except Exception as e:
-            _log.warning("Cobalt %s error: %s", instance, e)
-
-    return False
-
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
 ADMIN_USER = os.environ.get("ADMIN_USER", "")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
@@ -1585,21 +1507,6 @@ def get_info():
         if cookies_file:
             ydl_opts["cookiefile"] = cookies_file
 
-    if "youtube.com" in url.lower() or "youtu.be" in url.lower():
-        ydl_opts["extractor_args"] = {
-            "youtube": {
-                "player_client": ["android", "web"],
-                "player_skip": ["webpage"],
-            }
-        }
-        ydl_opts["http_headers"] = {
-            "User-Agent": (
-                "Mozilla/5.0 (Linux; Android 11; SM-G991B) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/86.0.4240.185 Mobile Safari/537.36"
-            )
-        }
-
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -1764,22 +1671,6 @@ def start_download():
             cookies_file = get_cookies_file()
             if cookies_file:
                 ydl_opts["cookiefile"] = cookies_file
-
-        # YouTube: try Cobalt API first (no cookies needed), fall back to yt-dlp
-        if "youtube.com" in url.lower() or "youtu.be" in url.lower():
-            is_audio = format_id in ("bestaudio/best", "bestaudio")
-            if _cobalt_download(url, task_id, is_audio=is_audio):
-                record_download(platform, True, duration=time.time() - _start)
-                return  # Cobalt succeeded — skip yt-dlp entirely
-
-            # Cobalt failed — try yt-dlp with tv_embedded client (most reliable for servers)
-            ydl_opts["extractor_args"] = {
-                "youtube": {
-                    "player_client": ["tv_embedded", "ios", "android"],
-                }
-            }
-            if not is_audio:
-                ydl_opts["format"] = "best[height<=720][ext=mp4]/best[height<=720]/best"
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
