@@ -1020,67 +1020,16 @@ def handle_url(chat_id: int, url: str, first_name: str):
         )
         return
     platform = detect_platform(url)
-    # Send a loading indicator and edit it in-place once info arrives
-    res = send_message(chat_id, f"🔍 جاري جلب معلومات الفيديو من <b>{platform}</b>...")
-    preview_msg_id = (res.get("result") or {}).get("message_id")
-
-    info = site_info(url)
-    thumbnail = None
-    if "error" not in info:
-        title = (info.get("title") or "فيديو")[:80]
-        uploader = (info.get("uploader") or "")[:40]
-        dur = _fmt_duration(info.get("duration"))
-        thumbnail = info.get("thumbnail")
-        lines = [f"🎬 <b>{title}</b>"]
-        if uploader:
-            lines.append(f"👤 {uploader}")
-        if dur:
-            lines.append(dur)
-        lines.append(f"📱 {platform}")
-    else:
-        title = "فيديو"
-        lines = [f"🎬 <b>{platform}</b>"]
-
+    pending[chat_id] = {"fmt_url": url, "title": "فيديو"}
     rem = _remaining_text(chat_id)
-    lines.append(f"\nاختر الصيغة:{rem}")
-    text = "\n".join(lines)
-    kbd = {"inline_keyboard": [[
-        {"text": "🎬 فيديو", "callback_data": "fmt:video"},
-        {"text": "🎵 MP3", "callback_data": "fmt:audio"},
-    ]]}
-
-    pending[chat_id] = {"fmt_url": url, "title": title}
-
-    # Download thumbnail ourselves then send as bytes (CDN URLs often expire or need auth)
-    sent_photo = False
-    if thumbnail:
-        try:
-            resp = requests.get(thumbnail, timeout=8,
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://www.google.com/"})
-            if resp.ok and resp.content:
-                r = _post("sendPhoto",
-                    data={
-                        "chat_id": str(chat_id),
-                        "caption": text,
-                        "parse_mode": "HTML",
-                        "reply_markup": json.dumps(kbd),
-                    },
-                    files={"photo": ("thumb.jpg", resp.content, "image/jpeg")},
-                )
-                sent_photo = r.get("ok", False)
-        except Exception as e:
-            log.warning("Thumbnail fetch failed: %s", e)
-
-    if sent_photo:
-        if preview_msg_id:
-            _post("deleteMessage", json={"chat_id": chat_id, "message_id": preview_msg_id})
-    elif preview_msg_id:
-        _post("editMessageText", json={
-            "chat_id": chat_id, "message_id": preview_msg_id,
-            "text": text, "parse_mode": "HTML", "reply_markup": kbd,
-        })
-    else:
-        send_message(chat_id, text, reply_markup=kbd)
+    send_message(
+        chat_id,
+        f"🎬 <b>{platform}</b> — اختر الصيغة:{rem}",
+        reply_markup={"inline_keyboard": [[
+            {"text": "🎬 فيديو", "callback_data": "fmt:video"},
+            {"text": "🎵 MP3", "callback_data": "fmt:audio"},
+        ]]}
+    )
 
 
 def _finish_download(chat_id: int, task_id: str, url: str, title: str):
