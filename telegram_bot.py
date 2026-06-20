@@ -912,7 +912,19 @@ def _progress_bar(percent: int) -> str:
     return f"[{bar}] {percent}%"
 
 
-def _do_download(chat_id: int, url: str):
+def _remaining_text(chat_id: int) -> str:
+    """Returns daily counter line for free users, empty for premium/admin."""
+    if chat_id in ADMIN_IDS or is_premium(chat_id):
+        return ""
+    import datetime
+    today = datetime.date.today().isoformat()
+    data = user_downloads.get(chat_id, {})
+    used = data.get("count", 0) if data.get("date") == today else 0
+    remaining = max(0, FREE_DAILY_LIMIT - used)
+    return f"\n\n📊 تحميلاتك اليوم: <b>{used}/{FREE_DAILY_LIMIT}</b> | متبقي: <b>{remaining}</b>"
+
+
+def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[height<=720]/best"):
     """Start download without checking the daily limit."""
     if chat_id in active_downloads:
         send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
@@ -920,8 +932,10 @@ def _do_download(chat_id: int, url: str):
     active_downloads.add(chat_id)
     try:
         platform = detect_platform(url)
-        send_message(chat_id, f"⬇️ جاري التحميل من <b>{platform}</b> بأفضل جودة...")
-        result = site_download(url, "best[ext=mp4]/best[height<=720]/best")
+        is_audio = "bestaudio" in format_id
+        label = "🎵 الصوت" if is_audio else f"من <b>{platform}</b>"
+        send_message(chat_id, f"⬇️ جاري التحميل {label} بأفضل جودة...")
+        result = site_download(url, format_id)
         if "error" in result:
             send_message(chat_id, f"❌ <b>خطأ:</b> {result['error']}")
             return
@@ -932,6 +946,21 @@ def _do_download(chat_id: int, url: str):
         _finish_download(chat_id, task_id, url, "فيديو")
     finally:
         active_downloads.discard(chat_id)
+
+
+def _handle_multiple_urls(chat_id: int, urls: list, first_name: str):
+    """Download multiple URLs sequentially."""
+    for i, url in enumerate(urls[:3]):
+        if not check_download_limit(chat_id):
+            send_message(chat_id,
+                f"⛔ نُفّذت <b>{i}</b> من <b>{len(urls)}</b> تحميلات — وصلت للحد اليومي" if i > 0
+                else f"⛔ وصلت للحد اليومي المجاني ({FREE_DAILY_LIMIT} تحميلات)")
+            return
+        while chat_id in active_downloads:
+            time.sleep(1)
+        _do_download(chat_id, url)
+        while chat_id in active_downloads:
+            time.sleep(1)
 
 
 def handle_url(chat_id: int, url: str, first_name: str):
@@ -950,7 +979,17 @@ def handle_url(chat_id: int, url: str, first_name: str):
             ]},
         )
         return
-    _do_download(chat_id, url)
+    platform = detect_platform(url)
+    pending[chat_id] = {"fmt_url": url}
+    rem = _remaining_text(chat_id)
+    send_message(
+        chat_id,
+        f"🎬 <b>{platform}</b> — اختر الصيغة:{rem}",
+        reply_markup={"inline_keyboard": [[
+            {"text": "🎬 فيديو", "callback_data": "fmt:video"},
+            {"text": "🎵 MP3", "callback_data": "fmt:audio"},
+        ]]}
+    )
 
 
 def _finish_download(chat_id: int, task_id: str, url: str, title: str):
@@ -1217,11 +1256,11 @@ def handle_message(msg: dict):
         urls = URL_PATTERN.findall(text)
         if urls:
             pending.pop(chat_id, None)
-            threading.Thread(
-                target=handle_url,
-                args=(chat_id, urls[0], first_name),
-                daemon=True,
-            ).start()
+            if len(urls) == 1:
+                threading.Thread(target=handle_url, args=(chat_id, urls[0], first_name), daemon=True).start()
+            else:
+                send_message(chat_id, f"🔗 وجدت <b>{len(urls[:3])}</b> روابط — سأحمّلها بالترتيب...")
+                threading.Thread(target=_handle_multiple_urls, args=(chat_id, urls, first_name), daemon=True).start()
         elif waiting:
             send_message(chat_id, "❗ هذا ليس رابطاً صحيحاً، أرسل رابط الفيديو مباشرةً.")
         else:
@@ -1252,10 +1291,68 @@ def handle_callback_query(cq: dict):
     elif data == "adwatch:start":
         threading.Thread(target=handle_adwatch_start, args=(chat_id, cq_id), daemon=True).start()
     elif data == "adwatch:done":
-        # get first_name from known_users for context
         threading.Thread(target=handle_adwatch_done, args=(chat_id, cq_id), daemon=True).start()
+    elif data.startswith("fmt:"):
+        fmt = data[4:]
+        url = pending.get(chat_id, {}).get("fmt_url", "")
+        if not url:
+            answer_callback(cq_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً")
+            return
+        pending.pop(chat_id, None)
+        answer_callback(cq_id, "⏳ جاري التحميل...")
+        format_id = "bestaudio/best" if fmt == "audio" else "best[ext=mp4]/best[height<=720]/best"
+        threading.Thread(target=_do_download, args=(chat_id, url, format_id), daemon=True).start()
     else:
         answer_callback(cq_id)
+
+
+def handle_inline_query(query: dict):
+    query_id = query.get("id", "")
+    text = (query.get("query") or "").strip()
+    urls = URL_PATTERN.findall(text)
+    if not urls:
+        _post("answerInlineQuery", json={"inline_query_id": query_id, "results": [], "cache_time": 0})
+        return
+    url = urls[0]
+    platform = detect_platform(url)
+    results = [{
+        "type": "article",
+        "id": "dl1",
+        "title": f"📥 تحميل من {platform}",
+        "description": f"اضغط لمشاركة رابط التحميل • {url[:60]}",
+        "input_message_content": {
+            "message_text": f"📥 <b>نزّل هذا الفيديو من {platform}</b>\n\n{url}\n\n👉 @nazzilhaplus_bot",
+            "parse_mode": "HTML",
+        },
+        "reply_markup": {"inline_keyboard": [[
+            {"text": "📥 تحميل في البوت", "url": "https://t.me/nazzilhaplus_bot"}
+        ]]},
+    }]
+    _post("answerInlineQuery", json={"inline_query_id": query_id, "results": results, "cache_time": 0})
+
+
+def _premium_expiry_notifier():
+    import datetime
+    while True:
+        time.sleep(3600)
+        try:
+            now = datetime.datetime.now()
+            for uid, exp in list(premium_users.items()):
+                if exp == "lifetime":
+                    continue
+                try:
+                    exp_dt = datetime.datetime.strptime(exp, "%Y-%m-%d %H:%M")
+                    diff = exp_dt - now
+                    if 0 <= diff.days <= 2 and diff.seconds < 3600:
+                        send_message(int(uid),
+                            f"⚠️ <b>تنبيه: بريميومك ينتهي بعد {diff.days} يوم!</b>\n\n"
+                            f"📅 تاريخ الانتهاء: <b>{exp}</b>\n\n"
+                            "جدّد الآن للاستمرار في التحميل غير المحدود 👇",
+                            reply_markup=SUBSCRIBE_KEYBOARD)
+                except Exception:
+                    pass
+        except Exception as e:
+            log.error("Premium expiry notifier: %s", e)
 
 
 def process_update(update: dict):
@@ -1271,6 +1368,8 @@ def process_update(update: dict):
             handle_callback_query(update["callback_query"])
         elif "pre_checkout_query" in update:
             handle_pre_checkout(update["pre_checkout_query"])
+        elif "inline_query" in update:
+            handle_inline_query(update["inline_query"])
     except Exception as e:
         log.exception("Error in process_update: %s", e)
 
@@ -1284,5 +1383,6 @@ def setup_webhook():
     webhook_url = f"{SITE_URL}/webhook/telegram/{BOT_TOKEN}"
     set_webhook(webhook_url)
     threading.Thread(target=_daily_report, daemon=True, name="daily-report").start()
+    threading.Thread(target=_premium_expiry_notifier, daemon=True, name="premium-notifier").start()
     if ADMIN_IDS:
         notify_admins("🟢 <b>البوت شغّال!</b>\nVIP-DL Bot انطلق بنجاح.")
