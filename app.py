@@ -121,6 +121,72 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 progress_store = {}
 
+
+def _cobalt_download(url: str, task_id: str, is_audio: bool = False) -> bool:
+    """
+    Try downloading via cobalt.tools API (handles YouTube without cookies).
+    Returns True on success, False on failure.
+    """
+    try:
+        resp = requests.post(
+            "https://api.cobalt.tools/",
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            json={
+                "url": url,
+                "videoQuality": "720",
+                "filenameStyle": "basic",
+                "downloadMode": "audio" if is_audio else "auto",
+            },
+            timeout=20,
+        )
+        data = resp.json()
+        status = data.get("status")
+
+        download_url = None
+        if status in ("redirect", "tunnel", "stream"):
+            download_url = data.get("url")
+        elif status == "picker":
+            for item in (data.get("picker") or []):
+                if item.get("type") == "video":
+                    download_url = item.get("url")
+                    break
+
+        if not download_url:
+            return False
+
+        ext = ".mp3" if is_audio else ".mp4"
+        file_path = DOWNLOAD_DIR / f"{task_id}{ext}"
+        progress_store[task_id] = {"status": "downloading", "percent": 10}
+
+        dl = requests.get(download_url, stream=True, timeout=120,
+                          headers={"User-Agent": "Mozilla/5.0"})
+        dl.raise_for_status()
+
+        total = int(dl.headers.get("content-length", 0))
+        downloaded = 0
+        with open(file_path, "wb") as f:
+            for chunk in dl.iter_content(chunk_size=65536):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total:
+                        pct = min(95, int(downloaded / total * 100))
+                        progress_store[task_id]["percent"] = pct
+
+        title = "YouTube Video"
+        progress_store[task_id] = {
+            "status": "done",
+            "percent": 100,
+            "file": task_id + ext,
+            "filename": title + ext,
+        }
+        return True
+
+    except Exception as e:
+        import logging
+        logging.getLogger("vip").warning("Cobalt failed for %s: %s", url, e)
+        return False
+
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
 ADMIN_USER = os.environ.get("ADMIN_USER", "")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
@@ -1687,8 +1753,14 @@ def start_download():
             if cookies_file:
                 ydl_opts["cookiefile"] = cookies_file
 
-        # YouTube: use android client to bypass bot detection, cap at 720p
+        # YouTube: try Cobalt API first (no cookies needed), fall back to yt-dlp
         if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+            is_audio = format_id in ("bestaudio/best", "bestaudio")
+            if _cobalt_download(url, task_id, is_audio=is_audio):
+                record_download(platform, True, duration=time.time() - _start)
+                return  # Cobalt succeeded — skip yt-dlp entirely
+
+            # Cobalt failed — try yt-dlp with android client as fallback
             ydl_opts["extractor_args"] = {
                 "youtube": {
                     "player_client": ["android", "web"],
@@ -1702,8 +1774,7 @@ def start_download():
                     "Chrome/86.0.4240.185 Mobile Safari/537.36"
                 )
             }
-            # Cap at 720p to stay under Telegram's 50MB file limit
-            if format_id not in ("bestaudio/best", "bestaudio"):
+            if not is_audio:
                 ydl_opts["format"] = "best[height<=720][ext=mp4]/best[height<=720]/best"
 
         try:
