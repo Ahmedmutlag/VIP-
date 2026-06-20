@@ -236,6 +236,8 @@ _PREMIUM_FILE   = DATA_DIR / "premium_users.json"
 _BLOCKED_FILE   = DATA_DIR / "blocked_users.json"
 _DOWNLOADS_FILE = DATA_DIR / "user_downloads.json"
 _WELCOME_FILE   = DATA_DIR / "custom_welcome.json"
+_HISTORY_FILE   = DATA_DIR / "user_history.json"
+_CONFIG_FILE    = DATA_DIR / "bot_config.json"
 
 def _load_json(path: Path, default):
     try:
@@ -280,7 +282,11 @@ user_downloads: dict[int, dict] = {int(k): v for k, v in _downloads_raw.items()}
 _welcome_raw    = _load("custom_welcome", _WELCOME_FILE, [])
 custom_welcome: list[str]      = _welcome_raw
 
-FREE_DAILY_LIMIT = 3
+_history_raw    = _load("user_history", _HISTORY_FILE, {})
+user_history: dict[int, list]  = {int(k): v for k, v in _history_raw.items()}
+
+_config_raw     = _load("bot_config", _CONFIG_FILE, {})
+_daily_limit: list[int] = [int(_config_raw.get("daily_limit", 3))]
 
 
 def _save_premium():
@@ -294,6 +300,19 @@ def _save_downloads():
 
 def _save_welcome():
     _save("custom_welcome", _WELCOME_FILE, custom_welcome)
+
+def _save_history():
+    _save("user_history", _HISTORY_FILE, {str(k): v for k, v in user_history.items()})
+
+def _save_config():
+    _save("bot_config", _CONFIG_FILE, {"daily_limit": _daily_limit[0]})
+
+def _add_to_history(chat_id: int, url: str, title: str, platform: str):
+    hist = user_history.get(chat_id, [])
+    hist = [h for h in hist if h.get("url") != url]
+    hist.insert(0, {"url": url, "title": title, "platform": platform})
+    user_history[chat_id] = hist[:5]
+    _save_history()
 
 
 def is_premium(chat_id: int) -> bool:
@@ -319,7 +338,7 @@ def check_download_limit(chat_id: int) -> bool:
     if data.get("date") != today:
         data["date"] = today
         data["count"] = 0
-    if data["count"] >= FREE_DAILY_LIMIT:
+    if data["count"] >= _daily_limit[0]:
         return False
     data["count"] += 1
     _save_downloads()
@@ -358,6 +377,7 @@ HELP_TEXT = """🤖 <b>بوت نزلها بلس للتحميل</b>
 /share — شارك البوت مع أصدقائك
 /redeem — تفعيل كود بريميوم
 /status — حالة اشتراكك
+/history — آخر تحميلاتك
 
 📎 فقط الصق الرابط وأنا أتولى الباقي!
 
@@ -507,6 +527,7 @@ ADMIN_KEYBOARD = {
         [{"text": "🚫 حظر مستخدم", "callback_data": "adm:block"}, {"text": "✅ رفع حظر", "callback_data": "adm:unblock"}],
         [{"text": "✏️ تعديل رسالة الترحيب", "callback_data": "adm:setwelcome"}],
         [{"text": "💰 الإعلانات: مُوقف ⚫", "callback_data": "adm:toggleads"}],
+        [{"text": "⚙️ الحد اليومي: 3 تحميلات", "callback_data": "adm:setlimit"}],
         [{"text": "❌ إغلاق", "callback_data": "adm:close"}],
     ]
 }
@@ -514,11 +535,14 @@ ADMIN_KEYBOARD = {
 
 def _build_admin_keyboard() -> dict:
     ads_label = "💰 الإعلانات: مُفعَّل 🟢" if ADS_ENABLED[0] else "💰 الإعلانات: مُوقف ⚫"
+    limit_label = f"⚙️ الحد اليومي: {_daily_limit[0]} تحميلات"
     kb = [row[:] for row in ADMIN_KEYBOARD["inline_keyboard"]]
     for i, row in enumerate(kb):
         for j, btn in enumerate(row):
             if btn.get("callback_data") == "adm:toggleads":
                 kb[i][j] = {"text": ads_label, "callback_data": "adm:toggleads"}
+            elif btn.get("callback_data") == "adm:setlimit":
+                kb[i][j] = {"text": limit_label, "callback_data": "adm:setlimit"}
     return {"inline_keyboard": kb}
 
 
@@ -686,6 +710,11 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
     if action == "broadcast":
         pending[chat_id] = {"waiting_broadcast": True}
         send_message(chat_id, "📢 أرسل الرسالة التي تريد إرسالها لجميع المستخدمين:")
+        return
+
+    if action == "setlimit":
+        pending[chat_id] = {"waiting_setlimit": True}
+        send_message(chat_id, f"⚙️ الحد اليومي الحالي: <b>{_daily_limit[0]}</b> تحميلات\n\nأرسل الرقم الجديد (1-50):")
         return
 
 
@@ -896,11 +925,11 @@ def handle_status(chat_id: int):
         today = datetime.date.today().isoformat()
         data = user_downloads.get(chat_id, {})
         used = data.get("count", 0) if data.get("date") == today else 0
-        remaining = max(0, FREE_DAILY_LIMIT - used)
+        remaining = max(0, _daily_limit[0] - used)
         send_message(
             chat_id,
             f"🆓 <b>حساب مجاني</b>\n\n"
-            f"⬇️ تحميلاتك اليوم: <b>{used}/{FREE_DAILY_LIMIT}</b>\n"
+            f"⬇️ تحميلاتك اليوم: <b>{used}/{_daily_limit[0]}</b>\n"
             f"✅ متبقي: <b>{remaining}</b>\n\n"
             "للترقية: /redeem + كود البريميوم"
         )
@@ -920,8 +949,8 @@ def _remaining_text(chat_id: int) -> str:
     today = datetime.date.today().isoformat()
     data = user_downloads.get(chat_id, {})
     used = data.get("count", 0) if data.get("date") == today else 0
-    remaining = max(0, FREE_DAILY_LIMIT - used)
-    return f"\n\n📊 تحميلاتك اليوم: <b>{used}/{FREE_DAILY_LIMIT}</b> | متبقي: <b>{remaining}</b>"
+    remaining = max(0, _daily_limit[0] - used)
+    return f"\n\n📊 تحميلاتك اليوم: <b>{used}/{_daily_limit[0]}</b> | متبقي: <b>{remaining}</b>"
 
 
 def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[height<=720]/best", title: str = "فيديو"):
@@ -954,7 +983,7 @@ def _handle_multiple_urls(chat_id: int, urls: list, first_name: str):
         if not check_download_limit(chat_id):
             send_message(chat_id,
                 f"⛔ نُفّذت <b>{i}</b> من <b>{len(urls)}</b> تحميلات — وصلت للحد اليومي" if i > 0
-                else f"⛔ وصلت للحد اليومي المجاني ({FREE_DAILY_LIMIT} تحميلات)")
+                else f"⛔ وصلت للحد اليومي المجاني ({_daily_limit[0]} تحميلات)")
             return
         while chat_id in active_downloads:
             time.sleep(1)
@@ -982,7 +1011,7 @@ def handle_url(chat_id: int, url: str, first_name: str):
         pending[chat_id] = {"ad_pending_url": url}
         send_message(
             chat_id,
-            f"⛔ <b>وصلت للحد اليومي المجاني ({FREE_DAILY_LIMIT} تحميلات)</b>\n\n"
+            f"⛔ <b>وصلت للحد اليومي المجاني ({_daily_limit[0]} تحميلات)</b>\n\n"
             "اختر طريقة للمتابعة:",
             reply_markup={"inline_keyboard": [
                 [{"text": "📺 شاهد إعلان وحمّل مجاناً", "callback_data": "adwatch:start"}],
@@ -996,10 +1025,12 @@ def handle_url(chat_id: int, url: str, first_name: str):
     preview_msg_id = (res.get("result") or {}).get("message_id")
 
     info = site_info(url)
+    thumbnail = None
     if "error" not in info:
         title = (info.get("title") or "فيديو")[:80]
         uploader = (info.get("uploader") or "")[:40]
         dur = _fmt_duration(info.get("duration"))
+        thumbnail = info.get("thumbnail")
         lines = [f"🎬 <b>{title}</b>"]
         if uploader:
             lines.append(f"👤 {uploader}")
@@ -1020,7 +1051,19 @@ def handle_url(chat_id: int, url: str, first_name: str):
 
     pending[chat_id] = {"fmt_url": url, "title": title}
 
-    if preview_msg_id:
+    # Try sending thumbnail photo; fall back to editing the loading message as text
+    sent_photo = False
+    if thumbnail:
+        r = _post("sendPhoto", json={
+            "chat_id": chat_id, "photo": thumbnail,
+            "caption": text, "parse_mode": "HTML", "reply_markup": kbd,
+        })
+        sent_photo = r.get("ok", False)
+
+    if sent_photo:
+        if preview_msg_id:
+            _post("deleteMessage", json={"chat_id": chat_id, "message_id": preview_msg_id})
+    elif preview_msg_id:
         _post("editMessageText", json={
             "chat_id": chat_id, "message_id": preview_msg_id,
             "text": text, "parse_mode": "HTML", "reply_markup": kbd,
@@ -1086,6 +1129,7 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str):
                     log.error("Failed to send file: %s", e)
                     send_message(chat_id, f"⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{SITE_URL}")
 
+            _add_to_history(chat_id, url, display_name, detect_platform(url))
             notify_admin_download(url, display_name, chat_id)
             return
 
@@ -1129,6 +1173,23 @@ def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
         return
 
     _finish_download(chat_id, task_id, url, title)
+
+
+def handle_history(chat_id: int):
+    hist = user_history.get(chat_id, [])
+    if not hist:
+        send_message(chat_id, "📭 لا يوجد سجل تحميلات بعد.\n\nأرسل رابط فيديو لتحميله!")
+        return
+    keyboard = [
+        [{"text": f"🔁 {item['title'][:35]}", "callback_data": f"hist:{i}"}]
+        for i, item in enumerate(hist)
+    ]
+    keyboard.append([{"text": "🗑️ مسح السجل", "callback_data": "hist:clear"}])
+    send_message(
+        chat_id,
+        f"📋 <b>آخر تحميلاتك ({len(hist)}):</b>",
+        reply_markup={"inline_keyboard": keyboard},
+    )
 
 
 # ── Admin notifications ────────────────────────────────────────────────────────
@@ -1246,6 +1307,16 @@ def handle_message(msg: dict):
                 send_message(chat_id, "✅ تم حفظ رسالة الترحيب الجديدة!", reply_markup=_build_admin_keyboard())
             return
 
+        if state.get("waiting_setlimit"):
+            pending.pop(chat_id, None)
+            if text.isdigit() and 1 <= int(text) <= 50:
+                _daily_limit[0] = int(text)
+                _save_config()
+                send_message(chat_id, f"✅ تم تغيير الحد اليومي إلى <b>{_daily_limit[0]}</b> تحميلات.", reply_markup=_build_admin_keyboard())
+            else:
+                send_message(chat_id, "❌ أرسل رقماً بين 1 و 50.")
+            return
+
     # broadcast handler
     if pending.get(chat_id, {}).get("waiting_broadcast") and chat_id in ADMIN_IDS:
         pending.pop(chat_id, None)
@@ -1279,6 +1350,8 @@ def handle_message(msg: dict):
         handle_redeem(chat_id, parts[1].strip() if len(parts) > 1 else "")
     elif text.startswith("/status"):
         handle_status(chat_id)
+    elif text.startswith("/history"):
+        handle_history(chat_id)
     elif text.startswith("/subscribe") or text == "💎 بريميوم":
         handle_subscribe_menu(chat_id)
     elif text == "🔥 الأكثر تحميلاً":
@@ -1341,6 +1414,38 @@ def handle_callback_query(cq: dict):
         answer_callback(cq_id, "⏳ جاري التحميل...")
         format_id = "bestaudio/best" if fmt == "audio" else "best[ext=mp4]/best[height<=720]/best"
         threading.Thread(target=_do_download, args=(chat_id, url, format_id, title), daemon=True).start()
+    elif data.startswith("hist:"):
+        val = data[5:]
+        if val == "clear":
+            answer_callback(cq_id, "✅ تم مسح السجل")
+            user_history.pop(chat_id, None)
+            _save_history()
+            send_message(chat_id, "✅ تم مسح سجل التحميلات.")
+        else:
+            try:
+                idx = int(val)
+                hist = user_history.get(chat_id, [])
+                item = hist[idx]
+                answer_callback(cq_id, "⏳ جاري التحضير...")
+                if not check_download_limit(chat_id):
+                    pending[chat_id] = {"ad_pending_url": item["url"]}
+                    send_message(chat_id,
+                        f"⛔ <b>وصلت للحد اليومي المجاني ({_daily_limit[0]} تحميلات)</b>\n\nاختر طريقة للمتابعة:",
+                        reply_markup={"inline_keyboard": [
+                            [{"text": "📺 شاهد إعلان وحمّل مجاناً", "callback_data": "adwatch:start"}],
+                            [{"text": "💎 اشترك بالبريميوم", "callback_data": "sub:menu"}],
+                        ]})
+                else:
+                    pending[chat_id] = {"fmt_url": item["url"], "title": item["title"]}
+                    rem = _remaining_text(chat_id)
+                    send_message(chat_id,
+                        f"🎬 <b>{item['title'][:80]}</b>\n📱 {item['platform']}\n\nاختر الصيغة:{rem}",
+                        reply_markup={"inline_keyboard": [[
+                            {"text": "🎬 فيديو", "callback_data": "fmt:video"},
+                            {"text": "🎵 MP3", "callback_data": "fmt:audio"},
+                        ]]})
+            except (ValueError, IndexError):
+                answer_callback(cq_id, "⚠️ انتهت الجلسة")
     else:
         answer_callback(cq_id)
 
