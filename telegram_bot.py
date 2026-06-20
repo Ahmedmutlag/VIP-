@@ -1349,18 +1349,39 @@ def handle_inline_query(query: dict):
     query_id = query.get("id", "")
     text = (query.get("query") or "").strip()
     urls = URL_PATTERN.findall(text)
+
     if not urls:
-        _post("answerInlineQuery", json={"inline_query_id": query_id, "results": [], "cache_time": 0})
+        _post("answerInlineQuery", json={
+            "inline_query_id": query_id,
+            "results": [{
+                "type": "article",
+                "id": "help",
+                "title": "📥 الصق رابط الفيديو بعد اسم البوت",
+                "description": "مثال: @nazzilhaplus_bot https://vm.tiktok.com/xxx",
+                "input_message_content": {
+                    "message_text": "📥 لتحميل فيديو أرسل الرابط لـ @nazzilhaplus_bot",
+                    "parse_mode": "HTML",
+                },
+            }],
+            "cache_time": 0,
+            "switch_pm_text": "📥 افتح البوت وأرسل الرابط",
+            "switch_pm_parameter": "inline",
+        })
         return
+
     url = urls[0]
     platform = detect_platform(url)
     results = [{
         "type": "article",
         "id": "dl1",
         "title": f"📥 تحميل من {platform}",
-        "description": f"اضغط لمشاركة رابط التحميل • {url[:60]}",
+        "description": "اضغط لمشاركة رابط التحميل في المحادثة",
         "input_message_content": {
-            "message_text": f"📥 <b>نزّل هذا الفيديو من {platform}</b>\n\n{url}\n\n👉 @nazzilhaplus_bot",
+            "message_text": (
+                f"📥 <b>نزّل هذا الفيديو من {platform}</b>\n\n"
+                f"🔗 {url}\n\n"
+                "👇 اضغط الزر للتحميل"
+            ),
             "parse_mode": "HTML",
         },
         "reply_markup": {"inline_keyboard": [[
