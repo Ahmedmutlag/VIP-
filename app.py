@@ -1507,6 +1507,21 @@ def get_info():
         if cookies_file:
             ydl_opts["cookiefile"] = cookies_file
 
+    if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+        ydl_opts["extractor_args"] = {
+            "youtube": {
+                "player_client": ["android", "web"],
+                "player_skip": ["webpage"],
+            }
+        }
+        ydl_opts["http_headers"] = {
+            "User-Agent": (
+                "Mozilla/5.0 (Linux; Android 11; SM-G991B) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/86.0.4240.185 Mobile Safari/537.36"
+            )
+        }
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -1671,6 +1686,25 @@ def start_download():
             cookies_file = get_cookies_file()
             if cookies_file:
                 ydl_opts["cookiefile"] = cookies_file
+
+        # YouTube: use android client to bypass bot detection, cap at 720p
+        if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+            ydl_opts["extractor_args"] = {
+                "youtube": {
+                    "player_client": ["android", "web"],
+                    "player_skip": ["webpage"],
+                }
+            }
+            ydl_opts["http_headers"] = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Linux; Android 11; SM-G991B) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/86.0.4240.185 Mobile Safari/537.36"
+                )
+            }
+            # Cap at 720p to stay under Telegram's 50MB file limit
+            if format_id not in ("bestaudio/best", "bestaudio"):
+                ydl_opts["format"] = "best[height<=720][ext=mp4]/best[height<=720]/best"
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
