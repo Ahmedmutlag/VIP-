@@ -1051,14 +1051,25 @@ def handle_url(chat_id: int, url: str, first_name: str):
 
     pending[chat_id] = {"fmt_url": url, "title": title}
 
-    # Try sending thumbnail photo; fall back to editing the loading message as text
+    # Download thumbnail ourselves then send as bytes (CDN URLs often expire or need auth)
     sent_photo = False
     if thumbnail:
-        r = _post("sendPhoto", json={
-            "chat_id": chat_id, "photo": thumbnail,
-            "caption": text, "parse_mode": "HTML", "reply_markup": kbd,
-        })
-        sent_photo = r.get("ok", False)
+        try:
+            resp = requests.get(thumbnail, timeout=8,
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://www.google.com/"})
+            if resp.ok and resp.content:
+                r = _post("sendPhoto",
+                    data={
+                        "chat_id": str(chat_id),
+                        "caption": text,
+                        "parse_mode": "HTML",
+                        "reply_markup": json.dumps(kbd),
+                    },
+                    files={"photo": ("thumb.jpg", resp.content, "image/jpeg")},
+                )
+                sent_photo = r.get("ok", False)
+        except Exception as e:
+            log.warning("Thumbnail fetch failed: %s", e)
 
     if sent_photo:
         if preview_msg_id:
