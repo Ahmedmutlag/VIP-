@@ -122,9 +122,9 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 progress_store = {}
 
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
-ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
-ADMIN_PASS = os.environ.get("ADMIN_PASS", "vip2026")
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "ahmed.alabdan2@gmail.com")
+ADMIN_USER = os.environ.get("ADMIN_USER", "")
+ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 RESET_SECRET = os.environ.get("RESET_SECRET", "")
@@ -1584,11 +1584,28 @@ def get_info():
         return jsonify({"error": "حدث خطأ غير متوقع"}), 500
 
 
+_ALLOWED_THUMB_HOSTS = {
+    "scontent.cdninstagram.com", "instagram.com", "cdninstagram.com",
+    "p16-sign.tiktokcdn.com", "p19-sign.tiktokcdn.com", "p16-sign-va.tiktokcdn.com",
+    "p16-sign-sg.tiktokcdn.com", "v19-webapp.tiktok.com",
+    "pbs.twimg.com", "ton.twimg.com",
+    "i.ytimg.com", "img.youtube.com",
+    "external.fmss3-1.fna.fbcdn.net", "scontent.fmss3-1.fna.fbcdn.net",
+    "pinimg.com", "i.pinimg.com",
+}
+
 @app.route("/api/thumb")
 @limiter.limit("60 per minute")
 def proxy_thumbnail():
     url = request.args.get("url", "").strip()
-    if not url or not url.startswith("http"):
+    if not url or not url.startswith("https://"):
+        return "", 400
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).hostname or ""
+        if not any(host == h or host.endswith("." + h) for h in _ALLOWED_THUMB_HOSTS):
+            return "", 403
+    except Exception:
         return "", 400
     try:
         headers = {
@@ -2051,6 +2068,7 @@ def bot_admin_redeem_code():
 
 
 @app.route("/adverify/<token>")
+@limiter.limit("10 per minute")
 def ad_verify(token):
     """Called by /watch-ad page JS after countdown. Marks token as verified."""
     try:
