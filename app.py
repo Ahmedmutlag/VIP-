@@ -2101,6 +2101,11 @@ _WATCH_AD_PAGE = """<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>شاهد إعلاناً — نزّلها بلس</title>
+<script type="text/javascript" data-cfasync="false">
+/*<![CDATA[/* */
+(function(){var x=window,q="a5a9df7d542d840303ecd25a86a74833",f=[["siteId",3*420-475+5308052],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],c=["d3d3LmludGVsbGlnZW5jZWFkeC5jb20vU0VtL2tmZXRjaC1qc29ucC5taW4uanM=","ZDJrbHg4N2Jnem5nY2UuY2xvdWRmcm9udC5uZXQvRVQvSkdmdVIvY3RocmVlLm1pbi5jc3M="],o=-1,s,r,u=function(){clearTimeout(r);o++;if(c[o]&&!(1807992548000<(new Date).getTime()&&1<o)){s=x.document.createElement("script");s.type="text/javascript";s.async=!0;var w=x.document.getElementsByTagName("script")[0];s.src="https://"+atob(c[o]);s.crossOrigin="anonymous";s.onerror=u;s.onload=function(){clearTimeout(r);x[q.slice(0,16)+q.slice(0,16)]||u()};r=setTimeout(u,5E3);w.parentNode.insertBefore(s,w)}};if(!x[q]){try{Object.freeze(x[q]=f)}catch(e){}u()}})();
+/*]]>/* */
+</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #fff;
