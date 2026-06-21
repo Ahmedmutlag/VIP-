@@ -541,7 +541,7 @@ def ads_txt():
 
 @app.route("/app-ads.txt")
 def app_ads_txt():
-    return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
+    return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0\n", 200, {"Content-Type": "text/plain; charset=utf-8"}
 
 
 @app.route("/api/public-stats")
