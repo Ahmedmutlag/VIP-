@@ -539,6 +539,11 @@ def ads_txt():
     return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
 
 
+@app.route("/app-ads.txt")
+def app_ads_txt():
+    return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
+
+
 @app.route("/api/public-stats")
 def public_stats():
     r = load_ratings()
