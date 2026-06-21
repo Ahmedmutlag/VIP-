@@ -517,7 +517,13 @@ def robots_txt():
 Allow: /
 Disallow: /admin
 Disallow: /admin/
-Sitemap: https://www.vip-dl.com/sitemap.xml"""
+Sitemap: https://www.vip-dl.com/sitemap.xml
+
+User-agent: Google-adstxt
+Disallow:
+
+User-agent: Mediapartners-Google
+Disallow:"""
     return content, 200, {"Content-Type": "text/plain"}
 
 
