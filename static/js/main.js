@@ -378,13 +378,27 @@ function handleDownloadClick() {
 }
 
 // ===== Bot Redirect Modal =====
-function showAdModal() {
+async function showAdModal() {
   const url = document.getElementById('urlInput').value.trim();
   document.getElementById('botRedirectUrl').textContent = url;
   document.getElementById('adModal').classList.remove('hidden');
   document.getElementById('adOverlay').classList.remove('hidden');
-  // auto-copy URL
   try { navigator.clipboard.writeText(url); } catch(e) {}
+
+  // Create deep link token so bot auto-downloads the URL
+  try {
+    const res = await fetch('/api/bot-link', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url})
+    });
+    const data = await res.json();
+    if (data.token) {
+      document.getElementById('openBotBtn').href = 'https://t.me/nazzilhaplus_bot?start=' + data.token;
+    }
+  } catch(e) {
+    document.getElementById('openBotBtn').href = 'https://t.me/nazzilhaplus_bot';
+  }
 }
 
 function closeAdModal() {

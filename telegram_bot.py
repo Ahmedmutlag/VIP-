@@ -286,7 +286,7 @@ _history_raw    = _load("user_history", _HISTORY_FILE, {})
 user_history: dict[int, list]  = {int(k): v for k, v in _history_raw.items()}
 
 _config_raw     = _load("bot_config", _CONFIG_FILE, {})
-_daily_limit: list[int] = [int(_config_raw.get("daily_limit", 3))]
+_daily_limit: list[int] = [int(_config_raw.get("daily_limit", 50))]
 
 
 def _save_premium():
@@ -423,7 +423,19 @@ PLATFORM_LABELS = {
 }
 
 
-def handle_start(chat_id: int, first_name: str):
+def handle_start(chat_id: int, first_name: str, param: str = ""):
+    if param:
+        try:
+            r = requests.get(f"{SITE_URL}/api/url-token/{param}", timeout=10)
+            if r.status_code == 200:
+                url = r.json().get("url", "")
+                if url and URL_PATTERN.search(url):
+                    send_message(chat_id, f"مرحباً {first_name}! 🎯\nجاري تحميل الفيديو تلقائياً...")
+                    threading.Thread(target=handle_url, args=(chat_id, url, first_name), daemon=True).start()
+                    return
+        except Exception:
+            pass
+
     if custom_welcome:
         text = custom_welcome[0].replace("{name}", first_name)
     else:
@@ -1008,13 +1020,11 @@ def handle_url(chat_id: int, url: str, first_name: str):
         send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
         return
     if not check_download_limit(chat_id):
-        pending[chat_id] = {"ad_pending_url": url}
         send_message(
             chat_id,
-            f"⛔ <b>وصلت للحد اليومي المجاني ({_daily_limit[0]} تحميلات)</b>\n\n"
-            "اختر طريقة للمتابعة:",
+            f"⛔ <b>وصلت للحد اليومي ({_daily_limit[0]} تحميلات)</b>\n\n"
+            "اشترك بالبريميوم للحصول على تحميلات غير محدودة 👇",
             reply_markup={"inline_keyboard": [
-                [{"text": "📺 شاهد إعلان وحمّل مجاناً", "callback_data": "adwatch:start"}],
                 [{"text": "💎 اشترك بالبريميوم", "callback_data": "sub:menu"}],
             ]},
         )
@@ -1065,29 +1075,21 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str):
 
             file_size_mb = file_path.stat().st_size / (1024 * 1024)
 
-            if ADS_ENABLED[0]:
-                # Ad-based flow: send a shortened link instead of the file directly
-                raw_url = f"{SITE_URL}/bot-dl/{task_id}"
-                ad_url = shorten_url(raw_url)
-                btn = {"inline_keyboard": [[{"text": "📥 تحميل الفيديو", "url": ad_url}]]}
-                send_message(
-                    chat_id,
-                    f"✅ جاهز! <b>{display_name[:80]}</b>\n\n"
-                    "اضغط الزر أدناه لتحميل الفيديو 👇\n"
-                    "<i>(تظهر إعلانات قصيرة لدعم الخدمة المجانية)</i>",
-                    reply_markup=btn,
-                )
-            else:
-                try:
-                    if ext in (".mp3", ".m4a", ".ogg", ".wav"):
-                        send_audio(chat_id, str(file_path), caption_text)
-                    elif file_size_mb <= 50:
-                        send_video(chat_id, str(file_path), caption_text)
-                    else:
-                        send_document(chat_id, str(file_path), caption_text)
-                except Exception as e:
-                    log.error("Failed to send file: %s", e)
-                    send_message(chat_id, f"⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{SITE_URL}")
+            try:
+                if ext in (".mp3", ".m4a", ".ogg", ".wav"):
+                    send_audio(chat_id, str(file_path), caption_text)
+                elif file_size_mb <= 50:
+                    send_video(chat_id, str(file_path), caption_text)
+                else:
+                    send_document(chat_id, str(file_path), caption_text)
+            except Exception as e:
+                log.error("Failed to send file: %s", e)
+                send_message(chat_id, f"⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{SITE_URL}")
+
+            return_btn = {"inline_keyboard": [[
+                {"text": "↩️ العودة للتطبيق", "url": SITE_URL}
+            ]]}
+            send_message(chat_id, "✅ اكتمل التحميل!\n\nارجع للتطبيق لتحميل المزيد 👇", reply_markup=return_btn)
 
             _add_to_history(chat_id, url, display_name, detect_platform(url))
             notify_admin_download(url, display_name, chat_id)
@@ -1294,7 +1296,9 @@ def handle_message(msg: dict):
         return
 
     if text.startswith("/start"):
-        handle_start(chat_id, first_name)
+        parts = text.split(maxsplit=1)
+        param = parts[1].strip() if len(parts) > 1 else ""
+        handle_start(chat_id, first_name, param)
     elif text.startswith("/help") or text == "ℹ️ المساعدة":
         handle_help(chat_id)
     elif text.startswith("/stats") or text == "📊 الإحصائيات":

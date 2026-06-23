@@ -286,6 +286,9 @@ _UPSTASH_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "")
 _UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 _CODES_REDIS_KEY = "vip_codes"
 
+# Short-lived URL tokens for bot deep links
+_url_tokens: dict = {}
+
 def _redis(cmd, *args):
     if not _UPSTASH_URL:
         return None
@@ -539,6 +542,32 @@ def ads_txt():
     return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
 
 
+@app.route("/api/bot-link", methods=["POST"])
+@limiter.limit("30 per minute")
+def create_bot_link():
+    url = (request.get_json() or {}).get("url", "").strip()
+    if not url or not url.startswith("http"):
+        return jsonify({"error": "url required"}), 400
+    token = secrets.token_hex(8)
+    _url_tokens[token] = url
+    def _expire():
+        time.sleep(1800)
+        _url_tokens.pop(token, None)
+    threading.Thread(target=_expire, daemon=True).start()
+    return jsonify({"token": token})
+
+
+@app.route("/api/url-token/<token>")
+def get_url_token(token):
+    url = _url_tokens.get(token)
+    if not url:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"url": url})
+
+
+@app.route("/app-ads.txt")
+def app_ads_txt():
+    return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0\n", 200, {"Content-Type": "text/plain; charset=utf-8"}
 @app.route("/api/public-stats")
 def public_stats():
     r = load_ratings()
