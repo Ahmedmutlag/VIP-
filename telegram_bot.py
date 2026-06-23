@@ -1079,8 +1079,8 @@ def handle_url(chat_id: int, url: str, first_name: str):
         send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
         return
 
-    # الجميع يجب أن يمر عبر التطبيق — بلا استثناء
-    if not _session_has(chat_id):
+    # البريميوم معفى (دفع مسبق) — الباقي يجب المرور بالتطبيق
+    if not is_premium(chat_id) and not _session_has(chat_id):
         send_message(
             chat_id,
             "⛔ <b>يجب فتح التطبيق أولاً لتحميل الفيديو</b>\n\n"
@@ -1092,7 +1092,8 @@ def handle_url(chat_id: int, url: str, first_name: str):
             ]]},
         )
         return
-    _session_remove(chat_id)  # استهلاك الجلسة
+    if not is_premium(chat_id):
+        _session_remove(chat_id)  # استهلاك الجلسة للمستخدمين المجانيين فقط
     platform = detect_platform(url)
     pending[chat_id] = {"fmt_url": url, "title": "فيديو"}
     rem = _remaining_text(chat_id)
