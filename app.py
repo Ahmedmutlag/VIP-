@@ -74,12 +74,12 @@ def add_cache_headers(response):
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com "
-        "https://pagead2.googlesyndication.com https://www.googletagmanager.com; "
+        "https://www.googletagmanager.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
-        "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://region1.google-analytics.com; "
-        "frame-src https://googleads.g.doubleclick.net https://www.google.com;"
+        "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; "
+        "frame-src 'none';"
     )
     if request.is_secure:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
@@ -285,6 +285,9 @@ def save_config(data):
 _UPSTASH_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "")
 _UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 _CODES_REDIS_KEY = "vip_codes"
+
+# Short-lived URL tokens for bot deep links
+_url_tokens: dict = {}
 
 def _redis(cmd, *args):
     if not _UPSTASH_URL:
@@ -545,11 +548,32 @@ def ads_txt():
     return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
 
 
+@app.route("/api/bot-link", methods=["POST"])
+@limiter.limit("30 per minute")
+def create_bot_link():
+    url = (request.get_json() or {}).get("url", "").strip()
+    if not url or not url.startswith("http"):
+        return jsonify({"error": "url required"}), 400
+    token = secrets.token_hex(8)
+    _url_tokens[token] = url
+    def _expire():
+        time.sleep(1800)
+        _url_tokens.pop(token, None)
+    threading.Thread(target=_expire, daemon=True).start()
+    return jsonify({"token": token})
+
+
+@app.route("/api/url-token/<token>")
+def get_url_token(token):
+    url = _url_tokens.get(token)
+    if not url:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"url": url})
+
+
 @app.route("/app-ads.txt")
 def app_ads_txt():
     return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0\n", 200, {"Content-Type": "text/plain; charset=utf-8"}
-
-
 @app.route("/api/public-stats")
 def public_stats():
     r = load_ratings()
