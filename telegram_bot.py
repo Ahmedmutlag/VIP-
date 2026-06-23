@@ -1152,7 +1152,7 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str):
                 send_message(chat_id, f"⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{SITE_URL}")
 
             return_btn = {"inline_keyboard": [[
-                {"text": "↩️ العودة للتطبيق", "url": SITE_URL}
+                {"text": "↩️ العودة للتطبيق", "url": "nazzilhaplus://open"}
             ]]}
             send_message(chat_id, "✅ اكتمل التحميل!\n\nارجع للتطبيق لتحميل المزيد 👇", reply_markup=return_btn)
 
