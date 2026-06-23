@@ -28,6 +28,9 @@ if ADMIN_CHAT_IDS_RAW:
         if part.lstrip("-").isdigit():
             ADMIN_IDS.add(int(part))
 
+_ADMIN_CHANNEL_RAW = os.environ.get("TELEGRAM_ADMIN_CHANNEL", "").strip()
+ADMIN_CHANNEL_ID: int | None = int(_ADMIN_CHANNEL_RAW) if _ADMIN_CHANNEL_RAW.lstrip("-").isdigit() else None
+
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
@@ -1164,8 +1167,17 @@ def handle_history(chat_id: int):
 
 # ── Admin notifications ────────────────────────────────────────────────────────
 
+def _notify(text: str) -> None:
+    """Send to admin channel if configured, else fall back to each admin ID."""
+    if ADMIN_CHANNEL_ID:
+        send_message(ADMIN_CHANNEL_ID, text)
+    else:
+        for admin_id in ADMIN_IDS:
+            send_message(admin_id, text)
+
+
 def notify_admin_download(url: str, title: str, user_chat_id: int):
-    if not ADMIN_IDS:
+    if not ADMIN_CHANNEL_ID and not ADMIN_IDS:
         return
     platform = detect_platform(url)
     user_info = known_users.get(user_chat_id, {})
@@ -1181,13 +1193,11 @@ def notify_admin_download(url: str, title: str, user_chat_id: int):
         f"🎬 العنوان: {title[:80]}\n"
         f"🔗 الرابط: {url[:100]}"
     )
-    for admin_id in ADMIN_IDS:
-        send_message(admin_id, text)
+    _notify(text)
 
 
 def notify_admins(text: str):
-    for admin_id in ADMIN_IDS:
-        send_message(admin_id, text)
+    _notify(text)
 
 
 def _daily_report():
@@ -1521,5 +1531,5 @@ def setup_webhook():
     set_webhook(webhook_url)
     threading.Thread(target=_daily_report, daemon=True, name="daily-report").start()
     threading.Thread(target=_premium_expiry_notifier, daemon=True, name="premium-notifier").start()
-    if ADMIN_IDS:
+    if ADMIN_CHANNEL_ID or ADMIN_IDS:
         notify_admins("🟢 <b>البوت شغّال!</b>\nVIP-DL Bot انطلق بنجاح.")
