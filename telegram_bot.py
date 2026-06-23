@@ -269,6 +269,7 @@ pending: dict[int, dict] = {}
 known_users: dict[int, dict] = {}   # uid -> {"name": str, "username": str|None}
 ad_verif_tokens: dict[str, int] = {}  # token -> chat_id (cleared once verified)
 active_downloads: set[int] = set()  # chat_ids with a download in progress
+app_sessions: set[int] = set()  # users who came from the app (one download allowed)
 
 _premium_raw    = _load("premium_users", _PREMIUM_FILE, {})
 premium_users: dict[int, str]  = {int(k): v for k, v in _premium_raw.items()}
@@ -430,6 +431,7 @@ def handle_start(chat_id: int, first_name: str, param: str = ""):
             if r.status_code == 200:
                 url = r.json().get("url", "")
                 if url and URL_PATTERN.search(url):
+                    app_sessions.add(chat_id)  # منح جلسة تحميل واحدة
                     send_message(chat_id, f"مرحباً {first_name}! 🎯\nجاري تحميل الفيديو تلقائياً...")
                     threading.Thread(target=handle_url, args=(chat_id, url, first_name), daemon=True).start()
                     return
@@ -1019,16 +1021,22 @@ def handle_url(chat_id: int, url: str, first_name: str):
     if chat_id in active_downloads:
         send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
         return
-    if not check_download_limit(chat_id):
-        send_message(
-            chat_id,
-            f"⛔ <b>وصلت للحد اليومي ({_daily_limit[0]} تحميلات)</b>\n\n"
-            "اشترك بالبريميوم للحصول على تحميلات غير محدودة 👇",
-            reply_markup={"inline_keyboard": [
-                [{"text": "💎 اشترك بالبريميوم", "callback_data": "sub:menu"}],
-            ]},
-        )
-        return
+
+    # التحقق من أن المستخدم جاء من التطبيق (أدمن وبريميوم معفيون)
+    if chat_id not in ADMIN_IDS and not is_premium(chat_id):
+        if chat_id not in app_sessions:
+            send_message(
+                chat_id,
+                "⛔ <b>يجب فتح التطبيق أولاً لتحميل الفيديو</b>\n\n"
+                "١. افتح التطبيق\n"
+                "٢. الصق رابط الفيديو\n"
+                "٣. اضغط «فتح البوت» — سيبدأ التحميل تلقائياً 🚀",
+                reply_markup={"inline_keyboard": [[
+                    {"text": "📲 فتح التطبيق", "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"}
+                ]]},
+            )
+            return
+        app_sessions.discard(chat_id)  # استهلاك الجلسة
     platform = detect_platform(url)
     pending[chat_id] = {"fmt_url": url, "title": "فيديو"}
     rem = _remaining_text(chat_id)
