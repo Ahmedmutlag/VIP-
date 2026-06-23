@@ -2,6 +2,7 @@ package com.nazzilhaplus.app;
 
 import android.Manifest;
 import android.content.ActivityNotFoundException;
+import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
@@ -32,12 +33,25 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private static final int STORAGE_PERMISSION_CODE = 100;
     private String pendingUrl, pendingUserAgent, pendingContentDisposition, pendingMimeType;
+    private boolean pageLoaded = false;
+
+    private static final List<String> VIDEO_DOMAINS = Arrays.asList(
+        "tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
+        "instagram.com", "instagr.am",
+        "facebook.com", "fb.watch",
+        "pinterest.com", "pin.it",
+        "twitter.com", "x.com",
+        "youtube.com", "youtu.be",
+        "snapchat.com"
+    );
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,6 +74,51 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private String getClipboardText() {
+        try {
+            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip() != null
+                    && cm.getPrimaryClip().getItemCount() > 0) {
+                CharSequence text = cm.getPrimaryClip().getItemAt(0).getText();
+                return text != null ? text.toString().trim() : "";
+            }
+        } catch (Exception ignored) {}
+        return "";
+    }
+
+    private boolean isVideoUrl(String url) {
+        if (url == null || url.isEmpty()) return false;
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
+        String lower = url.toLowerCase();
+        for (String domain : VIDEO_DOMAINS) {
+            if (lower.contains(domain)) return true;
+        }
+        return false;
+    }
+
+    private void injectClipboardUrl() {
+        String clip = getClipboardText();
+        if (!isVideoUrl(clip)) return;
+        String safe = clip.replace("\\", "\\\\").replace("'", "\\'")
+                         .replace("\n", "").replace("\r", "");
+        webView.evaluateJavascript(
+            "(function(){" +
+            "  var inp=document.getElementById('urlInput');" +
+            "  if(inp && inp.value!=='" + safe + "'){" +
+            "    inp.value='" + safe + "';" +
+            "    inp.dispatchEvent(new Event('input',{bubbles:true}));" +
+            "  }" +
+            "})();",
+            null
+        );
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (pageLoaded) injectClipboardUrl();
+    }
+
     private void setupWebView() {
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
@@ -79,15 +138,25 @@ public class MainActivity extends AppCompatActivity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
                 String scheme = request.getUrl().getScheme();
+
+                if (url.contains("t.me/") || url.contains("telegram.me/")) {
+                    try {
+                        Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(i);
+                    } catch (Exception ignored) {}
+                    return true;
+                }
+
                 if (url.contains("play.google.com") || url.startsWith("market://")
                         || "whatsapp".equals(scheme) || "tg".equals(scheme)
                         || "instagram".equals(scheme) || "fb".equals(scheme)
                         || "twitter".equals(scheme) || "snapchat".equals(scheme)
                         || "intent".equals(scheme)) {
                     try {
-                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
+                        Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(i);
                     } catch (Exception e) {
                         view.loadUrl(url);
                     }
@@ -95,9 +164,17 @@ public class MainActivity extends AppCompatActivity {
                 }
                 return false;
             }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                pageLoaded = true;
+                injectClipboardUrl();
+            }
         });
 
-        webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
+        // اسم الـ bridge يطابق ما يتوقعه الموقع
+        webView.addJavascriptInterface(new AppBridge(), "AndroidClipboard");
 
         webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
@@ -335,6 +412,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private class AppBridge {
+
+        @JavascriptInterface
+        public String getClipboard() {
+            return getClipboardText();
+        }
+
         @JavascriptInterface
         public void openPlayStore() {
             runOnUiThread(() -> {
