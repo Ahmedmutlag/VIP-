@@ -231,6 +231,47 @@ def _redis_set(key: str, value) -> None:
     except Exception as e:
         log.warning("Redis SET %s: %s", key, e)
 
+def _redis_sadd(key: str, member: str) -> None:
+    if not _UPSTASH_URL:
+        return
+    try:
+        requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["SADD", key, member],
+            timeout=10,
+        )
+    except Exception as e:
+        log.warning("Redis SADD %s: %s", key, e)
+
+def _redis_sismember(key: str, member: str) -> bool:
+    if not _UPSTASH_URL:
+        return False
+    try:
+        r = requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["SISMEMBER", key, member],
+            timeout=10,
+        )
+        return bool(r.json().get("result", 0))
+    except Exception as e:
+        log.warning("Redis SISMEMBER %s: %s", key, e)
+        return False
+
+def _redis_srem(key: str, member: str) -> None:
+    if not _UPSTASH_URL:
+        return
+    try:
+        requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["SREM", key, member],
+            timeout=10,
+        )
+    except Exception as e:
+        log.warning("Redis SREM %s: %s", key, e)
+
 # ── Local file fallback ────────────────────────────────────────────────────────
 DATA_DIR = Path("bot_data")
 DATA_DIR.mkdir(exist_ok=True)
@@ -272,7 +313,20 @@ pending: dict[int, dict] = {}
 known_users: dict[int, dict] = {}   # uid -> {"name": str, "username": str|None}
 ad_verif_tokens: dict[str, int] = {}  # token -> chat_id (cleared once verified)
 active_downloads: set[int] = set()  # chat_ids with a download in progress
-app_sessions: set[int] = set()  # users who came from the app (one download allowed)
+_app_sessions_local: set[int] = set()  # fallback when Redis unavailable
+
+def _session_add(chat_id: int) -> None:
+    _app_sessions_local.add(chat_id)
+    _redis_sadd("app_sessions", str(chat_id))
+
+def _session_has(chat_id: int) -> bool:
+    if _redis_sismember("app_sessions", str(chat_id)):
+        return True
+    return chat_id in _app_sessions_local
+
+def _session_remove(chat_id: int) -> None:
+    _app_sessions_local.discard(chat_id)
+    _redis_srem("app_sessions", str(chat_id))
 
 _premium_raw    = _load("premium_users", _PREMIUM_FILE, {})
 premium_users: dict[int, str]  = {int(k): v for k, v in _premium_raw.items()}
@@ -434,7 +488,7 @@ def handle_start(chat_id: int, first_name: str, param: str = ""):
             if r.status_code == 200:
                 url = r.json().get("url", "")
                 if url and URL_PATTERN.search(url):
-                    app_sessions.add(chat_id)  # منح جلسة تحميل واحدة
+                    _session_add(chat_id)  # منح جلسة تحميل واحدة
                     send_message(chat_id, f"مرحباً {first_name}! 🎯\nجاري تحميل الفيديو تلقائياً...")
                     threading.Thread(target=handle_url, args=(chat_id, url, first_name), daemon=True).start()
                     return
@@ -1025,21 +1079,20 @@ def handle_url(chat_id: int, url: str, first_name: str):
         send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
         return
 
-    # التحقق من أن المستخدم جاء من التطبيق (أدمن وبريميوم معفيون)
-    if chat_id not in ADMIN_IDS and not is_premium(chat_id):
-        if chat_id not in app_sessions:
-            send_message(
-                chat_id,
-                "⛔ <b>يجب فتح التطبيق أولاً لتحميل الفيديو</b>\n\n"
-                "١. افتح التطبيق\n"
-                "٢. الصق رابط الفيديو\n"
-                "٣. اضغط «فتح البوت» — سيبدأ التحميل تلقائياً 🚀",
-                reply_markup={"inline_keyboard": [[
-                    {"text": "📲 فتح التطبيق", "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"}
-                ]]},
-            )
-            return
-        app_sessions.discard(chat_id)  # استهلاك الجلسة
+    # الجميع يجب أن يمر عبر التطبيق — بلا استثناء
+    if not _session_has(chat_id):
+        send_message(
+            chat_id,
+            "⛔ <b>يجب فتح التطبيق أولاً لتحميل الفيديو</b>\n\n"
+            "١. افتح التطبيق\n"
+            "٢. الصق رابط الفيديو\n"
+            "٣. اضغط «فتح البوت» — سيبدأ التحميل تلقائياً 🚀",
+            reply_markup={"inline_keyboard": [[
+                {"text": "📲 فتح التطبيق", "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"}
+            ]]},
+        )
+        return
+    _session_remove(chat_id)  # استهلاك الجلسة
     platform = detect_platform(url)
     pending[chat_id] = {"fmt_url": url, "title": "فيديو"}
     rem = _remaining_text(chat_id)
