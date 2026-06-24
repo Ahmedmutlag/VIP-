@@ -47,6 +47,7 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     // ─── AdMob IDs ────────────────────────────────────────────────────────────
+    private static final boolean ADS_ENABLED     = false; // غيّر إلى true لتفعيل الإعلانات
     private static final String APP_OPEN_AD_ID    = "ca-app-pub-9098461798177099/7874630902";
     private static final String INTERSTITIAL_AD_ID = "ca-app-pub-9098461798177099/7269905917";
 
@@ -95,15 +96,17 @@ public class MainActivity extends AppCompatActivity {
         requestNotificationPermission();
         NotificationReceiver.schedule(this);
 
-        loadAppOpenAd();
-        loadInterstitialAd();
+        if (ADS_ENABLED) {
+            loadAppOpenAd();
+            loadInterstitialAd();
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         if (pageLoaded) injectClipboardUrl();
-        if (!isShowingAd && appOpenAd != null && firstPageDone) {
+        if (ADS_ENABLED && !isShowingAd && appOpenAd != null && firstPageDone) {
             showAppOpenAd();
         }
     }
@@ -165,14 +168,12 @@ public class MainActivity extends AppCompatActivity {
                 injectClipboardUrl();
 
                 if (!firstPageDone) {
-                    // إعلان App Open عند أول تحميل
                     firstPageDone = true;
-                    if (appOpenAd != null) {
+                    if (ADS_ENABLED && appOpenAd != null) {
                         showAppOpenAd();
                     }
                 } else {
-                    // إعلان Interstitial عند كل تحميل لاحق
-                    if (interstitialAd != null && !isShowingAd) {
+                    if (ADS_ENABLED && interstitialAd != null && !isShowingAd) {
                         showInterstitialAd();
                     }
                 }
