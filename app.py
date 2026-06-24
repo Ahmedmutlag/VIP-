@@ -107,7 +107,7 @@ def is_locked(ip):
 
 def record_failed_login(ip):
     if ip not in login_attempts:
-        login_attempts[ip] = {"count": 0, "locked_until": None}
+        login_attempts[ip] = {"count": 0, "locked_until": None, "_ts": time.time()}
     login_attempts[ip]["count"] += 1
     if login_attempts[ip]["count"] >= 5:
         login_attempts[ip]["locked_until"] = now() + timedelta(minutes=15)
@@ -120,6 +120,7 @@ DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 progress_store = {}
+_codes_lock = threading.Lock()
 
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
 ADMIN_USER = os.environ.get("ADMIN_USER", "")
@@ -431,12 +432,37 @@ def detect_platform(url):
 
 
 # ===== Admin Auth =====
+def _is_safe_url(url: str) -> bool:
+    try:
+        import ipaddress
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        host = (parsed.hostname or "").lower()
+        if not host:
+            return False
+        if host in ("localhost", "metadata.google.internal", "169.254.169.254") or host.endswith(".local"):
+            return False
+        try:
+            addr = ipaddress.ip_address(host)
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+                return False
+        except ValueError:
+            pass
+        return True
+    except Exception:
+        return False
+
+
 def verify_password(stored, provided):
     if stored and stored.startswith(("pbkdf2:", "scrypt:")):
         return check_password_hash(stored, provided)
     return stored == provided
 
 def check_auth(username, password):
+    if not ADMIN_PASS:
+        return False
     return username == ADMIN_USER and verify_password(ADMIN_PASS, password)
 
 
@@ -453,13 +479,24 @@ def requires_auth(f):
 
 def clean_old_files():
     while True:
-        now = time.time()
+        ts = time.time()
         for f in DOWNLOAD_DIR.iterdir():
-            if f.is_file() and (now - f.stat().st_mtime) > 10800:  # 3 hours
+            if f.is_file() and (ts - f.stat().st_mtime) > 10800:  # 3 hours
                 try:
                     f.unlink()
                 except Exception:
                     pass
+        # evict stale progress entries (older than 3 hours)
+        stale = [k for k, v in list(progress_store.items())
+                 if v.get("_ts", ts) < ts - 10800]
+        for k in stale:
+            progress_store.pop(k, None)
+        # evict stale login_attempts (unlocked entries older than 1 hour)
+        cutoff = time.time() - 3600
+        stale_ips = [ip for ip, v in list(login_attempts.items())
+                     if not v.get("locked_until") and v.get("_ts", 0) < cutoff]
+        for ip in stale_ips:
+            login_attempts.pop(ip, None)
         time.sleep(300)
 
 
@@ -1171,6 +1208,7 @@ async function sendReset() {
 
 
 @app.route("/admin/api/send-reset", methods=["POST"])
+@limiter.limit("3 per hour")
 def send_reset():
     email = ((request.get_json() or {}).get("email", "")).strip().lower()
     if email != ADMIN_EMAIL.lower():
@@ -1444,21 +1482,22 @@ def redeem_code():
     if not code:
         return jsonify({"error": "أدخل الكود"}), 400
 
-    codes = load_codes()
-    if code not in codes:
-        return jsonify({"error": "الكود غير صحيح"}), 404
-    if codes[code]["used"]:
-        return jsonify({"error": "هذا الكود مستخدم مسبقاً"}), 409
+    with _codes_lock:
+        codes = load_codes()
+        if code not in codes:
+            return jsonify({"error": "الكود غير صحيح"}), 404
+        if codes[code]["used"]:
+            return jsonify({"error": "هذا الكود مستخدم مسبقاً"}), 409
 
-    days = codes[code].get("days", 30)
-    from datetime import timedelta
-    current_time = now()
-    expires_at = (current_time + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+        days = codes[code].get("days", 30)
+        from datetime import timedelta
+        current_time = now()
+        expires_at = (current_time + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
 
-    codes[code]["used"] = True
-    codes[code]["used_at"] = current_time.strftime("%Y-%m-%d %H:%M")
-    codes[code]["expires_at"] = expires_at
-    save_codes(codes)
+        codes[code]["used"] = True
+        codes[code]["used_at"] = current_time.strftime("%Y-%m-%d %H:%M")
+        codes[code]["expires_at"] = expires_at
+        save_codes(codes)
     return jsonify({
         "message": f"تم تفعيل الاشتراك المميز ✅ صالح لـ {days} يوم",
         "expires_at": expires_at,
@@ -1466,6 +1505,7 @@ def redeem_code():
 
 
 @app.route("/api/check-premium", methods=["POST"])
+@limiter.limit("10 per minute")
 def check_premium():
     code = ((request.get_json() or {}).get("code", "")).strip().upper()
     if not code:
@@ -1525,6 +1565,8 @@ def get_info():
 
     if not url:
         return jsonify({"error": "الرابط مطلوب"}), 400
+    if not _is_safe_url(url):
+        return jsonify({"error": "رابط غير مسموح"}), 400
 
     ydl_opts = {
         "quiet": True,
@@ -1666,9 +1708,12 @@ def start_download():
     if not url:
         return jsonify({"error": "الرابط مطلوب"}), 400
 
+    if not _is_safe_url(url):
+        return jsonify({"error": "رابط غير مسموح"}), 400
+
     task_id = str(uuid.uuid4())
     platform = detect_platform(url)
-    progress_store[task_id] = {"status": "starting", "percent": 0}
+    progress_store[task_id] = {"status": "starting", "percent": 0, "_ts": time.time()}
 
     def do_download():
         _start = time.time()
@@ -1749,7 +1794,8 @@ def serve_file(filename):
     if not filepath.exists():
         return jsonify({"error": "الملف غير موجود أو انتهت صلاحيته"}), 404
 
-    download_name = request.args.get("name", filename)
+    raw_name = request.args.get("name", filename)
+    download_name = re.sub(r'[\x00-\x1f\x7f/\\]', '', raw_name)[:200] or filename
     file_size = filepath.stat().st_size
     CHUNK = 512 * 1024  # 512 KB per chunk
 
@@ -1932,9 +1978,10 @@ def internal_error(e):
     return render_template("404.html", error_code=500), 500
 
 
-@app.route(f"/webhook/telegram/<token>", methods=["POST"])
-def telegram_webhook(token):
-    if token != os.environ.get("TELEGRAM_BOT_TOKEN", ""):
+@app.route("/webhook/telegram/<secret>", methods=["POST"])
+def telegram_webhook(secret):
+    expected = os.environ.get("WEBHOOK_SECRET") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not expected or secret != expected:
         return "Forbidden", 403
     try:
         from telegram_bot import process_update
@@ -1946,7 +1993,8 @@ def telegram_webhook(token):
 
 
 def _bot_auth():
-    return request.headers.get("X-Bot-Token", "") == os.environ.get("TELEGRAM_BOT_TOKEN", "NONE")
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    return bool(token) and request.headers.get("X-Bot-Token", "") == token
 
 
 @app.route("/bot-admin/stats")
@@ -2047,7 +2095,8 @@ def bot_admin_generate_code():
     data = request.get_json() or {}
     days = int(data.get("days", 30))
     import string
-    code = "VIP-" + "".join(__import__("random").choices(string.ascii_uppercase + string.digits, k=8))
+    alphabet = string.ascii_uppercase + string.digits
+    code = "VIP-" + "".join(secrets.choice(alphabet) for _ in range(8))
     codes = load_codes()
     codes[code] = {"used": False, "email": "bot-generated", "days": days, "created_at": now().strftime("%Y-%m-%d %H:%M"), "used_at": None, "expires_at": None}
     save_codes(codes)
@@ -2099,11 +2148,16 @@ def bot_admin_redeem_code():
     return jsonify({"days": days, "expires_at": expires})
 
 
+_ad_view_times: dict = {}  # token -> timestamp when /watch-ad was loaded
+
 @app.route("/adverify/<token>")
 @limiter.limit("10 per minute")
 def ad_verify(token):
-    """Called by /watch-ad page JS after countdown. Marks token as verified."""
+    """Called by /watch-ad page JS after countdown. Requires 15s to have elapsed server-side."""
     try:
+        view_time = _ad_view_times.pop(token, None)
+        if view_time is None or (time.time() - view_time) < 15:
+            return jsonify({"ok": False, "reason": "too_soon"}), 403
         from telegram_bot import ad_verif_tokens, pending
         chat_id = ad_verif_tokens.pop(token, None)
         if chat_id and chat_id in pending:
@@ -2226,6 +2280,7 @@ function verify() {
 @app.route("/watch-ad/<token>")
 def watch_ad(token):
     """Countdown page — button opens /go-ad (server redirect), 15s timer, then /adverify."""
+    _ad_view_times[token] = time.time()
     page = _WATCH_AD_PAGE.replace("{TOKEN}", token)
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
