@@ -1152,7 +1152,7 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str):
                 send_message(chat_id, f"⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{SITE_URL}")
 
             return_btn = {"inline_keyboard": [[
-                {"text": "↩️ العودة للتطبيق", "url": SITE_URL}
+                {"text": "⬇️ تحميل المزيد", "url": SITE_URL}
             ]]}
             send_message(chat_id, "✅ اكتمل التحميل!\n\nارجع للتطبيق لتحميل المزيد 👇", reply_markup=return_btn)
 
@@ -1182,7 +1182,7 @@ def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
         send_message(chat_id, "⚠️ انتهت الجلسة، أعد إرسال الرابط.")
         return
 
-    url = data["url"]
+    url = data["fmt_url"]
     cache_id = data.get("cache_id", "")
     title = data.get("title", "فيديو")
     pending.pop(chat_id, None)

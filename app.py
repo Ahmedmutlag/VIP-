@@ -46,7 +46,7 @@ _server_start = time.time()
 _last_activity = time.time()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "vip-secret-2026-xk9z")
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 CORS(app, origins=["https://www.vip-dl.com", "https://vip-dl.com"])
 Compress(app)
@@ -555,20 +555,17 @@ def create_bot_link():
     if not url or not url.startswith("http"):
         return jsonify({"error": "url required"}), 400
     token = secrets.token_hex(8)
-    _url_tokens[token] = url
-    def _expire():
-        time.sleep(1800)
-        _url_tokens.pop(token, None)
-    threading.Thread(target=_expire, daemon=True).start()
+    _url_tokens[token] = (url, time.time() + 1800)
     return jsonify({"token": token})
 
 
 @app.route("/api/url-token/<token>")
 def get_url_token(token):
-    url = _url_tokens.get(token)
-    if not url:
+    entry = _url_tokens.get(token)
+    if not entry or time.time() > entry[1]:
+        _url_tokens.pop(token, None)
         return jsonify({"error": "not found"}), 404
-    return jsonify({"url": url})
+    return jsonify({"url": entry[0]})
 
 
 @app.route("/app-ads.txt")
@@ -1096,7 +1093,7 @@ function go(){{
 function go(){{
   const p=document.getElementById('p').value;
   if(p.length<6){{alert('6 أحرف على الأقل');return;}}
-  window.location='/admin/emergency?secret={secret}&new_pass='+encodeURIComponent(p);
+  window.location='/admin/emergency?secret='+encodeURIComponent({json.dumps(secret)})+'&new_pass='+encodeURIComponent(p);
 }}
 </script>
 </div></body></html>""", mimetype="text/html")
@@ -1502,7 +1499,7 @@ def change_password():
     new_pass = (data or {}).get("new_pass", "")
     new_user = (data or {}).get("new_user", "").strip()
 
-    if current != ADMIN_PASS:
+    if not verify_password(ADMIN_PASS, current):
         return jsonify({"error": "كلمة السر الحالية غير صحيحة"}), 401
     if len(new_pass) < 6:
         return jsonify({"error": "كلمة السر الجديدة يجب أن تكون 6 أحرف على الأقل"}), 400
