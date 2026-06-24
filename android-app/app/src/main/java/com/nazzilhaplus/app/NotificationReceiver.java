@@ -68,12 +68,16 @@ public class NotificationReceiver extends BroadcastReceiver {
             cal.add(Calendar.DAY_OF_YEAR, 1);
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pi);
-        } else {
-            am.setRepeating(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(),
-                    AlarmManager.INTERVAL_DAY, pi);
-        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
+                am.set(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pi);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pi);
+            } else {
+                am.setRepeating(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(),
+                        AlarmManager.INTERVAL_DAY, pi);
+            }
+        } catch (Exception ignored) {}
     }
 
     static void createChannel(Context context) {
