@@ -705,7 +705,10 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
         return
 
     if action.startswith("gencode:"):
-        days = int(action.split(":")[1])
+        try:
+            days = max(1, min(int(action.split(":")[1]), 3650))
+        except (ValueError, IndexError):
+            days = 30
         data = admin_api(f"generate-code", "POST")
         # pass days via json
         try:
@@ -1359,7 +1362,8 @@ def handle_message(msg: dict):
         for uid in list(known_users.keys()):
             if uid == chat_id:
                 continue
-            res = send_message(uid, f"📢 <b>رسالة من الإدارة:</b>\n\n{text}")
+            import html as _html
+            res = send_message(uid, f"📢 <b>رسالة من الإدارة:</b>\n\n{_html.escape(text)}")
             if res.get("ok"):
                 sent += 1
             else:

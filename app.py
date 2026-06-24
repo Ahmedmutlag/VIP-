@@ -497,6 +497,14 @@ def clean_old_files():
                      if not v.get("locked_until") and v.get("_ts", 0) < cutoff]
         for ip in stale_ips:
             login_attempts.pop(ip, None)
+        # evict stale _ad_view_times (older than 60s — ad watch window)
+        ad_cutoff = time.time() - 60
+        for k in [k for k, v in list(_ad_view_times.items()) if v < ad_cutoff]:
+            _ad_view_times.pop(k, None)
+        # evict expired _url_tokens
+        for k, v in list(_url_tokens.items()):
+            if isinstance(v, tuple) and time.time() > v[1]:
+                _url_tokens.pop(k, None)
         time.sleep(300)
 
 
@@ -1162,6 +1170,7 @@ def send_reset_email(token):
 
 
 @app.route("/admin/forgot")
+@limiter.limit("10 per hour")
 def admin_forgot():
     return Response("""<!DOCTYPE html><html lang="ar" dir="rtl">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1229,6 +1238,7 @@ def send_reset():
 
 
 @app.route("/admin/reset")
+@limiter.limit("10 per hour")
 def admin_reset_page():
     token = request.args.get("token", "")
     valid = token in reset_tokens and now() < reset_tokens[token]["expires"]
@@ -1280,6 +1290,7 @@ a{{color:#8888aa;font-size:.85rem;display:block;text-align:center;margin-top:1re
 
 
 @app.route("/admin/api/do-reset", methods=["POST"])
+@limiter.limit("5 per hour")
 def do_reset():
     global ADMIN_PASS
     data = request.get_json() or {}
@@ -1357,7 +1368,10 @@ def generate_code():
     import secrets
     data = request.get_json() or {}
     email = data.get("email", data.get("note", "")).strip()[:100]
-    days = int(data.get("days", 30))
+    try:
+        days = max(1, min(int(data.get("days", 30)), 3650))
+    except (ValueError, TypeError):
+        return jsonify({"error": "قيمة days غير صالحة"}), 400
 
     raw = secrets.token_hex(4).upper()
     code = f"VIP-{raw[:4]}-{raw[4:]}"
@@ -1417,7 +1431,10 @@ def list_codes():
 def extend_code():
     data = request.get_json() or {}
     code = data.get("code", "").strip()
-    days = int(data.get("days", 30))
+    try:
+        days = max(1, min(int(data.get("days", 30)), 3650))
+    except (ValueError, TypeError):
+        return jsonify({"error": "قيمة days غير صالحة"}), 400
     codes = load_codes()
     if code not in codes:
         return jsonify({"error": "الكود غير موجود"}), 404
@@ -1809,6 +1826,8 @@ def serve_file(filename):
             byte_start = int(range_header.replace("bytes=", "").split("-")[0])
         except Exception:
             byte_start = 0
+        if byte_start < 0 or byte_start >= file_size:
+            return Response("Range Not Satisfiable", status=416)
     else:
         byte_start = 0
 
@@ -1849,7 +1868,10 @@ def serve_file(filename):
 @app.route("/admin/api/download-trend")
 @requires_auth
 def admin_download_trend():
-    days = int(request.args.get("days", 7))
+    try:
+        days = max(1, min(int(request.args.get("days", 7)), 365))
+    except (ValueError, TypeError):
+        days = 7
     daily = load_daily_stats()
     result = []
     for i in range(days - 1, -1, -1):
@@ -1920,6 +1942,8 @@ def admin_test_url():
     url = (request.get_json() or {}).get("url", "").strip()
     if not url:
         return jsonify({"error": "أدخل رابطاً"}), 400
+    if not _is_safe_url(url):
+        return jsonify({"error": "رابط غير مسموح"}), 400
     try:
         with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "noplaylist": True}) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -2093,7 +2117,10 @@ def bot_admin_generate_code():
     if not _bot_auth():
         return jsonify({"error": "unauthorized"}), 403
     data = request.get_json() or {}
-    days = int(data.get("days", 30))
+    try:
+        days = max(1, min(int(data.get("days", 30)), 3650))
+    except (ValueError, TypeError):
+        days = 30
     import string
     alphabet = string.ascii_uppercase + string.digits
     code = "VIP-" + "".join(secrets.choice(alphabet) for _ in range(8))
@@ -2131,20 +2158,21 @@ def bot_admin_redeem_code():
     chat_id = data.get("chat_id")
     if not code:
         return jsonify({"error": "الكود مطلوب"}), 400
-    codes = load_codes()
-    if code not in codes:
-        return jsonify({"error": "الكود غير صحيح"}), 404
-    entry = codes[code]
-    if entry.get("used"):
-        return jsonify({"error": "الكود مستخدم مسبقاً"}), 400
-    days = entry.get("days", 30)
-    from datetime import datetime as dt, timedelta
-    expires = (dt.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
-    entry["used"] = True
-    entry["used_at"] = now().strftime("%Y-%m-%d %H:%M")
-    entry["expires_at"] = expires
-    entry["email"] = f"bot:{chat_id}"
-    save_codes(codes)
+    with _codes_lock:
+        codes = load_codes()
+        if code not in codes:
+            return jsonify({"error": "الكود غير صحيح"}), 404
+        entry = codes[code]
+        if entry.get("used"):
+            return jsonify({"error": "الكود مستخدم مسبقاً"}), 400
+        days = entry.get("days", 30)
+        from datetime import datetime as dt, timedelta
+        expires = (dt.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+        entry["used"] = True
+        entry["used_at"] = now().strftime("%Y-%m-%d %H:%M")
+        entry["expires_at"] = expires
+        entry["email"] = f"bot:{chat_id}"
+        save_codes(codes)
     return jsonify({"days": days, "expires_at": expires})
 
 
@@ -2278,10 +2306,12 @@ function verify() {
 
 
 @app.route("/watch-ad/<token>")
+@limiter.limit("20 per minute")
 def watch_ad(token):
     """Countdown page — button opens /go-ad (server redirect), 15s timer, then /adverify."""
+    import html as _html
     _ad_view_times[token] = time.time()
-    page = _WATCH_AD_PAGE.replace("{TOKEN}", token)
+    page = _WATCH_AD_PAGE.replace("{TOKEN}", _html.escape(token))
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
