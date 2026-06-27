@@ -8,6 +8,7 @@ import time
 import json
 import logging
 import secrets
+import hashlib
 import threading
 import requests
 from pathlib import Path
@@ -318,6 +319,46 @@ known_users: dict[int, dict] = {}   # uid -> {"name": str, "username": str|None}
 ad_verif_tokens: dict[str, int] = {}  # token -> chat_id (cleared once verified)
 active_downloads: set[int] = set()  # chat_ids with a download in progress
 _app_sessions_local: set[int] = set()  # fallback when Redis unavailable
+
+# ── Media cache: url+format → Telegram file_id ────────────────────────────────
+_media_cache: dict[str, dict] = {}
+
+def _cache_key(url: str, format_id: str) -> str:
+    return hashlib.md5(f"{url}|{format_id}".encode()).hexdigest()
+
+def _cache_get(url: str, format_id: str) -> dict | None:
+    key = _cache_key(url, format_id)
+    entry = _media_cache.get(key)
+    if entry:
+        return entry
+    entry = _redis_get(f"mc:{key}")
+    if entry:
+        _media_cache[key] = entry
+        return entry
+    return None
+
+def _cache_set(url: str, format_id: str, file_id: str, file_type: str, title: str) -> None:
+    key = _cache_key(url, format_id)
+    entry = {"file_id": file_id, "file_type": file_type, "title": title}
+    _media_cache[key] = entry
+    _redis_set(f"mc:{key}", entry)
+
+def _send_cached(chat_id: int, entry: dict) -> bool:
+    """Send a file by Telegram file_id (instant, no re-download)."""
+    file_id = entry["file_id"]
+    file_type = entry.get("file_type", "video")
+    title = entry.get("title", "فيديو")
+    caption = f"⚡ <b>{title[:80]}</b>\n\n🤖 @nazzilhaplus_bot | 🌐 {SITE_URL}"
+    try:
+        if file_type == "audio":
+            r = _post("sendAudio", json={"chat_id": chat_id, "audio": file_id, "caption": caption, "parse_mode": "HTML"})
+        elif file_type == "document":
+            r = _post("sendDocument", json={"chat_id": chat_id, "document": file_id, "caption": caption, "parse_mode": "HTML"})
+        else:
+            r = _post("sendVideo", json={"chat_id": chat_id, "video": file_id, "caption": caption, "parse_mode": "HTML"})
+        return bool(r.get("ok"))
+    except Exception:
+        return False
 
 def _session_add(chat_id: int) -> None:
     _app_sessions_local.add(chat_id)
@@ -1036,6 +1077,19 @@ def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[he
     if chat_id in active_downloads:
         send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
         return
+
+    # Check cache first — instant delivery
+    cached = _cache_get(url, format_id)
+    if cached:
+        send_message(chat_id, "⚡ تم العثور على الفيديو في الكاش، جاري الإرسال...")
+        if _send_cached(chat_id, cached):
+            return_btn = {"inline_keyboard": [[
+                {"text": "📲 العودة للتطبيق", "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"}
+            ]]}
+            send_message(chat_id, "✅ اكتمل التحميل!\n\nارجع للتطبيق لتحميل المزيد 👇", reply_markup=return_btn)
+            _add_to_history(chat_id, url, cached.get("title", "فيديو"), detect_platform(url))
+            return
+
     active_downloads.add(chat_id)
     try:
         platform = detect_platform(url)
@@ -1050,7 +1104,7 @@ def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[he
         if not task_id:
             send_message(chat_id, "❌ فشل بدء التحميل.")
             return
-        _finish_download(chat_id, task_id, url, title)
+        _finish_download(chat_id, task_id, url, title, format_id)
     finally:
         active_downloads.discard(chat_id)
 
@@ -1114,7 +1168,7 @@ def handle_url(chat_id: int, url: str, first_name: str):
     )
 
 
-def _finish_download(chat_id: int, task_id: str, url: str, title: str):
+def _finish_download(chat_id: int, task_id: str, url: str, title: str, format_id: str = ""):
     deadline = time.time() + 300
     last_percent = -1
     progress_msg_id = None
@@ -1149,11 +1203,23 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str):
 
             try:
                 if ext in (".mp3", ".m4a", ".ogg", ".wav"):
-                    send_audio(chat_id, str(file_path), caption_text)
+                    res = send_audio(chat_id, str(file_path), caption_text)
+                    if format_id and res.get("ok"):
+                        fid = (res.get("result") or {}).get("audio", {}).get("file_id", "")
+                        if fid:
+                            _cache_set(url, format_id, fid, "audio", display_name)
                 elif file_size_mb <= 50:
-                    send_video(chat_id, str(file_path), caption_text)
+                    res = send_video(chat_id, str(file_path), caption_text)
+                    if format_id and res.get("ok"):
+                        fid = (res.get("result") or {}).get("video", {}).get("file_id", "")
+                        if fid:
+                            _cache_set(url, format_id, fid, "video", display_name)
                 else:
-                    send_document(chat_id, str(file_path), caption_text)
+                    res = send_document(chat_id, str(file_path), caption_text)
+                    if format_id and res.get("ok"):
+                        fid = (res.get("result") or {}).get("document", {}).get("file_id", "")
+                        if fid:
+                            _cache_set(url, format_id, fid, "document", display_name)
             except Exception as e:
                 log.error("Failed to send file: %s", e)
                 send_message(chat_id, f"⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{SITE_URL}")
@@ -1209,7 +1275,7 @@ def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
         send_message(chat_id, "❌ فشل بدء التحميل.")
         return
 
-    _finish_download(chat_id, task_id, url, title)
+    _finish_download(chat_id, task_id, url, title, format_id)
 
 
 def handle_history(chat_id: int):
