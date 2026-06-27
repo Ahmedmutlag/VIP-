@@ -539,7 +539,6 @@ def handle_start(chat_id: int, first_name: str, param: str = ""):
             if r.status_code == 200:
                 url = r.json().get("url", "")
                 if url and URL_PATTERN.search(url):
-                    _session_add(chat_id)  # منح جلسة تحميل واحدة
                     send_message(chat_id, f"مرحباً {first_name}! 🎯\nجاري تحميل الفيديو تلقائياً...")
                     threading.Thread(target=handle_url, args=(chat_id, url, first_name), daemon=True).start()
                     return
@@ -1150,21 +1149,19 @@ def handle_url(chat_id: int, url: str, first_name: str, user_id: int = 0):
         send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
         return
 
-    # البريميوم معفى (دفع مسبق) — الباقي يجب المرور بالتطبيق
-    if not is_premium(user_id) and not _session_has(user_id):
+    # Check daily limit for free users
+    if not is_premium(user_id) and not check_download_limit(user_id):
+        pending[user_id] = {"ad_pending_url": url}
         send_message(
             chat_id,
-            "⛔ <b>يجب فتح التطبيق أولاً لتحميل الفيديو</b>\n\n"
-            "١. افتح التطبيق\n"
-            "٢. الصق رابط الفيديو\n"
-            "٣. اضغط «فتح البوت» — سيبدأ التحميل تلقائياً 🚀",
-            reply_markup={"inline_keyboard": [[
-                {"text": "📲 فتح التطبيق", "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"}
-            ]]},
+            f"⛔ <b>وصلت للحد اليومي المجاني ({_daily_limit[0]} تحميلات)</b>\n\nاختر طريقة للمتابعة:",
+            reply_markup={"inline_keyboard": [
+                [{"text": "📺 شاهد إعلان وحمّل مجاناً", "callback_data": "adwatch:start"}],
+                [{"text": "💎 اشترك بالبريميوم", "callback_data": "sub:menu"}],
+            ]}
         )
         return
-    if not is_premium(user_id):
-        _session_remove(user_id)
+
     platform = detect_platform(url)
     pending[user_id] = {"fmt_url": url, "title": "فيديو", "reply_chat": chat_id}
     rem = _remaining_text(user_id)
