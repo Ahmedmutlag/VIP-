@@ -1143,7 +1143,8 @@ def admin_logout():
 def test_rapidapi():
     url = request.args.get("url", "https://www.tiktok.com/@tiktok/video/7106594312292453675")
     result = _call_rapidapi(url)
-    return jsonify({"key_set": bool(RAPIDAPI_KEY), "response": result})
+    text = json.dumps({"key_set": bool(RAPIDAPI_KEY), "response": result}, ensure_ascii=False, indent=2)
+    return Response(f"<pre style='word-wrap:break-word;white-space:pre-wrap;font-size:12px'>{text}</pre>", mimetype="text/html")
 
 
 @app.route("/admin/emergency")
