@@ -125,15 +125,19 @@ def site_info(url: str) -> dict:
 
 
 def site_download(url: str, format_id: str, cache_id: str = "") -> dict:
-    try:
-        r = requests.post(
-            f"{SITE_URL}/api/download",
-            json={"url": url, "format_id": format_id, "cache_id": cache_id},
-            timeout=15,
-        )
-        return r.json()
-    except Exception as e:
-        return {"error": str(e)}
+    for attempt in range(2):
+        try:
+            r = requests.post(
+                f"{SITE_URL}/api/download",
+                json={"url": url, "format_id": format_id, "cache_id": cache_id},
+                timeout=60,
+            )
+            return r.json()
+        except Exception as e:
+            if attempt == 1:
+                return {"error": str(e)}
+            time.sleep(3)
+    return {"error": "فشل الاتصال بالسيرفر"}
 
 
 def site_progress(task_id: str) -> dict:
@@ -1190,9 +1194,12 @@ def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
     title = data.get("title", "فيديو")
     pending.pop(chat_id, None)
 
-    send_message(chat_id, "⬇️ جاري التحميل، انتظر قليلاً...")
+    msg_res = send_message(chat_id, "⏳ جاري التحضير...")
+    status_msg_id = (msg_res.get("result") or {}).get("message_id")
 
     result = site_download(url, format_id, cache_id)
+    if status_msg_id:
+        _post("deleteMessage", json={"chat_id": chat_id, "message_id": status_msg_id})
     if "error" in result:
         send_message(chat_id, f"❌ <b>خطأ:</b> {result['error']}")
         return
