@@ -1139,6 +1139,13 @@ def admin_logout():
     return redirect("/admin/login")
 
 
+@app.route("/admin/test-rapidapi")
+def test_rapidapi():
+    url = request.args.get("url", "https://www.tiktok.com/@tiktok/video/7106594312292453675")
+    result = _call_rapidapi(url)
+    return jsonify({"key_set": bool(RAPIDAPI_KEY), "response": result})
+
+
 @app.route("/admin/emergency")
 @limiter.limit("5 per hour")
 def admin_emergency():
