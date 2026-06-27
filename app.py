@@ -27,6 +27,42 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 import yt_dlp
 
+# ===== RapidAPI — Auto Download All In One =====
+RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
+RAPIDAPI_HOST = "auto-download-all-in-one.p.rapidapi.com"
+RAPIDAPI_URL  = f"https://{RAPIDAPI_HOST}/v1/social/autolink"
+
+def _call_rapidapi(url: str) -> dict:
+    if not RAPIDAPI_KEY:
+        return {"error": "no_key"}
+    try:
+        import requests as _req
+        resp = _req.post(
+            RAPIDAPI_URL,
+            headers={
+                "Content-Type": "application/json",
+                "x-rapidapi-host": RAPIDAPI_HOST,
+                "x-rapidapi-key": RAPIDAPI_KEY,
+            },
+            json={"url": url},
+            timeout=30,
+        )
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def _rapidapi_pick_url(api_urls: list, prefer_audio: bool = False) -> str:
+    if not api_urls:
+        return ""
+    if prefer_audio:
+        for u in api_urls:
+            if u.get("ext", "") in ("mp3", "m4a", "aac"):
+                return u.get("url", "")
+    for u in api_urls:
+        if u.get("ext", "") == "mp4":
+            return u.get("url", "")
+    return api_urls[0].get("url", "")
+
 
 # ===== Auto-update yt-dlp =====
 def auto_update_ytdlp():
@@ -1612,6 +1648,36 @@ def get_info():
     if not _is_safe_url(url):
         return jsonify({"error": "رابط غير مسموح"}), 400
 
+    # Try RapidAPI first
+    if RAPIDAPI_KEY:
+        api_data = _call_rapidapi(url)
+        api_urls = api_data.get("url", [])
+        if api_urls and "error" not in api_data:
+            meta = api_data.get("meta", {})
+            formats = []
+            for i, u in enumerate(api_urls):
+                if not isinstance(u, dict) or not u.get("url"):
+                    continue
+                ext = u.get("ext", "mp4")
+                name = u.get("name", f"جودة {i+1}")
+                ftype = "audio" if ext in ("mp3", "m4a", "aac") else "video"
+                formats.append({
+                    "format_id": f"rapidapi_{i}",
+                    "label": name,
+                    "ext": ext,
+                    "type": ftype,
+                    "filesize": u.get("size"),
+                })
+            if formats:
+                return jsonify({
+                    "title": meta.get("title", "فيديو"),
+                    "thumbnail": meta.get("thumbnail"),
+                    "duration": meta.get("duration"),
+                    "uploader": meta.get("source", ""),
+                    "platform": meta.get("source", ""),
+                    "formats": formats,
+                })
+
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -1760,7 +1826,58 @@ def start_download():
     progress_store[task_id] = {"status": "starting", "percent": 0, "_ts": time.time()}
 
     def do_download():
+        import requests as _req
         _start = time.time()
+
+        # ── RapidAPI path ──────────────────────────────────────────────────────
+        use_rapidapi = RAPIDAPI_KEY and (
+            format_id.startswith("rapidapi_") or
+            not format_id.startswith("bestvideo") and not format_id.startswith("best[")
+        )
+        if RAPIDAPI_KEY:
+            prefer_audio = "audio" in format_id or "bestaudio" in format_id
+            api_data = _call_rapidapi(url)
+            api_urls = api_data.get("url", [])
+            if api_urls and "error" not in api_data:
+                meta = api_data.get("meta", {})
+                safe_title = re.sub(r'[\\/*?:"<>|]', "", meta.get("title", "video"))[:60]
+                # pick the right URL
+                if format_id.startswith("rapidapi_"):
+                    idx = int(format_id.split("_")[1])
+                    direct_url = api_urls[idx].get("url", "") if idx < len(api_urls) else ""
+                    ext = "." + (api_urls[idx].get("ext", "mp4") if idx < len(api_urls) else "mp4")
+                else:
+                    direct_url = _rapidapi_pick_url(api_urls, prefer_audio=prefer_audio)
+                    ext = ".mp3" if prefer_audio else ".mp4"
+                if direct_url:
+                    try:
+                        progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
+                        out_path = DOWNLOAD_DIR / f"{task_id}{ext}"
+                        with _req.get(direct_url, stream=True, timeout=120) as r:
+                            r.raise_for_status()
+                            total = int(r.headers.get("content-length", 0))
+                            downloaded = 0
+                            with open(out_path, "wb") as f:
+                                for chunk in r.iter_content(chunk_size=65536):
+                                    if chunk:
+                                        f.write(chunk)
+                                        downloaded += len(chunk)
+                                        if total:
+                                            pct = int(downloaded * 100 / total)
+                                            progress_store[task_id] = {"status": "downloading", "percent": pct, "_ts": time.time()}
+                        progress_store[task_id] = {
+                            "status": "done", "percent": 100,
+                            "file": task_id + ext,
+                            "filename": safe_title + ext,
+                        }
+                        record_download(platform, True, duration=time.time() - _start)
+                        return
+                    except Exception as e:
+                        progress_store[task_id] = {"status": "error", "error": str(e)[:200]}
+                        record_download(platform, False, str(e)[:200], duration=time.time() - _start)
+                        return
+
+        # ── yt-dlp fallback ────────────────────────────────────────────────────
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
         needs_merge = "+" in format_id
         ydl_opts = {
@@ -1787,7 +1904,6 @@ def start_download():
                 "preferredquality": "320",
             }]
 
-        # Instagram requires cookies for public and private content
         if "instagram.com" in url.lower():
             cookies_file = get_cookies_file()
             if cookies_file:
