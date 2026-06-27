@@ -817,50 +817,48 @@ def handle_help(chat_id: int, uid: int = 0):
     send_message(chat_id, t(uid, "help"))
 
 
-def handle_stats(chat_id: int):
+def handle_stats(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
     data = site_stats()
     if "error" in data:
-        send_message(chat_id, "⚠️ تعذّر جلب الإحصائيات، حاول لاحقاً.")
+        send_message(chat_id, t(uid, "stats_error"))
         return
 
     platforms = data.get("platform_counts", {})
     platform_lines = "\n".join(
         f"  • {k}: <b>{v:,}</b>" for k, v in platforms.items() if v > 0
-    ) or "  لا يوجد بيانات"
+    ) or "  —"
 
     text = (
-        "📊 <b>إحصائيات VIP-DL</b>\n\n"
-        f"⬇️ إجمالي التحميلات: <b>{data.get('total_downloads', 0):,}</b>\n"
-        f"📅 تحميلات اليوم: <b>{data.get('today_downloads', 0):,}</b>\n"
-        f"❌ فاشلة: <b>{data.get('failed_downloads', 0):,}</b>\n\n"
-        f"📱 حسب المنصة:\n{platform_lines}\n\n"
-        f"🌐 <a href='{SITE_URL}'>زيارة الموقع</a>"
+        "📊 <b>VIP-DL</b>\n\n"
+        f"⬇️ {data.get('total_downloads', 0):,}\n"
+        f"📅 {data.get('today_downloads', 0):,}\n"
+        f"❌ {data.get('failed_downloads', 0):,}\n\n"
+        f"📱\n{platform_lines}\n\n"
+        f"🌐 <a href='{SITE_URL}'>vip-dl.com</a>"
     )
     send_message(chat_id, text, disable_web_page_preview=True)
 
 
-def handle_site(chat_id: int):
-    send_message(chat_id, f"🌐 موقع VIP-DL:\n{SITE_URL}")
+def handle_site(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    send_message(chat_id, t(uid, "site_url_msg", site=SITE_URL))
 
 
-def handle_platforms(chat_id: int):
-    text = (
-        "📱 <b>المنصات المدعومة:</b>\n\n"
-        "🎵 TikTok\n"
-        "📸 Instagram\n"
-        "📘 Facebook\n"
-        "🐦 Twitter / X\n"
-        "📌 Pinterest\n"
-        "➕ والمئات من المواقع الأخرى!\n\n"
-        "فقط أرسل الرابط وأنا أتولى الباقي 😉"
-    )
-    send_message(chat_id, text)
+def handle_platforms(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    send_message(chat_id, t(uid, "platforms_list"))
 
 
-def handle_top(chat_id: int):
+def handle_top(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
     data = site_stats()
     if "error" in data:
-        send_message(chat_id, "⚠️ تعذّر جلب البيانات، حاول لاحقاً.")
+        send_message(chat_id, t(uid, "data_error"))
         return
 
     platforms = data.get("platform_counts", {})
@@ -868,14 +866,15 @@ def handle_top(chat_id: int):
 
     lines = []
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    suffix = t(uid, "top_downloads")
     for i, (name, count) in enumerate(sorted_p[:5]):
         if count > 0:
-            lines.append(f"{medals[i]} {name}: <b>{count:,}</b> تحميل")
+            lines.append(f"{medals[i]} {name}: <b>{count:,}</b> {suffix}")
 
     text = (
-        "🔥 <b>الأكثر تحميلاً</b>\n\n"
-        + ("\n".join(lines) or "لا يوجد بيانات بعد")
-        + f"\n\n📊 الإجمالي: <b>{data.get('total_downloads', 0):,}</b>"
+        "🔥 <b>" + ("الأكثر تحميلاً" if _get_lang(uid) == "ar" else "Most Downloaded") + "</b>\n\n"
+        + ("\n".join(lines) or t(uid, "top_empty"))
+        + f"\n\n📊 <b>{data.get('total_downloads', 0):,}</b>"
     )
     send_message(chat_id, text)
 
@@ -1084,34 +1083,30 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
         return
 
 
-def handle_download_menu(chat_id: int):
+def handle_download_menu(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
     _post("sendMessage", json={
         "chat_id": chat_id,
-        "text": "🎬 <b>اختر المنصة التي تريد التحميل منها:</b>",
+        "text": t(uid, "choose_platform"),
         "parse_mode": "HTML",
         "reply_markup": PLATFORMS_KEYBOARD,
     })
 
 
-def handle_platform_selected(chat_id: int, callback_query_id: str, platform: str):
-    answer_callback(callback_query_id, "✅ تم الاختيار")
-    label = PLATFORM_LABELS.get(platform, "🌐 منصة أخرى")
+def handle_platform_selected(chat_id: int, callback_query_id: str, platform: str, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    answer_callback(callback_query_id, "✅")
+    label = PLATFORM_LABELS.get(platform, t(uid, "platform_other_label"))
     pending[chat_id] = {"waiting_url": True, "platform": platform}
-    send_message(chat_id, f"👍 اخترت <b>{label}</b>\n\nأرسل الرابط الآن 👇")
+    send_message(chat_id, t(uid, "platform_chosen", label=label))
 
 
-def handle_share(chat_id: int):
-    text = (
-        "📣 <b>شارك بوت نزلها بلس مع أصدقائك!</b>\n\n"
-        "🔗 رابط البوت:\n"
-        "https://t.me/nazzilhaplus_bot\n\n"
-        "انسخ الرسالة أدناه وأرسلها لأصدقائك 👇\n\n"
-        "┄┄┄┄┄┄┄┄┄┄┄┄\n"
-        "🎬 جرّب بوت <b>نزلها بلس</b>!\n"
-        "نزّل أي فيديو من تيك توك، إنستغرام، فيسبوك وأكثر — مجاناً وبدون تسجيل ✨\n"
-        "👉 https://t.me/nazzilhaplus_bot"
-    )
-    send_message(chat_id, text, disable_web_page_preview=True)
+def handle_share(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    send_message(chat_id, t(uid, "share_msg"), disable_web_page_preview=True)
 
 
 SUBSCRIBE_PLANS = [
@@ -1139,15 +1134,10 @@ def send_invoice(chat_id: int, days: int, stars: int, label: str):
     })
 
 
-def handle_subscribe_menu(chat_id: int):
-    send_message(
-        chat_id,
-        "💎 <b>ترقية للبريميوم</b>\n\n"
-        "اختر الباقة المناسبة:\n\n"
-        "⭐ الدفع عبر Telegram Stars (مدمج داخل التطبيق)\n"
-        "✅ تفعيل فوري بعد الدفع",
-        reply_markup=SUBSCRIBE_KEYBOARD,
-    )
+def handle_subscribe_menu(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    send_message(chat_id, t(uid, "subscribe_menu"), reply_markup=SUBSCRIBE_KEYBOARD)
 
 
 def handle_subscribe_callback(chat_id: int, cq_id: str, plan: str):
@@ -1240,14 +1230,7 @@ def handle_successful_payment(chat_id: int, payment: dict):
     premium_users[chat_id] = expires
     _save_premium()
     stars = payment.get("total_amount", 0)
-    send_message(
-        chat_id,
-        f"🎉 <b>تم الدفع بنجاح!</b>\n\n"
-        f"⭐ دفعت: <b>{stars} Stars</b>\n"
-        f"💎 الباقة: <b>{days} يوم</b>\n"
-        f"📅 تنتهي في: <b>{expires}</b>\n\n"
-        "استمتع بتحميلات غير محدودة! 🚀"
-    )
+    send_message(chat_id, t(chat_id, "payment_success", stars=stars, days=days, expires=expires))
     notify_admins(
         f"💰 <b>اشتراك جديد!</b>\n"
         f"👤 Chat ID: <code>{chat_id}</code>\n"
@@ -1255,9 +1238,11 @@ def handle_successful_payment(chat_id: int, payment: dict):
     )
 
 
-def handle_redeem(chat_id: int, code: str):
+def handle_redeem(chat_id: int, code: str, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
     if not code:
-        send_message(chat_id, "💎 أرسل الكود هكذا:\n/redeem XXXX-XXXXXXXX")
+        send_message(chat_id, t(uid, "redeem_prompt"))
         return
     result = redeem_code(chat_id, code)
     if "error" in result:
@@ -1267,38 +1252,28 @@ def handle_redeem(chat_id: int, code: str):
     expires = result.get("expires_at", "")
     premium_users[chat_id] = expires
     _save_premium()
-    send_message(
-        chat_id,
-        f"🎉 <b>تم تفعيل البريميوم!</b>\n\n"
-        f"💎 مدة الاشتراك: <b>{days} يوم</b>\n"
-        f"📅 ينتهي في: <b>{expires}</b>\n\n"
-        "استمتع بتحميلات غير محدودة! 🚀"
-    )
+    send_message(chat_id, t(uid, "premium_activated", days=days, expires=expires))
 
 
-def handle_status(chat_id: int):
+def handle_status(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
     import datetime
     if chat_id in ADMIN_IDS:
-        send_message(chat_id, "👑 <b>أدمن</b> — وصول غير محدود")
+        send_message(chat_id, t(uid, "status_admin"))
         return
     if is_premium(chat_id):
         exp = premium_users.get(chat_id, "")
         if exp == "lifetime":
-            send_message(chat_id, "💎 <b>بريميوم مدى الحياة</b> ✅")
+            send_message(chat_id, t(uid, "status_premium_lifetime"))
         else:
-            send_message(chat_id, f"💎 <b>بريميوم نشط</b>\n📅 ينتهي: <b>{exp}</b>")
+            send_message(chat_id, t(uid, "status_premium", exp=exp))
     else:
         today = datetime.date.today().isoformat()
         data = user_downloads.get(chat_id, {})
         used = data.get("count", 0) if data.get("date") == today else 0
         remaining = max(0, _daily_limit[0] - used)
-        send_message(
-            chat_id,
-            f"🆓 <b>حساب مجاني</b>\n\n"
-            f"⬇️ تحميلاتك اليوم: <b>{used}/{_daily_limit[0]}</b>\n"
-            f"✅ متبقي: <b>{remaining}</b>\n\n"
-            "للترقية: /redeem + كود البريميوم"
-        )
+        send_message(chat_id, t(uid, "status_free", used=used, limit=_daily_limit[0], remaining=remaining))
 
 
 def _progress_bar(percent: int) -> str:
@@ -1307,63 +1282,70 @@ def _progress_bar(percent: int) -> str:
     return f"[{bar}] {percent}%"
 
 
-def _remaining_text(chat_id: int) -> str:
+def _remaining_text(user_id: int) -> str:
     """Returns daily counter line for free users, empty for premium/admin."""
-    if chat_id in ADMIN_IDS or is_premium(chat_id):
+    if user_id in ADMIN_IDS or is_premium(user_id):
         return ""
     import datetime
     today = datetime.date.today().isoformat()
-    data = user_downloads.get(chat_id, {})
+    data = user_downloads.get(user_id, {})
     used = data.get("count", 0) if data.get("date") == today else 0
     remaining = max(0, _daily_limit[0] - used)
-    return f"\n\n📊 تحميلاتك اليوم: <b>{used}/{_daily_limit[0]}</b> | متبقي: <b>{remaining}</b>"
+    return t(user_id, "remaining_text", used=used, limit=_daily_limit[0], remaining=remaining)
 
 
-def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[height<=720]/best", title: str = "فيديو"):
+def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[height<=720]/best", title: str = "video", uid: int = 0):
     """Start download without checking the daily limit."""
+    if uid == 0:
+        uid = chat_id
     if chat_id in active_downloads:
-        send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
+        send_message(chat_id, t(uid, "already_downloading"))
         return
 
     # Check cache first — instant delivery
     cached = _cache_get(url, format_id)
     if cached:
-        send_message(chat_id, "⚡ تم العثور على الفيديو في الكاش، جاري الإرسال...")
+        send_message(chat_id, t(uid, "cache_hit"))
         if _send_cached(chat_id, cached):
-            send_message(chat_id, "✅ اكتمل التحميل! أرسل رابطاً آخر لتحميل المزيد 🚀")
-            _add_to_history(chat_id, url, cached.get("title", "فيديو"), detect_platform(url))
+            send_message(chat_id, t(uid, "download_complete"))
+            _add_to_history(chat_id, url, cached.get("title", "video"), detect_platform(url))
             return
 
     active_downloads.add(chat_id)
     try:
         platform = detect_platform(url)
         is_audio = "bestaudio" in format_id
-        label = "🎵 الصوت" if is_audio else f"من <b>{platform}</b>"
-        send_message(chat_id, f"⬇️ جاري التحميل {label}...")
+        if is_audio:
+            send_message(chat_id, t(uid, "downloading_audio"))
+        else:
+            send_message(chat_id, t(uid, "downloading_from", platform=platform))
         result = site_download(url, format_id)
         if "error" in result:
-            send_message(chat_id, f"❌ <b>خطأ:</b> {result['error']}")
+            send_message(chat_id, f"❌ {result['error']}")
             return
         task_id = result.get("task_id", "")
         if not task_id:
-            send_message(chat_id, "❌ فشل بدء التحميل.")
+            send_message(chat_id, t(uid, "dl_start_failed"))
             return
-        _finish_download(chat_id, task_id, url, title, format_id)
+        _finish_download(chat_id, task_id, url, title, format_id, uid)
     finally:
         active_downloads.discard(chat_id)
 
 
-def _handle_multiple_urls(chat_id: int, urls: list, first_name: str):
+def _handle_multiple_urls(chat_id: int, urls: list, first_name: str, uid: int = 0):
     """Download multiple URLs sequentially."""
+    if uid == 0:
+        uid = chat_id
     for i, url in enumerate(urls[:3]):
         if not check_download_limit(chat_id):
-            send_message(chat_id,
-                f"⛔ نُفّذت <b>{i}</b> من <b>{len(urls)}</b> تحميلات — وصلت للحد اليومي" if i > 0
-                else f"⛔ وصلت للحد اليومي المجاني ({_daily_limit[0]} تحميلات)")
+            if i > 0:
+                send_message(chat_id, t(uid, "multiple_limit_done", done=i, total=len(urls)))
+            else:
+                send_message(chat_id, t(uid, "multiple_limit_zero", limit=_daily_limit[0]))
             return
         while chat_id in active_downloads:
             time.sleep(1)
-        _do_download(chat_id, url)
+        _do_download(chat_id, url, uid=uid)
         while chat_id in active_downloads:
             time.sleep(1)
 
@@ -1385,7 +1367,7 @@ def handle_url(chat_id: int, url: str, first_name: str, user_id: int = 0):
         user_id = chat_id  # private chat fallback
 
     if user_id in active_downloads:
-        send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
+        send_message(chat_id, t(user_id, "already_downloading"))
         return
 
     # Check daily limit for free users
@@ -1393,31 +1375,34 @@ def handle_url(chat_id: int, url: str, first_name: str, user_id: int = 0):
         pending[user_id] = {"ad_pending_url": url}
         send_message(
             chat_id,
-            f"⛔ <b>وصلت للحد اليومي المجاني ({_daily_limit[0]} تحميلات)</b>\n\nاختر طريقة للمتابعة:",
+            t(user_id, "daily_limit", limit=_daily_limit[0]),
             reply_markup={"inline_keyboard": [
-                [{"text": "📺 شاهد إعلان وحمّل مجاناً", "callback_data": "adwatch:start"}],
-                [{"text": "💎 اشترك بالبريميوم", "callback_data": "sub:menu"}],
+                [{"text": t(user_id, "btn_watch_ad"), "callback_data": "adwatch:start"}],
+                [{"text": t(user_id, "btn_subscribe_now"), "callback_data": "sub:menu"}],
             ]}
         )
         return
 
     platform = detect_platform(url)
-    pending[user_id] = {"fmt_url": url, "title": "فيديو", "reply_chat": chat_id}
+    pending[user_id] = {"fmt_url": url, "title": "video", "reply_chat": chat_id}
     rem = _remaining_text(user_id)
     send_message(
         chat_id,
-        f"🎬 <b>{platform}</b> — اختر الصيغة:{rem}",
+        t(user_id, "choose_format", platform=platform, rem=rem),
         reply_markup={"inline_keyboard": [[
-            {"text": "🎬 فيديو", "callback_data": f"fmt:video:{user_id}"},
-            {"text": "🎵 MP3", "callback_data": f"fmt:audio:{user_id}"},
+            {"text": t(user_id, "btn_video"), "callback_data": f"fmt:video:{user_id}"},
+            {"text": t(user_id, "btn_audio"), "callback_data": f"fmt:audio:{user_id}"},
         ]]}
     )
 
 
-def _finish_download(chat_id: int, task_id: str, url: str, title: str, format_id: str = ""):
+def _finish_download(chat_id: int, task_id: str, url: str, title: str, format_id: str = "", uid: int = 0):
+    if uid == 0:
+        uid = chat_id
     deadline = time.time() + 300
     last_percent = -1
     progress_msg_id = None
+    dl_label = "⬇️ Downloading..." if _get_lang(uid) == "en" else "⬇️ جاري التحميل..."
 
     while time.time() < deadline:
         prog = site_progress(task_id)
@@ -1426,7 +1411,7 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str, format_id
 
         if status == "downloading" and abs(percent - last_percent) >= 15:
             last_percent = percent
-            bar_text = f"⬇️ جاري التحميل...\n{_progress_bar(percent)}"
+            bar_text = f"{dl_label}\n{_progress_bar(percent)}"
             if progress_msg_id:
                 _post("editMessageText", json={"chat_id": chat_id, "message_id": progress_msg_id, "text": bar_text})
             else:
@@ -1439,7 +1424,7 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str, format_id
             file_path = DOWNLOAD_DIR / file_name
 
             if not file_path.exists():
-                send_message(chat_id, "❌ الملف غير موجود على السيرفر.")
+                send_message(chat_id, t(uid, "no_file"))
                 return
 
             ext = file_path.suffix.lower()
@@ -1468,72 +1453,76 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str, format_id
                             _cache_set(url, format_id, fid, "document", display_name)
             except Exception as e:
                 log.error("Failed to send file: %s", e)
-                send_message(chat_id, f"⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{SITE_URL}")
+                send_message(chat_id, t(uid, "send_failed", site=SITE_URL))
 
-            send_message(chat_id, "✅ اكتمل التحميل! أرسل رابطاً آخر لتحميل المزيد 🚀")
+            send_message(chat_id, t(uid, "download_complete"))
 
             _add_to_history(chat_id, url, display_name, detect_platform(url))
             notify_admin_download(url, display_name, chat_id)
             return
 
         elif status == "error":
-            err = prog.get("error", "خطأ غير معروف")
+            err = prog.get("error", "Error")
             retry_btn = {"inline_keyboard": [[
-                {"text": "🔄 حاول مرة أخرى", "url": SITE_URL},
+                {"text": t(uid, "retry_site"), "url": SITE_URL},
             ]]}
-            send_message(chat_id, f"❌ <b>فشل التحميل:</b>\n{err}", reply_markup=retry_btn)
+            send_message(chat_id, f"❌ {err}", reply_markup=retry_btn)
             return
 
         time.sleep(2)
 
-    retry_btn = {"inline_keyboard": [[{"text": "🔄 حاول من الموقع", "url": SITE_URL}]]}
-    send_message(chat_id, "⏰ انتهت مهلة التحميل — حاول مرة أخرى.", reply_markup=retry_btn)
+    retry_btn = {"inline_keyboard": [[{"text": t(uid, "retry_site"), "url": SITE_URL}]]}
+    send_message(chat_id, t(uid, "timeout"), reply_markup=retry_btn)
 
 
-def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str):
-    answer_callback(callback_query_id, "⏳ جاري التحميل...")
+def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    answer_callback(callback_query_id, "⏳")
 
     data = pending.get(chat_id)
     if not data:
-        send_message(chat_id, "⚠️ انتهت الجلسة، أعد إرسال الرابط.")
+        send_message(chat_id, t(uid, "expired_session"))
         return
 
     url = data["fmt_url"]
     cache_id = data.get("cache_id", "")
-    title = data.get("title", "فيديو")
+    title = data.get("title", "video")
     pending.pop(chat_id, None)
 
-    msg_res = send_message(chat_id, "⏳ جاري التحضير...")
+    msg_res = send_message(chat_id, t(uid, "preparing"))
     status_msg_id = (msg_res.get("result") or {}).get("message_id")
 
     result = site_download(url, format_id, cache_id)
     if status_msg_id:
         _post("deleteMessage", json={"chat_id": chat_id, "message_id": status_msg_id})
     if "error" in result:
-        send_message(chat_id, f"❌ <b>خطأ:</b> {result['error']}")
+        send_message(chat_id, f"❌ {result['error']}")
         return
 
     task_id = result.get("task_id", "")
     if not task_id:
-        send_message(chat_id, "❌ فشل بدء التحميل.")
+        send_message(chat_id, t(uid, "dl_start_failed"))
         return
 
-    _finish_download(chat_id, task_id, url, title, format_id)
+    _finish_download(chat_id, task_id, url, title, format_id, uid)
 
 
-def handle_history(chat_id: int):
+def handle_history(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
     hist = user_history.get(chat_id, [])
     if not hist:
-        send_message(chat_id, "📭 لا يوجد سجل تحميلات بعد.\n\nأرسل رابط فيديو لتحميله!")
+        send_message(chat_id, t(uid, "no_history"))
         return
     keyboard = [
         [{"text": f"🔁 {item['title'][:35]}", "callback_data": f"hist:{i}"}]
         for i, item in enumerate(hist)
     ]
-    keyboard.append([{"text": "🗑️ مسح السجل", "callback_data": "hist:clear"}])
+    keyboard.append([{"text": t(uid, "btn_clear_history"), "callback_data": "hist:clear"}])
     send_message(
         chat_id,
-        f"📋 <b>آخر تحميلاتك ({len(hist)}):</b>",
+        t(uid, "history_title", count=len(hist)),
         reply_markup={"inline_keyboard": keyboard},
     )
 
@@ -1609,16 +1598,22 @@ def handle_message(msg: dict):
     chat = msg.get("chat", {})
     chat_id: int = chat.get("id", 0)
     text: str = (msg.get("text") or "").strip()
-    first_name: str = msg.get("from", {}).get("first_name", "مستخدم")
+    from_info = msg.get("from", {})
+    first_name: str = from_info.get("first_name", "User")
+    uid: int = from_info.get("id", chat_id)
 
     if not text:
         return
 
-    username: str | None = msg.get("from", {}).get("username")
-    known_users[chat_id] = {"name": first_name, "username": username}
+    # Detect and store language on every message
+    lang_code = from_info.get("language_code", "")
+    user_lang[uid] = _detect_lang(lang_code)
 
-    if chat_id in blocked_users:
-        send_message(chat_id, "⛔ عذراً، تم تعليق حسابك. تواصل مع الدعم.")
+    username: str | None = from_info.get("username")
+    known_users[uid] = {"name": first_name, "username": username}
+
+    if uid in blocked_users:
+        send_message(chat_id, t(uid, "blocked"))
         return
 
     # admin waiting-state handlers
@@ -1690,56 +1685,53 @@ def handle_message(msg: dict):
     if text.startswith("/start"):
         parts = text.split(maxsplit=1)
         param = parts[1].strip() if len(parts) > 1 else ""
-        handle_start(chat_id, first_name, param)
-    elif text.startswith("/help") or text == "ℹ️ المساعدة":
-        handle_help(chat_id)
-    elif text.startswith("/stats") or text == "📊 الإحصائيات":
-        handle_stats(chat_id)
-    elif text.startswith("/site") or text == "🌐 الموقع":
-        handle_site(chat_id)
+        handle_start(chat_id, first_name, param, uid)
+    elif text.startswith("/help") or text in _btn_any("btn_help"):
+        handle_help(chat_id, uid)
+    elif text.startswith("/stats") or text in _btn_any("btn_stats"):
+        handle_stats(chat_id, uid)
+    elif text.startswith("/site") or text in _btn_any("btn_site"):
+        handle_site(chat_id, uid)
     elif text.startswith("/platforms"):
-        handle_platforms(chat_id)
-    elif text.startswith("/share") or text == "📣 شارك البوت":
-        handle_share(chat_id)
+        handle_platforms(chat_id, uid)
+    elif text.startswith("/share") or text in _btn_any("btn_share"):
+        handle_share(chat_id, uid)
     elif text.startswith("/redeem"):
         parts = text.split(maxsplit=1)
-        handle_redeem(chat_id, parts[1].strip() if len(parts) > 1 else "")
+        handle_redeem(chat_id, parts[1].strip() if len(parts) > 1 else "", uid)
     elif text.startswith("/status"):
-        handle_status(chat_id)
+        handle_status(chat_id, uid)
     elif text.startswith("/history"):
-        handle_history(chat_id)
-    elif text.startswith("/subscribe") or text == "💎 بريميوم":
-        handle_subscribe_menu(chat_id)
-    elif text == "📱 حمّل التطبيق":
+        handle_history(chat_id, uid)
+    elif text.startswith("/subscribe") or text in _btn_any("btn_premium"):
+        handle_subscribe_menu(chat_id, uid)
+    elif text in _btn_any("btn_app"):
         send_message(chat_id,
-            "📱 <b>تطبيق نزلها بلس</b>\n\n"
-            "متاح مجاناً على Google Play 👇",
+            t(uid, "app_info"),
             reply_markup={"inline_keyboard": [[
-                {"text": "⬇️ تحميل التطبيق", "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"}
+                {"text": t(uid, "btn_dl_app"), "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"}
             ]]}
         )
-    elif text == "🔥 الأكثر تحميلاً":
-        handle_top(chat_id)
-    elif text == "📲 حمّل فيديو":
-        handle_download_menu(chat_id)
-    elif (text.startswith("/admin") or text == "🛠️ لوحة التحكم") and chat_id in ADMIN_IDS:
+    elif text in _btn_any("btn_top"):
+        handle_top(chat_id, uid)
+    elif text in _btn_any("btn_download"):
+        handle_download_menu(chat_id, uid)
+    elif (text.startswith("/admin") or text in _btn_any("btn_panel")) and chat_id in ADMIN_IDS:
         handle_admin_panel(chat_id)
     else:
-        # إذا كان المستخدم في وضع انتظار رابط بعد اختيار منصة
         waiting = pending.get(chat_id, {}).get("waiting_url")
-        user_id = msg.get("from", {}).get("id", chat_id)
         urls = URL_PATTERN.findall(text)
         if urls:
             pending.pop(chat_id, None)
             if len(urls) == 1:
-                threading.Thread(target=handle_url, args=(chat_id, urls[0], first_name, user_id), daemon=True).start()
+                threading.Thread(target=handle_url, args=(chat_id, urls[0], first_name, uid), daemon=True).start()
             else:
-                send_message(chat_id, f"🔗 وجدت <b>{len(urls[:3])}</b> روابط — سأحمّلها بالترتيب...")
-                threading.Thread(target=_handle_multiple_urls, args=(chat_id, urls, first_name), daemon=True).start()
+                send_message(chat_id, t(uid, "multiple_urls", count=len(urls[:3])))
+                threading.Thread(target=_handle_multiple_urls, args=(chat_id, urls, first_name, uid), daemon=True).start()
         elif waiting:
-            send_message(chat_id, "❗ هذا ليس رابطاً صحيحاً، أرسل رابط الفيديو مباشرةً.")
+            send_message(chat_id, t(uid, "not_valid_url"))
         else:
-            send_message(chat_id, "❓ أرسل رابط فيديو لتحميله، أو اضغط 📲 حمّل فيديو.")
+            send_message(chat_id, t(uid, "send_url_prompt"))
 
 
 def handle_callback_query(cq: dict):
@@ -1777,47 +1769,47 @@ def handle_callback_query(cq: dict):
             owner_id = chat_id
         pdata = pending.get(owner_id, {})
         url = pdata.get("fmt_url", "")
-        title = pdata.get("title", "فيديو")
+        title = pdata.get("title", "video")
         reply_chat = pdata.get("reply_chat", chat_id)
         if not url:
-            answer_callback(cq_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً")
+            answer_callback(cq_id, t(owner_id, "expired_session"))
             return
         pending.pop(owner_id, None)
-        answer_callback(cq_id, "⏳ جاري التحميل...")
+        answer_callback(cq_id, "⏳")
         format_id = "bestaudio/best" if fmt == "audio" else "best[ext=mp4]/best[height<=720]/best"
-        threading.Thread(target=_do_download, args=(reply_chat, url, format_id, title), daemon=True).start()
+        threading.Thread(target=_do_download, args=(reply_chat, url, format_id, title, owner_id), daemon=True).start()
     elif data.startswith("hist:"):
         val = data[5:]
         if val == "clear":
-            answer_callback(cq_id, "✅ تم مسح السجل")
+            answer_callback(cq_id, "✅")
             user_history.pop(chat_id, None)
             _save_history()
-            send_message(chat_id, "✅ تم مسح سجل التحميلات.")
+            send_message(chat_id, t(chat_id, "history_cleared"))
         else:
             try:
                 idx = int(val)
                 hist = user_history.get(chat_id, [])
                 item = hist[idx]
-                answer_callback(cq_id, "⏳ جاري التحضير...")
+                answer_callback(cq_id, "⏳")
                 if not check_download_limit(chat_id):
                     pending[chat_id] = {"ad_pending_url": item["url"]}
                     send_message(chat_id,
-                        f"⛔ <b>وصلت للحد اليومي المجاني ({_daily_limit[0]} تحميلات)</b>\n\nاختر طريقة للمتابعة:",
+                        t(chat_id, "daily_limit", limit=_daily_limit[0]),
                         reply_markup={"inline_keyboard": [
-                            [{"text": "📺 شاهد إعلان وحمّل مجاناً", "callback_data": "adwatch:start"}],
-                            [{"text": "💎 اشترك بالبريميوم", "callback_data": "sub:menu"}],
+                            [{"text": t(chat_id, "btn_watch_ad"), "callback_data": "adwatch:start"}],
+                            [{"text": t(chat_id, "btn_subscribe_now"), "callback_data": "sub:menu"}],
                         ]})
                 else:
                     pending[chat_id] = {"fmt_url": item["url"], "title": item["title"]}
                     rem = _remaining_text(chat_id)
                     send_message(chat_id,
-                        f"🎬 <b>{item['title'][:80]}</b>\n📱 {item['platform']}\n\nاختر الصيغة:{rem}",
+                        t(chat_id, "choose_format", platform=item["title"][:80], rem=rem),
                         reply_markup={"inline_keyboard": [[
-                            {"text": "🎬 فيديو", "callback_data": "fmt:video"},
-                            {"text": "🎵 MP3", "callback_data": "fmt:audio"},
+                            {"text": t(chat_id, "btn_video"), "callback_data": "fmt:video"},
+                            {"text": t(chat_id, "btn_audio"), "callback_data": "fmt:audio"},
                         ]]})
             except (ValueError, IndexError):
-                answer_callback(cq_id, "⚠️ انتهت الجلسة")
+                answer_callback(cq_id, "⚠️")
     else:
         answer_callback(cq_id)
 
@@ -1825,6 +1817,11 @@ def handle_callback_query(cq: dict):
 def handle_inline_query(query: dict):
     query_id = query.get("id", "")
     text = (query.get("query") or "").strip()
+    from_info = query.get("from", {})
+    uid = from_info.get("id", 0)
+    lang_code = from_info.get("language_code", "")
+    if uid:
+        user_lang[uid] = _detect_lang(lang_code)
     urls = URL_PATTERN.findall(text)
 
     if not urls:
@@ -1833,15 +1830,15 @@ def handle_inline_query(query: dict):
             "results": [{
                 "type": "article",
                 "id": "help",
-                "title": "📥 الصق رابط الفيديو بعد اسم البوت",
-                "description": "مثال: @nazzilhaplus_bot https://vm.tiktok.com/xxx",
+                "title": t(uid, "inline_help_title"),
+                "description": t(uid, "inline_help_desc"),
                 "input_message_content": {
-                    "message_text": "📥 لتحميل فيديو أرسل الرابط لـ @nazzilhaplus_bot",
+                    "message_text": t(uid, "inline_help_msg"),
                     "parse_mode": "HTML",
                 },
             }],
             "cache_time": 0,
-            "switch_pm_text": "📥 افتح البوت وأرسل الرابط",
+            "switch_pm_text": t(uid, "inline_open_bot"),
             "switch_pm_parameter": "inline",
         })
         return
@@ -1855,7 +1852,7 @@ def handle_inline_query(query: dict):
     aud_cached = _cache_get(url, "bestaudio/best")
 
     if vid_cached and vid_cached.get("file_id"):
-        title_text = vid_cached.get("title", "فيديو")[:80]
+        title_text = vid_cached.get("title", "video")[:80]
         results.append({
             "type": "video",
             "id": "cached_video",
@@ -1868,24 +1865,22 @@ def handle_inline_query(query: dict):
             "type": "audio",
             "id": "cached_audio",
             "audio_file_id": aud_cached["file_id"],
-            "title": f"🎵 صوت — {aud_cached.get('title', 'audio')[:60]}",
+            "title": f"🎵 {aud_cached.get('title', 'audio')[:60]}",
         })
 
     # Always add redirect option for downloading via bot
+    cache_label = t(uid, "inline_cache_label") if vid_cached else ""
     results.append({
         "type": "article",
         "id": "dl_redirect",
-        "title": f"📥 تحميل من {platform}" + (" — ⚡ متاح في الكاش" if vid_cached else ""),
-        "description": "اضغط لإرسال رابط التحميل في المجموعة",
+        "title": t(uid, "download_from", platform=platform) + cache_label,
+        "description": t(uid, "inline_dl_desc"),
         "input_message_content": {
-            "message_text": (
-                f"📥 <b>تحميل فيديو من {platform}</b>\n\n"
-                f"🔗 {url}"
-            ),
+            "message_text": t(uid, "inline_dl_msg", platform=platform, url=url),
             "parse_mode": "HTML",
         },
         "reply_markup": {"inline_keyboard": [[
-            {"text": "📥 حمّل عبر البوت", "url": f"https://t.me/nazzilhaplus_bot"}
+            {"text": t(uid, "inline_dl_btn"), "url": "https://t.me/nazzilhaplus_bot"}
         ]]},
     })
 
@@ -1910,9 +1905,7 @@ def _premium_expiry_notifier():
                     diff = exp_dt - now
                     if 0 <= diff.days <= 2 and diff.seconds < 3600:
                         send_message(int(uid),
-                            f"⚠️ <b>تنبيه: بريميومك ينتهي بعد {diff.days} يوم!</b>\n\n"
-                            f"📅 تاريخ الانتهاء: <b>{exp}</b>\n\n"
-                            "جدّد الآن للاستمرار في التحميل غير المحدود 👇",
+                            t(int(uid), "premium_expiry_warning", days=diff.days, exp=exp),
                             reply_markup=SUBSCRIBE_KEYBOARD)
                 except Exception:
                     pass
