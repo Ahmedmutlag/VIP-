@@ -544,7 +544,7 @@ def app_icon(size):
 
 @app.route("/download-app")
 def download_android_app():
-    return send_file("static/android-app.zip", as_attachment=True, download_name="android-app.zip")
+    return redirect("https://play.google.com/store/apps/details?id=com.nazzilhaplus.app", 302)
 
 
 @app.route("/.well-known/assetlinks.json")
