@@ -1135,13 +1135,17 @@ def _fmt_duration(seconds) -> str:
     return f"⏱️ {m}:{sec:02d}"
 
 
-def handle_url(chat_id: int, url: str, first_name: str):
-    if chat_id in active_downloads:
+def handle_url(chat_id: int, url: str, first_name: str, user_id: int = 0):
+    """chat_id = where to send replies (private or group). user_id = the actual user (for permission checks)."""
+    if user_id == 0:
+        user_id = chat_id  # private chat fallback
+
+    if user_id in active_downloads:
         send_message(chat_id, "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.")
         return
 
     # البريميوم معفى (دفع مسبق) — الباقي يجب المرور بالتطبيق
-    if not is_premium(chat_id) and not _session_has(chat_id):
+    if not is_premium(user_id) and not _session_has(user_id):
         send_message(
             chat_id,
             "⛔ <b>يجب فتح التطبيق أولاً لتحميل الفيديو</b>\n\n"
@@ -1153,17 +1157,17 @@ def handle_url(chat_id: int, url: str, first_name: str):
             ]]},
         )
         return
-    if not is_premium(chat_id):
-        _session_remove(chat_id)  # استهلاك الجلسة للمستخدمين المجانيين فقط
+    if not is_premium(user_id):
+        _session_remove(user_id)
     platform = detect_platform(url)
-    pending[chat_id] = {"fmt_url": url, "title": "فيديو"}
-    rem = _remaining_text(chat_id)
+    pending[user_id] = {"fmt_url": url, "title": "فيديو", "reply_chat": chat_id}
+    rem = _remaining_text(user_id)
     send_message(
         chat_id,
         f"🎬 <b>{platform}</b> — اختر الصيغة:{rem}",
         reply_markup={"inline_keyboard": [[
-            {"text": "🎬 فيديو", "callback_data": "fmt:video"},
-            {"text": "🎵 MP3", "callback_data": "fmt:audio"},
+            {"text": "🎬 فيديو", "callback_data": f"fmt:video:{user_id}"},
+            {"text": "🎵 MP3", "callback_data": f"fmt:audio:{user_id}"},
         ]]}
     )
 
@@ -1476,11 +1480,12 @@ def handle_message(msg: dict):
     else:
         # إذا كان المستخدم في وضع انتظار رابط بعد اختيار منصة
         waiting = pending.get(chat_id, {}).get("waiting_url")
+        user_id = msg.get("from", {}).get("id", chat_id)
         urls = URL_PATTERN.findall(text)
         if urls:
             pending.pop(chat_id, None)
             if len(urls) == 1:
-                threading.Thread(target=handle_url, args=(chat_id, urls[0], first_name), daemon=True).start()
+                threading.Thread(target=handle_url, args=(chat_id, urls[0], first_name, user_id), daemon=True).start()
             else:
                 send_message(chat_id, f"🔗 وجدت <b>{len(urls[:3])}</b> روابط — سأحمّلها بالترتيب...")
                 threading.Thread(target=_handle_multiple_urls, args=(chat_id, urls, first_name), daemon=True).start()
@@ -1516,17 +1521,24 @@ def handle_callback_query(cq: dict):
     elif data == "adwatch:done":
         threading.Thread(target=handle_adwatch_done, args=(chat_id, cq_id), daemon=True).start()
     elif data.startswith("fmt:"):
-        fmt = data[4:]
-        pdata = pending.get(chat_id, {})
+        parts = data.split(":")
+        fmt = parts[1] if len(parts) > 1 else "video"
+        # user_id may be embedded: fmt:video:12345 (for group support)
+        try:
+            owner_id = int(parts[2]) if len(parts) > 2 else chat_id
+        except ValueError:
+            owner_id = chat_id
+        pdata = pending.get(owner_id, {})
         url = pdata.get("fmt_url", "")
         title = pdata.get("title", "فيديو")
+        reply_chat = pdata.get("reply_chat", chat_id)
         if not url:
             answer_callback(cq_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً")
             return
-        pending.pop(chat_id, None)
+        pending.pop(owner_id, None)
         answer_callback(cq_id, "⏳ جاري التحميل...")
         format_id = "bestaudio/best" if fmt == "audio" else "best[ext=mp4]/best[height<=720]/best"
-        threading.Thread(target=_do_download, args=(chat_id, url, format_id, title), daemon=True).start()
+        threading.Thread(target=_do_download, args=(reply_chat, url, format_id, title), daemon=True).start()
     elif data.startswith("hist:"):
         val = data[5:]
         if val == "clear":
@@ -1589,24 +1601,52 @@ def handle_inline_query(query: dict):
 
     url = urls[0]
     platform = detect_platform(url)
-    results = [{
+    results = []
+
+    # Check cache — if found, send directly as video/audio
+    vid_cached = _cache_get(url, "best[ext=mp4]/best[height<=720]/best")
+    aud_cached = _cache_get(url, "bestaudio/best")
+
+    if vid_cached and vid_cached.get("file_id"):
+        title_text = vid_cached.get("title", "فيديو")[:80]
+        results.append({
+            "type": "video",
+            "id": "cached_video",
+            "video_file_id": vid_cached["file_id"],
+            "title": f"🎬 {title_text}",
+        })
+
+    if aud_cached and aud_cached.get("file_id"):
+        results.append({
+            "type": "audio",
+            "id": "cached_audio",
+            "audio_file_id": aud_cached["file_id"],
+            "title": f"🎵 صوت — {aud_cached.get('title', 'audio')[:60]}",
+        })
+
+    # Always add redirect option for downloading via bot
+    results.append({
         "type": "article",
-        "id": "dl1",
-        "title": f"📥 تحميل من {platform}",
-        "description": "اضغط لمشاركة رابط التحميل في المحادثة",
+        "id": "dl_redirect",
+        "title": f"📥 تحميل من {platform}" + (" — ⚡ متاح في الكاش" if vid_cached else ""),
+        "description": "اضغط لإرسال رابط التحميل في المجموعة",
         "input_message_content": {
             "message_text": (
-                f"📥 <b>نزّل هذا الفيديو من {platform}</b>\n\n"
-                f"🔗 {url}\n\n"
-                "👇 اضغط الزر للتحميل"
+                f"📥 <b>تحميل فيديو من {platform}</b>\n\n"
+                f"🔗 {url}"
             ),
             "parse_mode": "HTML",
         },
         "reply_markup": {"inline_keyboard": [[
-            {"text": "📥 تحميل في البوت", "url": "https://t.me/nazzilhaplus_bot"}
+            {"text": "📥 حمّل عبر البوت", "url": f"https://t.me/nazzilhaplus_bot"}
         ]]},
-    }]
-    _post("answerInlineQuery", json={"inline_query_id": query_id, "results": results, "cache_time": 0})
+    })
+
+    _post("answerInlineQuery", json={
+        "inline_query_id": query_id,
+        "results": results,
+        "cache_time": 30,
+    })
 
 
 def _premium_expiry_notifier():
