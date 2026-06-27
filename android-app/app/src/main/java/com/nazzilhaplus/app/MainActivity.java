@@ -43,12 +43,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
+import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity {
-
-    // ─── AdMob IDs ────────────────────────────────────────────────────────────
-    private static final String APP_OPEN_AD_ID     = "ca-app-pub-9098461798177099/7874630902";
-    private static final String INTERSTITIAL_AD_ID = "ca-app-pub-9098461798177099/7269905917";
 
     // ─── WebView ───────────────────────────────────────────────────────────────
     private WebView webView;
@@ -227,13 +224,13 @@ public class MainActivity extends AppCompatActivity {
     private void injectClipboardUrl() {
         String clip = getClipboardText();
         if (!isVideoUrl(clip)) return;
-        String safe = clip.replace("\\", "\\\\").replace("'", "\\'")
-                         .replace("\n", "").replace("\r", "");
+        String safeUrl = JSONObject.quote(clip);
         webView.evaluateJavascript(
             "(function(){" +
+            "  var url=" + safeUrl + ";" +
             "  var inp=document.getElementById('urlInput');" +
-            "  if(inp && inp.value!=='" + safe + "'){" +
-            "    inp.value='" + safe + "';" +
+            "  if(inp && inp.value!==url){" +
+            "    inp.value=url;" +
             "    inp.dispatchEvent(new Event('input',{bubbles:true}));" +
             "  }" +
             "})();",
@@ -248,7 +245,7 @@ public class MainActivity extends AppCompatActivity {
     private void loadAppOpenAd() {
         if (appOpenLoading) return;
         appOpenLoading = true;
-        AppOpenAd.load(this, APP_OPEN_AD_ID, new AdRequest.Builder().build(),
+        AppOpenAd.load(this, getString(R.string.admob_app_open_id), new AdRequest.Builder().build(),
             new AppOpenAd.AppOpenAdLoadCallback() {
                 @Override public void onAdLoaded(@NonNull AppOpenAd ad) {
                     appOpenAd      = ad;
@@ -284,7 +281,7 @@ public class MainActivity extends AppCompatActivity {
     // ══════════════════════════════════════════════════════════════════════════
 
     private void loadInterstitialAd() {
-        InterstitialAd.load(this, INTERSTITIAL_AD_ID, new AdRequest.Builder().build(),
+        InterstitialAd.load(this, getString(R.string.admob_interstitial_id), new AdRequest.Builder().build(),
             new InterstitialAdLoadCallback() {
                 @Override public void onAdLoaded(@NonNull InterstitialAd ad) {
                     interstitialAd = ad;
