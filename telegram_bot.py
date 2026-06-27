@@ -1088,10 +1088,7 @@ def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[he
     if cached:
         send_message(chat_id, "⚡ تم العثور على الفيديو في الكاش، جاري الإرسال...")
         if _send_cached(chat_id, cached):
-            return_btn = {"inline_keyboard": [[
-                {"text": "📲 العودة للتطبيق", "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"}
-            ]]}
-            send_message(chat_id, "✅ اكتمل التحميل!\n\nارجع للتطبيق لتحميل المزيد 👇", reply_markup=return_btn)
+            send_message(chat_id, "✅ اكتمل التحميل! أرسل رابطاً آخر لتحميل المزيد 🚀")
             _add_to_history(chat_id, url, cached.get("title", "فيديو"), detect_platform(url))
             return
 
@@ -1231,10 +1228,7 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str, format_id
                 log.error("Failed to send file: %s", e)
                 send_message(chat_id, f"⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{SITE_URL}")
 
-            return_btn = {"inline_keyboard": [[
-                {"text": "📲 العودة للتطبيق", "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"}
-            ]]}
-            send_message(chat_id, "✅ اكتمل التحميل!\n\nارجع للتطبيق لتحميل المزيد 👇", reply_markup=return_btn)
+            send_message(chat_id, "✅ اكتمل التحميل! أرسل رابطاً آخر لتحميل المزيد 🚀")
 
             _add_to_history(chat_id, url, display_name, detect_platform(url))
             notify_admin_download(url, display_name, chat_id)
