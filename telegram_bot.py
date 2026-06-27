@@ -330,8 +330,23 @@ def _detect_lang(language_code: str) -> str:
         return "ar"
     return "en"
 
+_lang_pref: dict[int, str] = {}  # manually set preferences, persisted to Redis
+
 def _get_lang(user_id: int) -> str:
+    # Manual preference beats auto-detected language
+    if user_id in _lang_pref:
+        return _lang_pref[user_id]
+    # First access after restart: check Redis
+    stored = _redis_get(f"langpref:{user_id}")
+    if stored in ("ar", "en"):
+        _lang_pref[user_id] = stored
+        return stored
     return user_lang.get(user_id, "en")
+
+def _set_lang_pref(user_id: int, lang: str) -> None:
+    _lang_pref[user_id] = lang
+    user_lang[user_id] = lang
+    _redis_set(f"langpref:{user_id}", lang)
 
 STRINGS: dict[str, dict] = {
     "ar": {
@@ -350,7 +365,8 @@ STRINGS: dict[str, dict] = {
             "/share — شارك البوت مع أصدقائك\n"
             "/redeem — تفعيل كود بريميوم\n"
             "/status — حالة اشتراكك\n"
-            "/history — آخر تحميلاتك\n\n"
+            "/history — آخر تحميلاتك\n"
+            "/language — تغيير اللغة\n\n"
             "📎 فقط الصق الرابط وأنا أتولى الباقي!\n\n"
             "🆓 المجاني: <b>5 تحميلات/يوم</b>\n"
             "💎 البريميوم: <b>غير محدود</b>"
@@ -462,7 +478,8 @@ STRINGS: dict[str, dict] = {
             "/share — Share the bot with friends\n"
             "/redeem — Activate a premium code\n"
             "/status — Your subscription status\n"
-            "/history — Your recent downloads\n\n"
+            "/history — Your recent downloads\n"
+            "/language — Change language\n\n"
             "📎 Just paste the link and I'll handle the rest!\n\n"
             "🆓 Free: <b>5 downloads/day</b>\n"
             "💎 Premium: <b>unlimited</b>"
@@ -1594,6 +1611,27 @@ def _daily_report():
 
 # ── Routing ────────────────────────────────────────────────────────────────────
 
+def handle_language(chat_id: int, lang_arg: str, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    if lang_arg in ("ar", "en"):
+        _set_lang_pref(uid, lang_arg)
+        if lang_arg == "ar":
+            send_message(chat_id, "✅ تم تغيير اللغة إلى <b>العربية 🇸🇦</b>", reply_markup=get_main_keyboard(uid))
+        else:
+            send_message(chat_id, "✅ Language changed to <b>English 🇬🇧</b>", reply_markup=get_main_keyboard(uid))
+    else:
+        current = _get_lang(uid)
+        if current == "ar":
+            text = "🌐 اللغة الحالية: <b>العربية 🇸🇦</b>\n\nاختر لغة:"
+        else:
+            text = "🌐 Current language: <b>English 🇬🇧</b>\n\nChoose a language:"
+        send_message(chat_id, text, reply_markup={"inline_keyboard": [[
+            {"text": "🇸🇦 العربية", "callback_data": "lang:ar"},
+            {"text": "🇬🇧 English", "callback_data": "lang:en"},
+        ]]})
+
+
 def handle_message(msg: dict):
     chat = msg.get("chat", {})
     chat_id: int = chat.get("id", 0)
@@ -1703,6 +1741,9 @@ def handle_message(msg: dict):
         handle_status(chat_id, uid)
     elif text.startswith("/history"):
         handle_history(chat_id, uid)
+    elif text.startswith("/language"):
+        parts = text.split(maxsplit=1)
+        handle_language(chat_id, parts[1].strip().lower() if len(parts) > 1 else "", uid)
     elif text.startswith("/subscribe") or text in _btn_any("btn_premium"):
         handle_subscribe_menu(chat_id, uid)
     elif text in _btn_any("btn_app"):
@@ -1739,7 +1780,19 @@ def handle_callback_query(cq: dict):
     chat_id: int = cq.get("message", {}).get("chat", {}).get("id", 0)
     data: str = cq.get("data", "")
 
-    if data.startswith("dl:"):
+    if data.startswith("lang:"):
+        lang = data[5:]
+        user_id = cq.get("from", {}).get("id", chat_id)
+        if lang in ("ar", "en"):
+            _set_lang_pref(user_id, lang)
+            answer_callback(cq_id, "✅")
+            if lang == "ar":
+                send_message(chat_id, "✅ تم تغيير اللغة إلى <b>العربية 🇸🇦</b>", reply_markup=get_main_keyboard(user_id))
+            else:
+                send_message(chat_id, "✅ Language changed to <b>English 🇬🇧</b>", reply_markup=get_main_keyboard(user_id))
+        else:
+            answer_callback(cq_id)
+    elif data.startswith("dl:"):
         format_id = data[3:]
         threading.Thread(
             target=handle_format_choice,
