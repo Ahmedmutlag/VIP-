@@ -264,7 +264,7 @@ def load_stats_file():
     if STATS_FILE.exists():
         try: return json.loads(STATS_FILE.read_text())
         except: pass
-    return {"total_downloads": 0, "failed_downloads": 0, "platform_counts": {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Other": 0}}
+    return {"total_downloads": 0, "failed_downloads": 0, "platform_counts": {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Snapchat": 0, "Other": 0}}
 
 def save_stats_file(data):
     try:
@@ -347,7 +347,7 @@ stats = {
     "total_downloads": _saved.get("total_downloads", 0),
     "today_downloads": 0,
     "failed_downloads": _saved.get("failed_downloads", 0),
-    "platform_counts": _saved.get("platform_counts", {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Other": 0}),
+    "platform_counts": _saved.get("platform_counts", {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Snapchat": 0, "Other": 0}),
     "recent_errors": [],
     "ytdlp_updated": "لم يتم بعد",
     "last_reset_date": now().date().isoformat(),
@@ -428,6 +428,8 @@ def detect_platform(url):
         return "Facebook"
     if "pinterest.com" in url or "pin.it" in url:
         return "Pinterest"
+    if "snapchat.com" in url or "snap.com" in url:
+        return "Snapchat"
     return "Other"
 
 

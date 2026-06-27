@@ -192,6 +192,8 @@ PLATFORM_NAMES = {
     "x.com": "Twitter / X",
     "youtube": "YouTube",
     "pinterest": "Pinterest",
+    "snapchat": "Snapchat",
+    "snap.com": "Snapchat",
 }
 
 
@@ -510,7 +512,10 @@ PLATFORMS_KEYBOARD = {
             {"text": "🐦 Twitter / X", "callback_data": "platform:twitter"},
         ],
         [
+            {"text": "👻 Snapchat", "callback_data": "platform:snapchat"},
             {"text": "📌 Pinterest", "callback_data": "platform:pinterest"},
+        ],
+        [
             {"text": "🌐 أخرى", "callback_data": "platform:other"},
         ],
     ]
@@ -521,6 +526,7 @@ PLATFORM_LABELS = {
     "instagram": "📸 Instagram",
     "facebook": "📘 Facebook",
     "twitter": "🐦 Twitter / X",
+    "snapchat": "👻 Snapchat",
     "pinterest": "📌 Pinterest",
     "other": "🌐 منصة أخرى",
 }
