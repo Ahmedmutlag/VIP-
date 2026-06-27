@@ -496,6 +496,7 @@ MAIN_KEYBOARD = {
         [{"text": "📊 الإحصائيات"}, {"text": "🔥 الأكثر تحميلاً"}],
         [{"text": "📣 شارك البوت"}, {"text": "ℹ️ المساعدة"}],
         [{"text": "💎 بريميوم"}, {"text": "🌐 الموقع"}],
+        [{"text": "📱 حمّل التطبيق"}],
     ],
     "resize_keyboard": True,
     "persistent": True,
@@ -561,6 +562,7 @@ def handle_start(chat_id: int, first_name: str, param: str = ""):
                 [{"text": "📊 الإحصائيات"}, {"text": "🔥 الأكثر تحميلاً"}],
                 [{"text": "📣 شارك البوت"}, {"text": "ℹ️ المساعدة"}],
                 [{"text": "💎 بريميوم"}, {"text": "🌐 الموقع"}],
+                [{"text": "📱 حمّل التطبيق"}],
                 [{"text": "🛠️ لوحة التحكم"}],
             ],
             "resize_keyboard": True,
@@ -1468,6 +1470,14 @@ def handle_message(msg: dict):
         handle_history(chat_id)
     elif text.startswith("/subscribe") or text == "💎 بريميوم":
         handle_subscribe_menu(chat_id)
+    elif text == "📱 حمّل التطبيق":
+        send_message(chat_id,
+            "📱 <b>تطبيق نزلها بلس</b>\n\n"
+            "متاح مجاناً على Google Play 👇",
+            reply_markup={"inline_keyboard": [[
+                {"text": "⬇️ تحميل التطبيق", "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"}
+            ]]}
+        )
     elif text == "🔥 الأكثر تحميلاً":
         handle_top(chat_id)
     elif text == "📲 حمّل فيديو":
