@@ -32,7 +32,7 @@ import yt_dlp
 def auto_update_ytdlp():
     try:
         subprocess.run(
-            ["pip", "install", "yt-dlp==2024.12.13", "--quiet", "--break-system-packages"],
+            ["pip", "install", "-U", "yt-dlp", "--quiet", "--break-system-packages"],
             timeout=120, check=False
         )
         stats["ytdlp_updated"] = now().strftime("%Y-%m-%d %H:%M")
