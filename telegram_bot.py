@@ -322,6 +322,270 @@ ad_verif_tokens: dict[str, int] = {}  # token -> chat_id (cleared once verified)
 active_downloads: set[int] = set()  # chat_ids with a download in progress
 _app_sessions_local: set[int] = set()  # fallback when Redis unavailable
 
+# ── Language support ───────────────────────────────────────────────────────────
+user_lang: dict[int, str] = {}
+
+def _detect_lang(language_code: str) -> str:
+    if language_code and language_code.lower().startswith("ar"):
+        return "ar"
+    return "en"
+
+def _get_lang(user_id: int) -> str:
+    return user_lang.get(user_id, "en")
+
+STRINGS: dict[str, dict] = {
+    "ar": {
+        "help": (
+            "🤖 <b>بوت نزلها بلس للتحميل</b>\n\n"
+            "أرسل لي رابط الفيديو مباشرةً وسأحمله لك!\n\n"
+            "<b>المنصات المدعومة:</b>\n"
+            "• TikTok  |  Instagram  |  Facebook\n"
+            "• Twitter/X  |  Pinterest  |  وأكثر\n\n"
+            "<b>الأوامر:</b>\n"
+            "/start — رسالة الترحيب\n"
+            "/help — هذه القائمة\n"
+            "/platforms — المنصات المدعومة\n"
+            "/stats — إحصائيات الموقع\n"
+            "/site — رابط الموقع\n"
+            "/share — شارك البوت مع أصدقائك\n"
+            "/redeem — تفعيل كود بريميوم\n"
+            "/status — حالة اشتراكك\n"
+            "/history — آخر تحميلاتك\n\n"
+            "📎 فقط الصق الرابط وأنا أتولى الباقي!\n\n"
+            "🆓 المجاني: <b>5 تحميلات/يوم</b>\n"
+            "💎 البريميوم: <b>غير محدود</b>"
+        ),
+        "welcome": "مرحباً {name} 🌟\n\nنزّل أي فيديو تريده بضغطة واحدة!\nمن تيك توك، إنستغرام، فيسبوك وأكثر 🎯\n\nأرسل الرابط الآن وجرّب بنفسك 👇",
+        "auto_dl_intro": "مرحباً {name}! 🎯\nجاري تحميل الفيديو تلقائياً...",
+        "btn_open_website": "🚀 فتح الموقع",
+        "btn_download": "📲 حمّل فيديو",
+        "btn_stats": "📊 الإحصائيات",
+        "btn_top": "🔥 الأكثر تحميلاً",
+        "btn_share": "📣 شارك البوت",
+        "btn_help": "ℹ️ المساعدة",
+        "btn_premium": "💎 بريميوم",
+        "btn_site": "🌐 الموقع",
+        "btn_app": "📱 حمّل التطبيق",
+        "btn_panel": "🛠️ لوحة التحكم",
+        "blocked": "⛔ عذراً، تم تعليق حسابك. تواصل مع الدعم.",
+        "already_downloading": "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.",
+        "daily_limit": "⛔ <b>وصلت للحد اليومي المجاني ({limit} تحميلات)</b>\n\nاختر طريقة للمتابعة:",
+        "btn_watch_ad": "📺 شاهد إعلان وحمّل مجاناً",
+        "btn_subscribe_now": "💎 اشترك بالبريميوم",
+        "choose_format": "🎬 <b>{platform}</b> — اختر الصيغة:{rem}",
+        "btn_video": "🎬 فيديو",
+        "btn_audio": "🎵 MP3",
+        "cache_hit": "⚡ تم العثور على الفيديو في الكاش، جاري الإرسال...",
+        "download_complete": "✅ اكتمل التحميل! أرسل رابطاً آخر لتحميل المزيد 🚀",
+        "downloading_audio": "⬇️ جاري التحميل 🎵 الصوت...",
+        "downloading_from": "⬇️ جاري التحميل من <b>{platform}</b>...",
+        "dl_start_failed": "❌ فشل بدء التحميل.",
+        "no_file": "❌ الملف غير موجود على السيرفر.",
+        "send_failed": "⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{site}",
+        "timeout": "⏰ انتهت مهلة التحميل — حاول مرة أخرى.",
+        "retry_site": "🔄 حاول من الموقع",
+        "send_url_prompt": "❓ أرسل رابط فيديو لتحميله، أو اضغط 📲 حمّل فيديو.",
+        "not_valid_url": "❗ هذا ليس رابطاً صحيحاً، أرسل رابط الفيديو مباشرةً.",
+        "multiple_urls": "🔗 وجدت <b>{count}</b> روابط — سأحمّلها بالترتيب...",
+        "multiple_limit_done": "⛔ نُفّذت <b>{done}</b> من <b>{total}</b> تحميلات — وصلت للحد اليومي",
+        "multiple_limit_zero": "⛔ وصلت للحد اليومي المجاني ({limit} تحميلات)",
+        "expired_session": "⚠️ انتهت الجلسة، أعد إرسال الرابط.",
+        "preparing": "⏳ جاري التحضير...",
+        "choose_platform": "🎬 <b>اختر المنصة التي تريد التحميل منها:</b>",
+        "platform_chosen": "👍 اخترت <b>{label}</b>\n\nأرسل الرابط الآن 👇",
+        "site_url_msg": "🌐 موقع VIP-DL:\n{site}",
+        "platforms_list": (
+            "📱 <b>المنصات المدعومة:</b>\n\n"
+            "🎵 TikTok\n📸 Instagram\n📘 Facebook\n"
+            "🐦 Twitter / X\n📌 Pinterest\n"
+            "➕ والمئات من المواقع الأخرى!\n\n"
+            "فقط أرسل الرابط وأنا أتولى الباقي 😉"
+        ),
+        "no_history": "📭 لا يوجد سجل تحميلات بعد.\n\nأرسل رابط فيديو لتحميله!",
+        "history_title": "📋 <b>آخر تحميلاتك ({count}):</b>",
+        "btn_clear_history": "🗑️ مسح السجل",
+        "history_cleared": "✅ تم مسح سجل التحميلات.",
+        "app_info": "📱 <b>تطبيق نزلها بلس</b>\n\nمتاح مجاناً على Google Play 👇",
+        "btn_dl_app": "⬇️ تحميل التطبيق",
+        "stats_error": "⚠️ تعذّر جلب الإحصائيات، حاول لاحقاً.",
+        "data_error": "⚠️ تعذّر جلب البيانات، حاول لاحقاً.",
+        "platform_other_label": "🌐 منصة أخرى",
+        "redeem_prompt": "💎 أرسل الكود هكذا:\n/redeem XXXX-XXXXXXXX",
+        "premium_activated": "🎉 <b>تم تفعيل البريميوم!</b>\n\n💎 مدة الاشتراك: <b>{days} يوم</b>\n📅 ينتهي في: <b>{expires}</b>\n\nاستمتع بتحميلات غير محدودة! 🚀",
+        "payment_success": "🎉 <b>تم الدفع بنجاح!</b>\n\n⭐ دفعت: <b>{stars} Stars</b>\n💎 الباقة: <b>{days} يوم</b>\n📅 تنتهي في: <b>{expires}</b>\n\nاستمتع بتحميلات غير محدودة! 🚀",
+        "status_admin": "👑 <b>أدمن</b> — وصول غير محدود",
+        "status_premium_lifetime": "💎 <b>بريميوم مدى الحياة</b> ✅",
+        "status_premium": "💎 <b>بريميوم نشط</b>\n📅 ينتهي: <b>{exp}</b>",
+        "status_free": "🆓 <b>حساب مجاني</b>\n\n⬇️ تحميلاتك اليوم: <b>{used}/{limit}</b>\n✅ متبقي: <b>{remaining}</b>\n\nللترقية: /redeem + كود البريميوم",
+        "remaining_text": "\n\n📊 تحميلاتك اليوم: <b>{used}/{limit}</b> | متبقي: <b>{remaining}</b>",
+        "premium_expiry_warning": "⚠️ <b>تنبيه: بريميومك ينتهي بعد {days} يوم!</b>\n\n📅 تاريخ الانتهاء: <b>{exp}</b>\n\nجدّد الآن للاستمرار في التحميل غير المحدود 👇",
+        "subscribe_menu": (
+            "💎 <b>ترقية للبريميوم</b>\n\n"
+            "اختر الباقة المناسبة:\n\n"
+            "⭐ الدفع عبر Telegram Stars (مدمج داخل التطبيق)\n"
+            "✅ تفعيل فوري بعد الدفع"
+        ),
+        "share_msg": (
+            "📣 <b>شارك بوت نزلها بلس مع أصدقائك!</b>\n\n"
+            "🔗 رابط البوت:\nhttps://t.me/nazzilhaplus_bot\n\n"
+            "انسخ الرسالة أدناه وأرسلها لأصدقائك 👇\n\n"
+            "┄┄┄┄┄┄┄┄┄┄┄┄\n"
+            "🎬 جرّب بوت <b>نزلها بلس</b>!\n"
+            "نزّل أي فيديو من تيك توك، إنستغرام، فيسبوك وأكثر — مجاناً وبدون تسجيل ✨\n"
+            "👉 https://t.me/nazzilhaplus_bot"
+        ),
+        "inline_help_title": "📥 الصق رابط الفيديو بعد اسم البوت",
+        "inline_help_desc": "مثال: @nazzilhaplus_bot https://vm.tiktok.com/xxx",
+        "inline_help_msg": "📥 لتحميل فيديو أرسل الرابط لـ @nazzilhaplus_bot",
+        "inline_open_bot": "📥 افتح البوت وأرسل الرابط",
+        "inline_cache_label": " — ⚡ متاح في الكاش",
+        "inline_dl_desc": "اضغط لإرسال رابط التحميل في المجموعة",
+        "inline_dl_btn": "📥 حمّل عبر البوت",
+        "inline_dl_msg": "📥 <b>تحميل فيديو من {platform}</b>\n\n🔗 {url}",
+        "download_from": "📥 تحميل من {platform}",
+        "top_empty": "لا يوجد بيانات بعد",
+        "top_downloads": "تحميل",
+    },
+    "en": {
+        "help": (
+            "🤖 <b>Nazzilha Plus Download Bot</b>\n\n"
+            "Send me a video link and I'll download it for you!\n\n"
+            "<b>Supported Platforms:</b>\n"
+            "• TikTok  |  Instagram  |  Facebook\n"
+            "• Twitter/X  |  Pinterest  |  and more\n\n"
+            "<b>Commands:</b>\n"
+            "/start — Welcome message\n"
+            "/help — This menu\n"
+            "/platforms — Supported platforms\n"
+            "/stats — Site statistics\n"
+            "/site — Website link\n"
+            "/share — Share the bot with friends\n"
+            "/redeem — Activate a premium code\n"
+            "/status — Your subscription status\n"
+            "/history — Your recent downloads\n\n"
+            "📎 Just paste the link and I'll handle the rest!\n\n"
+            "🆓 Free: <b>5 downloads/day</b>\n"
+            "💎 Premium: <b>unlimited</b>"
+        ),
+        "welcome": "Hi {name} 🌟\n\nDownload any video with one tap!\nFrom TikTok, Instagram, Facebook & more 🎯\n\nSend the link now and try it yourself 👇",
+        "auto_dl_intro": "Hi {name}! 🎯\nDownloading the video automatically...",
+        "btn_open_website": "🚀 Open Website",
+        "btn_download": "📲 Download Video",
+        "btn_stats": "📊 Statistics",
+        "btn_top": "🔥 Most Downloaded",
+        "btn_share": "📣 Share Bot",
+        "btn_help": "ℹ️ Help",
+        "btn_premium": "💎 Premium",
+        "btn_site": "🌐 Website",
+        "btn_app": "📱 Download App",
+        "btn_panel": "🛠️ Admin Panel",
+        "blocked": "⛔ Sorry, your account has been suspended. Contact support.",
+        "already_downloading": "⏳ A download is already in progress, please wait.",
+        "daily_limit": "⛔ <b>You've reached the free daily limit ({limit} downloads)</b>\n\nChoose how to continue:",
+        "btn_watch_ad": "📺 Watch ad & download free",
+        "btn_subscribe_now": "💎 Subscribe to Premium",
+        "choose_format": "🎬 <b>{platform}</b> — Choose format:{rem}",
+        "btn_video": "🎬 Video",
+        "btn_audio": "🎵 MP3",
+        "cache_hit": "⚡ Found in cache, sending instantly...",
+        "download_complete": "✅ Download complete! Send another link to download more 🚀",
+        "downloading_audio": "⬇️ Downloading 🎵 audio...",
+        "downloading_from": "⬇️ Downloading from <b>{platform}</b>...",
+        "dl_start_failed": "❌ Failed to start download.",
+        "no_file": "❌ File not found on the server.",
+        "send_failed": "⚠️ Could not send file directly.\n\n📥 Download from website:\n{site}",
+        "timeout": "⏰ Download timed out — please try again.",
+        "retry_site": "🔄 Try on Website",
+        "send_url_prompt": "❓ Send a video link to download it, or tap 📲 Download Video.",
+        "not_valid_url": "❗ That's not a valid link. Please send a direct video URL.",
+        "multiple_urls": "🔗 Found <b>{count}</b> links — downloading in order...",
+        "multiple_limit_done": "⛔ Downloaded <b>{done}</b> of <b>{total}</b> — daily limit reached",
+        "multiple_limit_zero": "⛔ You've reached the free daily limit ({limit} downloads)",
+        "expired_session": "⚠️ Session expired, please send the link again.",
+        "preparing": "⏳ Preparing...",
+        "choose_platform": "🎬 <b>Choose the platform to download from:</b>",
+        "platform_chosen": "👍 You chose <b>{label}</b>\n\nSend the link now 👇",
+        "site_url_msg": "🌐 VIP-DL Website:\n{site}",
+        "platforms_list": (
+            "📱 <b>Supported Platforms:</b>\n\n"
+            "🎵 TikTok\n📸 Instagram\n📘 Facebook\n"
+            "🐦 Twitter / X\n📌 Pinterest\n"
+            "➕ And hundreds more!\n\n"
+            "Just send the link and I'll handle the rest 😉"
+        ),
+        "no_history": "📭 No download history yet.\n\nSend a video link to download!",
+        "history_title": "📋 <b>Your recent downloads ({count}):</b>",
+        "btn_clear_history": "🗑️ Clear History",
+        "history_cleared": "✅ Download history cleared.",
+        "app_info": "📱 <b>Nazzilha Plus App</b>\n\nFree on Google Play 👇",
+        "btn_dl_app": "⬇️ Download App",
+        "stats_error": "⚠️ Could not fetch statistics, try again later.",
+        "data_error": "⚠️ Could not fetch data, try again later.",
+        "platform_other_label": "🌐 Other Platform",
+        "redeem_prompt": "💎 Send the code like this:\n/redeem XXXX-XXXXXXXX",
+        "premium_activated": "🎉 <b>Premium activated!</b>\n\n💎 Duration: <b>{days} days</b>\n📅 Expires: <b>{expires}</b>\n\nEnjoy unlimited downloads! 🚀",
+        "payment_success": "🎉 <b>Payment successful!</b>\n\n⭐ Paid: <b>{stars} Stars</b>\n💎 Plan: <b>{days} days</b>\n📅 Expires: <b>{expires}</b>\n\nEnjoy unlimited downloads! 🚀",
+        "status_admin": "👑 <b>Admin</b> — unlimited access",
+        "status_premium_lifetime": "💎 <b>Lifetime Premium</b> ✅",
+        "status_premium": "💎 <b>Active Premium</b>\n📅 Expires: <b>{exp}</b>",
+        "status_free": "🆓 <b>Free Account</b>\n\n⬇️ Downloads today: <b>{used}/{limit}</b>\n✅ Remaining: <b>{remaining}</b>\n\nUpgrade: /redeem + premium code",
+        "remaining_text": "\n\n📊 Downloads today: <b>{used}/{limit}</b> | Remaining: <b>{remaining}</b>",
+        "premium_expiry_warning": "⚠️ <b>Your premium expires in {days} day(s)!</b>\n\n📅 Expiry: <b>{exp}</b>\n\nRenew now to keep unlimited downloads 👇",
+        "subscribe_menu": (
+            "💎 <b>Upgrade to Premium</b>\n\n"
+            "Choose a plan:\n\n"
+            "⭐ Pay with Telegram Stars (built into the app)\n"
+            "✅ Instant activation after payment"
+        ),
+        "share_msg": (
+            "📣 <b>Share Nazzilha Plus Bot with your friends!</b>\n\n"
+            "🔗 Bot link:\nhttps://t.me/nazzilhaplus_bot\n\n"
+            "Copy the message below and send it to your friends 👇\n\n"
+            "┄┄┄┄┄┄┄┄┄┄┄┄\n"
+            "🎬 Try <b>Nazzilha Plus</b> bot!\n"
+            "Download any video from TikTok, Instagram, Facebook & more — free & no signup ✨\n"
+            "👉 https://t.me/nazzilhaplus_bot"
+        ),
+        "inline_help_title": "📥 Paste a video link after the bot name",
+        "inline_help_desc": "Example: @nazzilhaplus_bot https://vm.tiktok.com/xxx",
+        "inline_help_msg": "📥 To download a video send the link to @nazzilhaplus_bot",
+        "inline_open_bot": "📥 Open bot and send link",
+        "inline_cache_label": " — ⚡ In cache",
+        "inline_dl_desc": "Tap to share the download link in the group",
+        "inline_dl_btn": "📥 Download via Bot",
+        "inline_dl_msg": "📥 <b>Download video from {platform}</b>\n\n🔗 {url}",
+        "download_from": "📥 Download from {platform}",
+        "top_empty": "No data yet",
+        "top_downloads": "downloads",
+    },
+}
+
+
+def t(user_id: int, key: str, **kwargs) -> str:
+    lang = _get_lang(user_id)
+    s = STRINGS.get(lang, {}).get(key) or STRINGS["ar"].get(key, key)
+    return s.format(**kwargs) if kwargs else s
+
+
+def _btn_any(key: str) -> set:
+    """Return all language variants of a button text for routing."""
+    return {d[key] for d in STRINGS.values() if key in d}
+
+
+def get_main_keyboard(user_id: int) -> dict:
+    return {
+        "keyboard": [
+            [{"text": t(user_id, "btn_open_website"), "web_app": {"url": "https://www.vip-dl.com"}}],
+            [{"text": t(user_id, "btn_download")}],
+            [{"text": t(user_id, "btn_stats")}, {"text": t(user_id, "btn_top")}],
+            [{"text": t(user_id, "btn_share")}, {"text": t(user_id, "btn_help")}],
+            [{"text": t(user_id, "btn_premium")}, {"text": t(user_id, "btn_site")}],
+            [{"text": t(user_id, "btn_app")}],
+        ],
+        "resize_keyboard": True,
+        "persistent": True,
+    }
+
 # ── Media cache: url+format → Telegram file_id ────────────────────────────────
 _media_cache: dict[str, dict] = {}
 
@@ -465,31 +729,6 @@ def redeem_code(chat_id: int, code: str) -> dict:
 
 # ── Message handlers ───────────────────────────────────────────────────────────
 
-HELP_TEXT = """🤖 <b>بوت نزلها بلس للتحميل</b>
-
-أرسل لي رابط الفيديو مباشرةً وسأحمله لك!
-
-<b>المنصات المدعومة:</b>
-• TikTok  |  Instagram  |  Facebook
-• Twitter/X  |  Pinterest  |  وأكثر
-
-<b>الأوامر:</b>
-/start — رسالة الترحيب
-/help — هذه القائمة
-/platforms — المنصات المدعومة
-/stats — إحصائيات الموقع
-/site — رابط الموقع
-/share — شارك البوت مع أصدقائك
-/redeem — تفعيل كود بريميوم
-/status — حالة اشتراكك
-/history — آخر تحميلاتك
-
-📎 فقط الصق الرابط وأنا أتولى الباقي!
-
-🆓 المجاني: <b>5 تحميلات/يوم</b>
-💎 البريميوم: <b>غير محدود</b>"""
-
-
 MAIN_KEYBOARD = {
     "keyboard": [
         [{"text": "🚀 فتح الموقع", "web_app": {"url": "https://www.vip-dl.com"}}],
@@ -534,15 +773,17 @@ PLATFORM_LABELS = {
 }
 
 
-def handle_start(chat_id: int, first_name: str, param: str = ""):
+def handle_start(chat_id: int, first_name: str, param: str = "", uid: int = 0):
+    if uid == 0:
+        uid = chat_id
     if param:
         try:
             r = requests.get(f"{SITE_URL}/api/url-token/{param}", timeout=10)
             if r.status_code == 200:
                 url = r.json().get("url", "")
                 if url and URL_PATTERN.search(url):
-                    send_message(chat_id, f"مرحباً {first_name}! 🎯\nجاري تحميل الفيديو تلقائياً...")
-                    threading.Thread(target=handle_url, args=(chat_id, url, first_name), daemon=True).start()
+                    send_message(chat_id, t(uid, "auto_dl_intro", name=first_name))
+                    threading.Thread(target=handle_url, args=(chat_id, url, first_name, uid), daemon=True).start()
                     return
         except Exception:
             pass
@@ -550,12 +791,7 @@ def handle_start(chat_id: int, first_name: str, param: str = ""):
     if custom_welcome:
         text = custom_welcome[0].replace("{name}", first_name)
     else:
-        text = (
-            f"مرحباً {first_name} 🌟\n\n"
-            "نزّل أي فيديو تريده بضغطة واحدة!\n"
-            "من تيك توك، إنستغرام، فيسبوك وأكثر 🎯\n\n"
-            "أرسل الرابط الآن وجرّب بنفسك 👇"
-        )
+        text = t(uid, "welcome", name=first_name)
     if chat_id in ADMIN_IDS:
         admin_kb = {
             "keyboard": [
@@ -572,11 +808,13 @@ def handle_start(chat_id: int, first_name: str, param: str = ""):
         }
         send_message(chat_id, text, reply_markup=admin_kb)
     else:
-        send_message(chat_id, text, reply_markup=MAIN_KEYBOARD)
+        send_message(chat_id, text, reply_markup=get_main_keyboard(uid))
 
 
-def handle_help(chat_id: int):
-    send_message(chat_id, HELP_TEXT)
+def handle_help(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    send_message(chat_id, t(uid, "help"))
 
 
 def handle_stats(chat_id: int):
