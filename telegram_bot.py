@@ -413,8 +413,11 @@ STRINGS: dict[str, dict] = {
         "blocked": "⛔ عذراً، تم تعليق حسابك. تواصل مع الدعم.",
         "already_downloading": "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.",
         "daily_limit": "⛔ <b>وصلت للحد اليومي المجاني ({limit} تحميلات)</b>\n\nاختر طريقة للمتابعة:",
-        "btn_watch_ad": "📺 شاهد إعلان وحمّل مجاناً",
-        "btn_subscribe_now": "💎 اشترك بالبريميوم",
+        "btn_watch_ad": "📺 شاهد إعلان على الموقع",
+        "btn_watch_ad_app": "📱 شاهد إعلان عبر التطبيق",
+        "btn_subscribe_now": "💎 اشترك بالبريميوم ⭐",
+        "adwatch_app_msg": "📱 <b>شاهد إعلاناً عبر التطبيق واحصل على تحميل مجاني</b>\n\n1️⃣ افتح تطبيق نزلها بلس\n2️⃣ سيظهر الإعلان تلقائياً\n3️⃣ ارجع هنا واضغط ✅ تم",
+        "btn_app_ad_done": "✅ شاهدت الإعلان — حمّل الآن",
         "choose_format": "🎬 <b>{platform}</b> — اختر الصيغة:{rem}",
         "btn_video": "🎬 فيديو",
         "btn_audio": "🎵 MP3",
@@ -526,8 +529,11 @@ STRINGS: dict[str, dict] = {
         "blocked": "⛔ Sorry, your account has been suspended. Contact support.",
         "already_downloading": "⏳ A download is already in progress, please wait.",
         "daily_limit": "⛔ <b>You've reached the free daily limit ({limit} downloads)</b>\n\nChoose how to continue:",
-        "btn_watch_ad": "📺 Watch ad & download free",
-        "btn_subscribe_now": "💎 Subscribe to Premium",
+        "btn_watch_ad": "📺 Watch ad on website",
+        "btn_watch_ad_app": "📱 Watch ad via the app",
+        "btn_subscribe_now": "💎 Subscribe to Premium ⭐",
+        "adwatch_app_msg": "📱 <b>Watch an ad via the app to get a free download</b>\n\n1️⃣ Open Nazzilha Plus app\n2️⃣ An ad will appear automatically\n3️⃣ Come back here and press ✅ Done",
+        "btn_app_ad_done": "✅ I watched the ad — Download now",
         "choose_format": "🎬 <b>{platform}</b> — Choose format:{rem}",
         "btn_video": "🎬 Video",
         "btn_audio": "🎵 MP3",
@@ -699,7 +705,7 @@ _history_raw    = _load("user_history", _HISTORY_FILE, {})
 user_history: dict[int, list]  = {int(k): v for k, v in _history_raw.items()}
 
 _config_raw     = _load("bot_config", _CONFIG_FILE, {})
-_daily_limit: list[int] = [int(_config_raw.get("daily_limit", 50))]
+_daily_limit: list[int] = [int(_config_raw.get("daily_limit", 5))]
 
 
 def _save_premium():
@@ -1229,6 +1235,35 @@ def handle_adwatch_start(chat_id: int, cq_id: str):
     )
 
 
+def handle_adwatch_app(chat_id: int, cq_id: str):
+    answer_callback(cq_id)
+    data = pending.get(chat_id, {})
+    if not data.get("ad_pending_url"):
+        send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
+        return
+    send_message(
+        chat_id,
+        t(chat_id, "adwatch_app_msg"),
+        reply_markup={"inline_keyboard": [[
+            {"text": "📲 افتح التطبيق", "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"},
+        ], [
+            {"text": t(chat_id, "btn_app_ad_done"), "callback_data": "adwatch:app_done"},
+        ]]},
+    )
+
+
+def handle_adwatch_app_done(chat_id: int, cq_id: str):
+    data = pending.get(chat_id, {})
+    url = data.get("ad_pending_url", "")
+    if not url:
+        answer_callback(cq_id, "⚠️ انتهت الجلسة")
+        send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
+        return
+    pending.pop(chat_id, None)
+    answer_callback(cq_id, "✅ جاري التحميل...")
+    threading.Thread(target=_do_download, args=(chat_id, url), daemon=True).start()
+
+
 def handle_adwatch_done(chat_id: int, cq_id: str):
     data = pending.get(chat_id, {})
     url = data.get("ad_pending_url", "")
@@ -1421,8 +1456,9 @@ def handle_url(chat_id: int, url: str, first_name: str, user_id: int = 0):
             chat_id,
             t(user_id, "daily_limit", limit=_daily_limit[0]),
             reply_markup={"inline_keyboard": [
-                [{"text": t(user_id, "btn_watch_ad"), "callback_data": "adwatch:start"}],
                 [{"text": t(user_id, "btn_subscribe_now"), "callback_data": "sub:menu"}],
+                [{"text": t(user_id, "btn_watch_ad_app"), "callback_data": "adwatch:app"}],
+                [{"text": t(user_id, "btn_watch_ad"), "callback_data": "adwatch:start"}],
             ]}
         )
         return
@@ -1859,6 +1895,10 @@ def handle_callback_query(cq: dict):
         threading.Thread(target=handle_adwatch_start, args=(chat_id, cq_id), daemon=True).start()
     elif data == "adwatch:done":
         threading.Thread(target=handle_adwatch_done, args=(chat_id, cq_id), daemon=True).start()
+    elif data == "adwatch:app":
+        threading.Thread(target=handle_adwatch_app, args=(chat_id, cq_id), daemon=True).start()
+    elif data == "adwatch:app_done":
+        threading.Thread(target=handle_adwatch_app_done, args=(chat_id, cq_id), daemon=True).start()
     elif data.startswith("fmt:"):
         parts = data.split(":")
         fmt = parts[1] if len(parts) > 1 else "video"
