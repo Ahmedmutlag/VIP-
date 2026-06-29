@@ -1449,30 +1449,44 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str, format_id
 
             file_size_mb = file_path.stat().st_size / (1024 * 1024)
 
+            sent_ok = False
             try:
                 if ext in (".mp3", ".m4a", ".ogg", ".wav"):
                     res = send_audio(chat_id, str(file_path), caption_text)
-                    if format_id and res.get("ok"):
+                    sent_ok = res.get("ok", False)
+                    if sent_ok and format_id:
                         fid = (res.get("result") or {}).get("audio", {}).get("file_id", "")
                         if fid:
                             _cache_set(url, format_id, fid, "audio", display_name)
                 elif file_size_mb <= 50:
                     res = send_video(chat_id, str(file_path), caption_text)
-                    if format_id and res.get("ok"):
-                        fid = (res.get("result") or {}).get("video", {}).get("file_id", "")
+                    sent_ok = res.get("ok", False)
+                    if not sent_ok:
+                        # fallback: try sending as document
+                        res = send_document(chat_id, str(file_path), caption_text)
+                        sent_ok = res.get("ok", False)
+                    if sent_ok and format_id:
+                        fid = (res.get("result") or {}).get("video", {}).get("file_id", "") or \
+                              (res.get("result") or {}).get("document", {}).get("file_id", "")
                         if fid:
                             _cache_set(url, format_id, fid, "video", display_name)
                 else:
                     res = send_document(chat_id, str(file_path), caption_text)
-                    if format_id and res.get("ok"):
+                    sent_ok = res.get("ok", False)
+                    if sent_ok and format_id:
                         fid = (res.get("result") or {}).get("document", {}).get("file_id", "")
                         if fid:
                             _cache_set(url, format_id, fid, "document", display_name)
             except Exception as e:
                 log.error("Failed to send file: %s", e)
                 send_message(chat_id, t(uid, "send_failed", site=SITE_URL))
+                return
 
-            send_message(chat_id, t(uid, "download_complete"))
+            if sent_ok:
+                send_message(chat_id, t(uid, "download_complete"))
+            else:
+                err_detail = (res.get("description") or "")[:100] if 'res' in dir() else ""
+                send_message(chat_id, f"❌ فشل إرسال الملف: {err_detail}\n\nحاول من الموقع: {SITE_URL}")
 
             _add_to_history(chat_id, url, display_name, detect_platform(url))
             notify_admin_download(url, display_name, chat_id)
