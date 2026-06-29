@@ -1458,7 +1458,6 @@ def handle_url(chat_id: int, url: str, first_name: str, user_id: int = 0):
             reply_markup={"inline_keyboard": [
                 [{"text": t(user_id, "btn_subscribe_now"), "callback_data": "sub:menu"}],
                 [{"text": t(user_id, "btn_watch_ad_app"), "callback_data": "adwatch:app"}],
-                [{"text": t(user_id, "btn_watch_ad"), "callback_data": "adwatch:start"}],
             ]}
         )
         return
@@ -1936,8 +1935,8 @@ def handle_callback_query(cq: dict):
                     send_message(chat_id,
                         t(chat_id, "daily_limit", limit=_daily_limit[0]),
                         reply_markup={"inline_keyboard": [
-                            [{"text": t(chat_id, "btn_watch_ad"), "callback_data": "adwatch:start"}],
                             [{"text": t(chat_id, "btn_subscribe_now"), "callback_data": "sub:menu"}],
+                            [{"text": t(chat_id, "btn_watch_ad_app"), "callback_data": "adwatch:app"}],
                         ]})
                 else:
                     pending[chat_id] = {"fmt_url": item["url"], "title": item["title"]}
