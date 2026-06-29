@@ -51,17 +51,17 @@ def _call_rapidapi(url: str) -> dict:
     except Exception as e:
         return {"error": str(e)}
 
-def _rapidapi_pick_url(api_urls: list, prefer_audio: bool = False) -> str:
-    if not api_urls:
+def _rapidapi_pick_url(medias: list, prefer_audio: bool = False) -> str:
+    if not medias:
         return ""
     if prefer_audio:
-        for u in api_urls:
-            if u.get("ext", "") in ("mp3", "m4a", "aac"):
+        for u in medias:
+            if u.get("type", "") == "audio" or u.get("extension", "") in ("mp3", "m4a", "aac"):
                 return u.get("url", "")
-    for u in api_urls:
-        if u.get("ext", "") == "mp4":
+    for u in medias:
+        if u.get("extension", "") == "mp4" and u.get("type", "") == "video":
             return u.get("url", "")
-    return api_urls[0].get("url", "")
+    return medias[0].get("url", "")
 
 
 # ===== Auto-update yt-dlp =====
@@ -1659,30 +1659,36 @@ def get_info():
     # Try RapidAPI first
     if RAPIDAPI_KEY:
         api_data = _call_rapidapi(url)
-        api_urls = api_data.get("url", [])
-        if api_urls and "error" not in api_data:
-            meta = api_data.get("meta", {})
+        medias = api_data.get("medias", [])
+        if medias and "error" not in api_data:
             formats = []
-            for i, u in enumerate(api_urls):
+            for i, u in enumerate(medias):
                 if not isinstance(u, dict) or not u.get("url"):
                     continue
-                ext = u.get("ext", "mp4")
-                name = u.get("name", f"جودة {i+1}")
-                ftype = "audio" if ext in ("mp3", "m4a", "aac") else "video"
+                ext = u.get("extension", "mp4")
+                quality = u.get("quality", "")
+                height = u.get("height")
+                ftype = u.get("type", "video")
+                if height:
+                    label = f"{height}p"
+                elif quality:
+                    label = quality
+                else:
+                    label = f"جودة {i+1}"
                 formats.append({
                     "format_id": f"rapidapi_{i}",
-                    "label": name,
+                    "label": label,
                     "ext": ext,
                     "type": ftype,
-                    "filesize": u.get("size"),
+                    "filesize": u.get("data_size"),
                 })
             if formats:
                 return jsonify({
-                    "title": meta.get("title", "فيديو"),
-                    "thumbnail": meta.get("thumbnail"),
-                    "duration": meta.get("duration"),
-                    "uploader": meta.get("source", ""),
-                    "platform": meta.get("source", ""),
+                    "title": api_data.get("title", "فيديو"),
+                    "thumbnail": api_data.get("thumbnail"),
+                    "duration": api_data.get("duration"),
+                    "uploader": api_data.get("author", ""),
+                    "platform": api_data.get("source", ""),
                     "formats": formats,
                 })
 
@@ -1845,17 +1851,17 @@ def start_download():
         if RAPIDAPI_KEY:
             prefer_audio = "audio" in format_id or "bestaudio" in format_id
             api_data = _call_rapidapi(url)
-            api_urls = api_data.get("url", [])
-            if api_urls and "error" not in api_data:
-                meta = api_data.get("meta", {})
-                safe_title = re.sub(r'[\\/*?:"<>|]', "", meta.get("title", "video"))[:60]
-                # pick the right URL
+            medias = api_data.get("medias", [])
+            if medias and "error" not in api_data:
+                safe_title = re.sub(r'[\\/*?:"<>|]', "", api_data.get("title", "video"))[:60]
+                # pick the right media
                 if format_id.startswith("rapidapi_"):
                     idx = int(format_id.split("_")[1])
-                    direct_url = api_urls[idx].get("url", "") if idx < len(api_urls) else ""
-                    ext = "." + (api_urls[idx].get("ext", "mp4") if idx < len(api_urls) else "mp4")
+                    item = medias[idx] if idx < len(medias) else medias[0]
+                    direct_url = item.get("url", "")
+                    ext = "." + item.get("extension", "mp4")
                 else:
-                    direct_url = _rapidapi_pick_url(api_urls, prefer_audio=prefer_audio)
+                    direct_url = _rapidapi_pick_url(medias, prefer_audio=prefer_audio)
                     ext = ".mp3" if prefer_audio else ".mp4"
                 if direct_url:
                     try:
