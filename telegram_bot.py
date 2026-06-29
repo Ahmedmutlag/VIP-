@@ -197,6 +197,33 @@ PLATFORM_NAMES = {
 }
 
 
+def _friendly_error(err: str) -> str:
+    e = err.lower()
+    if "private" in e or "login" in e or "sign in" in e or "authenticate" in e:
+        return "❌ الفيديو خاص أو يتطلب تسجيل دخول"
+    if "unsupported url" in e or "not supported" in e:
+        return "❌ هذا الرابط غير مدعوم"
+    if "not available" in e or "unavailable" in e or "removed" in e or "deleted" in e:
+        return "❌ الفيديو غير متاح أو تم حذفه"
+    if "empty" in e or "no media" in e or "no video" in e:
+        return "❌ لم يتم العثور على فيديو في هذا الرابط"
+    if "timeout" in e or "timed out" in e:
+        return "❌ انتهت مهلة التحميل، حاول مجدداً"
+    if "connection" in e or "network" in e or "connect" in e:
+        return "❌ خطأ في الاتصال، حاول مجدداً"
+    if "429" in e or "rate limit" in e or "too many" in e:
+        return "❌ طلبات كثيرة، انتظر قليلاً وحاول مجدداً"
+    if "403" in e or "forbidden" in e:
+        return "❌ الوصول مرفوض من المنصة"
+    if "404" in e or "not found" in e:
+        return "❌ الفيديو غير موجود"
+    if "copyright" in e or "blocked" in e:
+        return "❌ الفيديو محمي بحقوق النشر"
+    if "subscribed" in e or "api" in e:
+        return "❌ خدمة التحميل غير متاحة مؤقتاً"
+    return "❌ تعذّر التحميل، حاول مجدداً أو جرب من الموقع"
+
+
 def detect_platform(url: str) -> str:
     url_lower = url.lower()
     for key, name in PLATFORM_NAMES.items():
@@ -1263,7 +1290,7 @@ def handle_redeem(chat_id: int, code: str, uid: int = 0):
         return
     result = redeem_code(chat_id, code)
     if "error" in result:
-        send_message(chat_id, f"❌ {result['error']}")
+        send_message(chat_id, _friendly_error(result['error']))
         return
     days = result.get("days", 30)
     expires = result.get("expires_at", "")
@@ -1338,7 +1365,7 @@ def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[he
             send_message(chat_id, t(uid, "downloading_from", platform=platform))
         result = site_download(url, format_id)
         if "error" in result:
-            send_message(chat_id, f"❌ {result['error']}")
+            send_message(chat_id, _friendly_error(result['error']))
             return
         task_id = result.get("task_id", "")
         if not task_id:
@@ -1497,7 +1524,7 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str, format_id
             retry_btn = {"inline_keyboard": [[
                 {"text": t(uid, "retry_site"), "url": SITE_URL},
             ]]}
-            send_message(chat_id, f"❌ {err}", reply_markup=retry_btn)
+            send_message(chat_id, _friendly_error(err), reply_markup=retry_btn)
             return
 
         time.sleep(2)
@@ -1528,7 +1555,7 @@ def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str, u
     if status_msg_id:
         _post("deleteMessage", json={"chat_id": chat_id, "message_id": status_msg_id})
     if "error" in result:
-        send_message(chat_id, f"❌ {result['error']}")
+        send_message(chat_id, _friendly_error(result['error']))
         return
 
     task_id = result.get("task_id", "")
@@ -1720,13 +1747,19 @@ def handle_message(msg: dict):
     # broadcast handler
     if pending.get(chat_id, {}).get("waiting_broadcast") and chat_id in ADMIN_IDS:
         pending.pop(chat_id, None)
+        import html as _html
+        total_users = len([u for u in known_users if u != chat_id])
+        send_message(chat_id, f"⏳ جاري الإرسال لـ <b>{total_users}</b> مستخدم...")
         sent = 0
         failed = 0
-        for uid in list(known_users.keys()):
-            if uid == chat_id:
+        btn = {"inline_keyboard": [[
+            {"text": "🚀 حمّل فيديو الآن", "url": f"https://t.me/nazzilhaplus_bot"},
+            {"text": "🌐 الموقع", "url": SITE_URL},
+        ]]}
+        for u in list(known_users.keys()):
+            if u == chat_id:
                 continue
-            import html as _html
-            res = send_message(uid, f"📢 <b>رسالة من الإدارة:</b>\n\n{_html.escape(text)}")
+            res = send_message(u, f"📢 <b>نزلها بلس:</b>\n\n{_html.escape(text)}", reply_markup=btn)
             if res.get("ok"):
                 sent += 1
             else:
