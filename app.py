@@ -1660,7 +1660,7 @@ def get_info():
     if RAPIDAPI_KEY:
         api_data = _call_rapidapi(url)
         medias = api_data.get("medias", [])
-        if medias and "error" not in api_data:
+        if medias and not api_data.get("error"):
             formats = []
             for i, u in enumerate(medias):
                 if not isinstance(u, dict) or not u.get("url"):
@@ -1852,7 +1852,7 @@ def start_download():
             prefer_audio = "audio" in format_id or "bestaudio" in format_id
             api_data = _call_rapidapi(url)
             medias = api_data.get("medias", [])
-            if medias and "error" not in api_data:
+            if medias and not api_data.get("error"):
                 safe_title = re.sub(r'[\\/*?:"<>|]', "", api_data.get("title", "video"))[:60]
                 # pick the right media
                 if format_id.startswith("rapidapi_"):
