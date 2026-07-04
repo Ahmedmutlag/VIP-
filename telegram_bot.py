@@ -1670,6 +1670,18 @@ def notify_admins(text: str):
     _notify(text)
 
 
+def _token_cleanup():
+    """Purge expired ad tokens every 10 minutes to prevent unbounded memory growth."""
+    while True:
+        time.sleep(600)
+        cutoff = time.time() - 600
+        for tok in list(app_reward_tokens.keys()):
+            if app_reward_tokens.get(tok, {}).get("created_at", 0) < cutoff:
+                app_reward_tokens.pop(tok, None)
+        for tok in list(ad_verif_tokens.keys()):
+            ad_verif_tokens.pop(tok, None)
+
+
 def _daily_report():
     import datetime
     while True:
@@ -2096,5 +2108,6 @@ def setup_webhook():
     set_webhook(webhook_url)
     threading.Thread(target=_daily_report, daemon=True, name="daily-report").start()
     threading.Thread(target=_premium_expiry_notifier, daemon=True, name="premium-notifier").start()
+    threading.Thread(target=_token_cleanup, daemon=True, name="token-cleanup").start()
     if ADMIN_CHANNEL_ID or ADMIN_IDS:
         notify_admins("🟢 <b>البوت شغّال!</b>\nVIP-DL Bot انطلق بنجاح.")

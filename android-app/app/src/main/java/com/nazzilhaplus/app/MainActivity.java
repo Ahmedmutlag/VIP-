@@ -43,6 +43,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity {
@@ -57,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
     private RewardedInterstitialAd rewardedAd;
     private boolean rewardedAdLoading = false;
     private boolean isShowingAd = false;
-    private String pendingAdToken = null;
+    private final AtomicReference<String> pendingAdToken = new AtomicReference<>(null);
 
     // ─── Download ──────────────────────────────────────────────────────────────
     private static final int STORAGE_PERMISSION_CODE = 100;
@@ -125,6 +126,8 @@ public class MainActivity extends AppCompatActivity {
         if (intent == null) return;
         Uri data = intent.getData();
         if (data == null) return;
+        String host = data.getHost();
+        if (!"www.vip-dl.com".equals(host) && !"vip-dl.com".equals(host)) return;
         String path = data.getPath();
         if (path != null && path.startsWith("/watch-ad/")) {
             String url = data.toString();
@@ -233,7 +236,7 @@ public class MainActivity extends AppCompatActivity {
         if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
         String lower = url.toLowerCase();
         for (String domain : VIDEO_DOMAINS) {
-            if (lower.contains(domain)) return true;
+            if (lower.contains("://" + domain) || lower.contains("." + domain)) return true;
         }
         return false;
     }
@@ -271,7 +274,7 @@ public class MainActivity extends AppCompatActivity {
                     rewardedAd = ad;
                     rewardedAdLoading = false;
                     // Show immediately if watchAd was called while the ad was loading
-                    if (pendingAdToken != null && !isShowingAd) {
+                    if (pendingAdToken.get() != null && !isShowingAd) {
                         runOnUiThread(() -> showRewardedInterstitialAd());
                     }
                 }
@@ -309,9 +312,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         rewardedAd.show(this, rewardItem -> {
-            // User earned the reward — call backend to unlock download
-            String token = pendingAdToken;
-            pendingAdToken = null;
+            // Atomically claim the token so concurrent calls can't double-redeem
+            String token = pendingAdToken.getAndSet(null);
             new Thread(() -> callAdRewardApi(token)).start();
         });
     }
@@ -519,7 +521,7 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void watchAd(String token) {
             if (token == null || token.isEmpty()) return;
-            pendingAdToken = token;
+            pendingAdToken.set(token);
             runOnUiThread(() -> showRewardedInterstitialAd());
         }
     }

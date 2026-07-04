@@ -2351,15 +2351,11 @@ def api_ad_reward(token):
     """Called by the Android app after the user earns the rewarded interstitial reward."""
     try:
         from telegram_bot import app_reward_tokens, pending
-        entry = app_reward_tokens.get(token)
+        entry = app_reward_tokens.pop(token, None)  # atomic claim — prevents double-redemption
         if entry is None:
             return jsonify({"ok": False, "reason": "invalid_token"}), 403
         if time.time() - entry["created_at"] > 600:
-            app_reward_tokens.pop(token, None)
             return jsonify({"ok": False, "reason": "expired"}), 403
-        if entry["redeemed"]:
-            return jsonify({"ok": False, "reason": "already_redeemed"}), 403
-        entry["redeemed"] = True
         chat_id = entry["chat_id"]
         if chat_id in pending:
             pending[chat_id]["ad_verified"] = True
@@ -2483,9 +2479,9 @@ if (window.AndroidClipboard && typeof window.AndroidClipboard.watchAd === 'funct
 @limiter.limit("20 per minute")
 def watch_ad(token):
     """Countdown page — button opens /go-ad (server redirect), 15s timer, then /adverify."""
-    import html as _html
+    import json as _json
     _ad_view_times[token] = time.time()
-    page = _WATCH_AD_PAGE.replace("{TOKEN}", _html.escape(token))
+    page = _WATCH_AD_PAGE.replace("'{TOKEN}'", _json.dumps(token))
     return page, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
