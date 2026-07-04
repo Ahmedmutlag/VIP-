@@ -1356,9 +1356,6 @@ def handle_status(chat_id: int, uid: int = 0):
     if uid == 0:
         uid = chat_id
     import datetime
-    if chat_id in ADMIN_IDS:
-        send_message(chat_id, t(uid, "status_admin"))
-        return
     if is_premium(chat_id):
         exp = premium_users.get(chat_id, "")
         if exp == "lifetime":
@@ -1381,7 +1378,7 @@ def _progress_bar(percent: int) -> str:
 
 def _remaining_text(user_id: int) -> str:
     """Returns daily counter line for free users, empty for premium/admin."""
-    if user_id in ADMIN_IDS or is_premium(user_id):
+    if is_premium(user_id):
         return ""
     import datetime
     today = datetime.date.today().isoformat()
