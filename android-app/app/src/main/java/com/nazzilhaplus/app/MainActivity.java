@@ -320,23 +320,26 @@ public class MainActivity extends AppCompatActivity {
 
     private void callAdRewardApi(String token) {
         if (token == null || token.isEmpty()) return;
-        try {
-            URL url = new URL("https://vip-dl.com/api/ad-reward/" + token);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setConnectTimeout(10_000);
-            conn.setReadTimeout(10_000);
-            conn.connect();
-            int code = conn.getResponseCode();
-            conn.disconnect();
-            if (code == 200) {
-                runOnUiThread(() ->
-                    webView.evaluateJavascript("window.adWatchedSuccess && window.adWatchedSuccess()", null));
-            } else {
-                Log.w(TAG, "ad-reward API returned " + code);
+        // Show success immediately — user already earned the reward from AdMob
+        runOnUiThread(() ->
+            webView.evaluateJavascript("window.adWatchedSuccess && window.adWatchedSuccess()", null));
+        // Notify backend with retries (server may be waking up from sleep)
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                URL url = new URL("https://vip-dl.com/api/ad-reward/" + token);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setConnectTimeout(30_000);
+                conn.setReadTimeout(30_000);
+                conn.connect();
+                int code = conn.getResponseCode();
+                conn.disconnect();
+                if (code == 200) return;
+                Log.w(TAG, "ad-reward attempt " + attempt + " returned " + code);
+            } catch (Exception e) {
+                Log.e(TAG, "callAdRewardApi attempt " + attempt + " failed: " + e.getMessage());
+                try { Thread.sleep(3000L * (attempt + 1)); } catch (InterruptedException ignored) {}
             }
-        } catch (Exception e) {
-            Log.e(TAG, "callAdRewardApi failed: " + e.getMessage());
         }
     }
 
