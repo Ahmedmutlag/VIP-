@@ -2345,6 +2345,30 @@ def ad_verify(token):
     return jsonify({"ok": False}), 200
 
 
+@app.route("/api/ad-reward/<token>", methods=["POST"])
+@limiter.limit("10 per minute")
+def api_ad_reward(token):
+    """Called by the Android app after the user earns the rewarded interstitial reward."""
+    try:
+        from telegram_bot import app_reward_tokens, pending
+        entry = app_reward_tokens.get(token)
+        if entry is None:
+            return jsonify({"ok": False, "reason": "invalid_token"}), 403
+        if time.time() - entry["created_at"] > 600:
+            app_reward_tokens.pop(token, None)
+            return jsonify({"ok": False, "reason": "expired"}), 403
+        if entry["redeemed"]:
+            return jsonify({"ok": False, "reason": "already_redeemed"}), 403
+        entry["redeemed"] = True
+        chat_id = entry["chat_id"]
+        if chat_id in pending:
+            pending[chat_id]["ad_verified"] = True
+        return jsonify({"ok": True}), 200
+    except Exception as e:
+        log.error("api_ad_reward error: %s", e)
+        return jsonify({"ok": False}), 500
+
+
 _AADS_UNIT = os.environ.get("AADS_UNIT_ID", "2444681")
 _HILLTOPADS_LINK = os.environ.get("HILLTOPADS_DIRECT_LINK", "")
 
@@ -2363,91 +2387,92 @@ _WATCH_AD_PAGE = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>شاهد إعلاناً — نزّلها بلس</title>
+<title>إعلان مكافأة — نزّلها بلس</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #fff;
   min-height: 100vh; display: flex; flex-direction: column; align-items: center;
   justify-content: center; padding: 24px; text-align: center; gap: 20px; }
-.logo { font-size: 2.2rem; }
+.logo { font-size: 2.4rem; }
 h1 { font-size: 1.3rem; font-weight: 700; }
-.sub { color: #888; font-size: .9rem; }
-.counter-box { background: #1a1a2e; border: 3px solid #5865F2; border-radius: 20px;
-  padding: 28px 48px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.counter-num { font-size: 5rem; font-weight: 900; color: #5865F2; line-height: 1;
-  font-variant-numeric: tabular-nums; min-width: 2ch; }
-.counter-label { font-size: .85rem; color: #aaa; letter-spacing: 1px; text-transform: uppercase; }
-.progress-bar { width: 100%; max-width: 280px; height: 8px; background: #333;
-  border-radius: 99px; overflow: hidden; }
-.progress-fill { height: 100%; background: linear-gradient(90deg, #5865F2, #7289da);
-  border-radius: 99px; transition: width 1s linear; width: 0%; }
-#done { display: none; }
-.check { font-size: 4rem; }
+.sub { color: #999; font-size: .9rem; line-height: 1.6; }
+.icon { font-size: 3.5rem; }
+.spinner { width: 56px; height: 56px; border: 5px solid #333; border-top-color: #5865F2;
+  border-radius: 50%; animation: spin .9s linear infinite; margin: 0 auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .green { color: #4ade80; }
-.btn { display: inline-block; padding: 16px 40px; background: #5865F2; color: #fff;
-  border-radius: 14px; text-decoration: none; font-size: 1.05rem; font-weight: 700;
-  cursor: pointer; border: none; }
+.btn { display: inline-block; padding: 14px 36px; background: #5865F2; color: #fff;
+  border-radius: 14px; text-decoration: none; font-size: 1rem; font-weight: 700;
+  cursor: pointer; border: none; margin-top: 8px; }
 .btn-green { background: #22c55e; }
+.state { display: none; flex-direction: column; align-items: center; gap: 16px; }
+.state.active { display: flex; }
 </style>
 </head>
 <body>
 
-<div class="logo">📥 نزّلها بلس</div>
+<div class="logo">📥</div>
 
-<div id="start">
-  <h1>احصل على تحميل مجاني</h1>
-  <p class="sub">اضغط الزر لفتح الإعلان وتشغيل العداد</p>
-  <button class="btn" onclick="startAd()" style="font-size:1.2rem;padding:18px 44px">
-    📺 شاهد الإعلان
-  </button>
+<div id="s-loading" class="state">
+  <div class="spinner"></div>
+  <h1>⏳ جاري تحميل الإعلان...</h1>
+  <p class="sub">انتظر لحظة</p>
 </div>
 
-<div id="watch" style="display:none">
-  <div style="background:#1a2a3a;border:2px solid #5865F2;border-radius:12px;padding:12px 20px;font-size:.95rem;color:#93c5fd;">
-    📺 <b>شاهد الإعلان في التبويب الجديد</b> ثم ارجع هنا
-  </div>
-  <h1>⏳ انتظر حتى ينتهي العداد</h1>
-  <div class="counter-box">
-    <div class="counter-num" id="tnum">15</div>
-    <div class="counter-label">ثانية</div>
-  </div>
-  <div class="progress-bar">
-    <div class="progress-fill" id="prog"></div>
-  </div>
-  <p class="sub">سيُفعَّل التحميل تلقائياً عند انتهاء العداد</p>
+<div id="s-not-ready" class="state">
+  <div class="icon">⚠️</div>
+  <h1>الإعلان غير جاهز بعد</h1>
+  <p class="sub">انتظر بضع ثوانٍ ثم اضغط إعادة المحاولة</p>
+  <button class="btn" onclick="retryAd()">🔄 إعادة المحاولة</button>
 </div>
 
-<div id="done">
-  <div class="check">✅</div>
-  <h1 class="green">تم! يمكنك التحميل الآن</h1>
-  <p class="sub" style="margin-bottom:12px">ارجع للبوت واضغط <b>شاهدت الإعلان</b></p>
+<div id="s-browser" class="state">
+  <div class="icon">📱</div>
+  <h1>افتح التطبيق أولاً</h1>
+  <p class="sub">هذه الصفحة تعمل داخل تطبيق <b>نزلها بلس</b> فقط<br>افتح التطبيق وسيظهر الإعلان تلقائياً</p>
+  <a class="btn" href="https://play.google.com/store/apps/details?id=com.nazzilhaplus.app">
+    ⬇️ تحميل التطبيق
+  </a>
+</div>
+
+<div id="s-success" class="state">
+  <div class="icon green">✅</div>
+  <h1 class="green">أحسنت! تم انهاء الإعلان</h1>
+  <p class="sub">ارجع للبوت الآن واضغط<br><b>✅ شاهدت الإعلان</b></p>
   <a class="btn btn-green" href="https://t.me/nazzilhaplus_bot">📲 العودة للبوت</a>
 </div>
 
 <script>
-var TOTAL = 15, left = 15;
+var TOKEN = '{TOKEN}';
+var retries = 0;
 
-function startAd() {
-  document.getElementById('start').style.display = 'none';
-  document.getElementById('watch').style.display = 'block';
-  window.open('/go-ad', '_blank');
-  var iv = setInterval(function() {
-    left--;
-    document.getElementById('tnum').textContent = left < 10 ? '0' + left : left;
-    document.getElementById('prog').style.width = ((TOTAL - left) / TOTAL * 100) + '%';
-    if (left <= 0) { clearInterval(iv); verify(); }
-  }, 1000);
+function show(id) {
+  ['s-loading','s-not-ready','s-browser','s-success'].forEach(function(s) {
+    var el = document.getElementById(s);
+    el.className = 'state' + (s === id ? ' active' : '');
+  });
 }
 
-function verify() {
-  fetch('/adverify/{TOKEN}')
-    .then(function() {
-      document.getElementById('watch').style.display = 'none';
-      document.getElementById('done').style.display = 'block';
-    })
-    .catch(function() {
-      window.location.href = '/adverify/{TOKEN}';
-    });
+window.adWatchedSuccess = function() { show('s-success'); };
+window.adNotReady = function() { show('s-not-ready'); };
+
+function triggerAd() {
+  try { window.AndroidClipboard.watchAd(TOKEN); }
+  catch(e) { show('s-not-ready'); }
+}
+
+function retryAd() {
+  retries++;
+  if (retries > 5) { show('s-browser'); return; }
+  show('s-loading');
+  setTimeout(triggerAd, 800);
+}
+
+if (window.AndroidClipboard && typeof window.AndroidClipboard.watchAd === 'function') {
+  show('s-loading');
+  setTimeout(triggerAd, 600);
+} else {
+  show('s-browser');
 }
 </script>
 </body>

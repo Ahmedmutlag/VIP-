@@ -346,6 +346,7 @@ def _save(redis_key: str, file_path: Path, data) -> None:
 pending: dict[int, dict] = {}
 known_users: dict[int, dict] = {}   # uid -> {"name": str, "username": str|None}
 ad_verif_tokens: dict[str, int] = {}  # token -> chat_id (cleared once verified)
+app_reward_tokens: dict[str, dict] = {}  # token -> {chat_id, created_at, redeemed}
 active_downloads: set[int] = set()  # chat_ids with a download in progress
 _app_sessions_local: set[int] = set()  # fallback when Redis unavailable
 
@@ -416,7 +417,7 @@ STRINGS: dict[str, dict] = {
         "btn_watch_ad": "📺 شاهد إعلان على الموقع",
         "btn_watch_ad_app": "📱 شاهد إعلان عبر التطبيق",
         "btn_subscribe_now": "💎 اشترك بالبريميوم ⭐",
-        "adwatch_app_msg": "📱 <b>شاهد إعلاناً عبر التطبيق واحصل على تحميل مجاني</b>\n\n1️⃣ افتح تطبيق نزلها بلس\n2️⃣ سيظهر الإعلان تلقائياً\n3️⃣ ارجع هنا واضغط ✅ تم",
+        "adwatch_app_msg": "📱 <b>شاهد إعلاناً في التطبيق واحصل على تحميل مجاني</b>\n\n1️⃣ اضغط <b>فتح التطبيق</b> أدناه\n2️⃣ سيظهر الإعلان تلقائياً — شاهده كاملاً\n3️⃣ ارجع هنا واضغط ✅ تم",
         "btn_app_ad_done": "✅ شاهدت الإعلان — حمّل الآن",
         "choose_format": "🎬 <b>{platform}</b> — اختر الصيغة:{rem}",
         "btn_video": "🎬 فيديو",
@@ -532,7 +533,7 @@ STRINGS: dict[str, dict] = {
         "btn_watch_ad": "📺 Watch ad on website",
         "btn_watch_ad_app": "📱 Watch ad via the app",
         "btn_subscribe_now": "💎 Subscribe to Premium ⭐",
-        "adwatch_app_msg": "📱 <b>Watch an ad via the app to get a free download</b>\n\n1️⃣ Open Nazzilha Plus app\n2️⃣ An ad will appear automatically\n3️⃣ Come back here and press ✅ Done",
+        "adwatch_app_msg": "📱 <b>Watch an ad in the app to unlock a free download</b>\n\n1️⃣ Tap <b>Open App</b> below\n2️⃣ An ad will appear automatically — watch it fully\n3️⃣ Come back here and press ✅ Done",
         "btn_app_ad_done": "✅ I watched the ad — Download now",
         "choose_format": "🎬 <b>{platform}</b> — Choose format:{rem}",
         "btn_video": "🎬 Video",
@@ -1241,14 +1242,20 @@ def handle_adwatch_app(chat_id: int, cq_id: str):
     if not data.get("ad_pending_url"):
         send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
         return
+    token = secrets.token_urlsafe(20)
+    app_reward_tokens[token] = {"chat_id": chat_id, "created_at": time.time(), "redeemed": False}
+    pending[chat_id]["app_reward_token"] = token
+    pending[chat_id]["ad_verified"] = False
+    watch_url = f"{SITE_URL}/watch-ad/{token}"
     send_message(
         chat_id,
         t(chat_id, "adwatch_app_msg"),
         reply_markup={"inline_keyboard": [[
-            {"text": "📲 افتح التطبيق", "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"},
+            {"text": "📲 فتح التطبيق", "url": watch_url},
         ], [
             {"text": t(chat_id, "btn_app_ad_done"), "callback_data": "adwatch:app_done"},
         ]]},
+        disable_web_page_preview=True,
     )
 
 
@@ -1258,6 +1265,17 @@ def handle_adwatch_app_done(chat_id: int, cq_id: str):
     if not url:
         answer_callback(cq_id, "⚠️ انتهت الجلسة")
         send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
+        return
+    if not data.get("ad_verified"):
+        answer_callback(cq_id, "❌ لم يتم التحقق من مشاهدة الإعلان!")
+        send_message(
+            chat_id,
+            "⚠️ <b>لم نتلقَّ تأكيد مشاهدة الإعلان</b>\n\n"
+            "تأكد أنك:\n"
+            "1️⃣ ضغطت <b>فتح التطبيق</b>\n"
+            "2️⃣ شاهدت الإعلان <b>كاملاً</b> حتى نهايته\n\n"
+            "ثم ارجع هنا واضغط الزر مجدداً 👇"
+        )
         return
     pending.pop(chat_id, None)
     answer_callback(cq_id, "✅ جاري التحميل...")

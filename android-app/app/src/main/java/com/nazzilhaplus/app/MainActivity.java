@@ -13,6 +13,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
@@ -32,9 +33,8 @@ import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.FullScreenContentCallback;
 import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
-import com.google.android.gms.ads.appopen.AppOpenAd;
-import com.google.android.gms.ads.interstitial.InterstitialAd;
-import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd;
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -47,16 +47,17 @@ import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = "NazzilhaPlus";
+
     // ─── WebView ───────────────────────────────────────────────────────────────
     private WebView webView;
-    private boolean pageLoaded    = false;
-    private boolean firstPageDone = false;
-    private boolean isShowingAd   = false;
+    private boolean pageLoaded = false;
 
-    // ─── Ads ───────────────────────────────────────────────────────────────────
-    private AppOpenAd      appOpenAd;
-    private boolean        appOpenLoading = false;
-    private InterstitialAd interstitialAd;
+    // ─── Rewarded Interstitial Ad ──────────────────────────────────────────────
+    private RewardedInterstitialAd rewardedAd;
+    private boolean rewardedAdLoading = false;
+    private boolean isShowingAd = false;
+    private String pendingAdToken = null;
 
     // ─── Download ──────────────────────────────────────────────────────────────
     private static final int STORAGE_PERMISSION_CODE = 100;
@@ -92,22 +93,45 @@ public class MainActivity extends AppCompatActivity {
         requestNotificationPermission();
         NotificationReceiver.schedule(this);
 
-        loadAppOpenAd();
-        loadInterstitialAd();
+        loadRewardedInterstitialAd();
+
+        // Handle App Link or deep link that launched the app
+        handleAdIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleAdIntent(intent);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         if (pageLoaded) injectClipboardUrl();
-        if (!isShowingAd && appOpenAd != null && firstPageDone) {
-            showAppOpenAd();
-        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  App Link / Deep Link handling
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void handleAdIntent(Intent intent) {
+        if (intent == null) return;
+        Uri data = intent.getData();
+        if (data == null) return;
+        String path = data.getPath();
+        if (path != null && path.startsWith("/watch-ad/")) {
+            String url = data.toString();
+            if (webView != null) {
+                webView.post(() -> webView.loadUrl(url));
+            }
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -159,13 +183,6 @@ public class MainActivity extends AppCompatActivity {
                 super.onPageFinished(view, url);
                 pageLoaded = true;
                 injectClipboardUrl();
-
-                if (!firstPageDone) {
-                    firstPageDone = true;
-                    if (appOpenAd != null) showAppOpenAd();
-                } else {
-                    if (interstitialAd != null && !isShowingAd) showInterstitialAd();
-                }
             }
         });
 
@@ -239,75 +256,86 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  AdMob — App Open Ad
+    //  AdMob — Rewarded Interstitial Ad
     // ══════════════════════════════════════════════════════════════════════════
 
-    private void loadAppOpenAd() {
-        if (appOpenLoading) return;
-        appOpenLoading = true;
-        AppOpenAd.load(this, getString(R.string.admob_app_open_id), new AdRequest.Builder().build(),
-            new AppOpenAd.AppOpenAdLoadCallback() {
-                @Override public void onAdLoaded(@NonNull AppOpenAd ad) {
-                    appOpenAd      = ad;
-                    appOpenLoading = false;
+    private void loadRewardedInterstitialAd() {
+        if (rewardedAdLoading) return;
+        rewardedAdLoading = true;
+        RewardedInterstitialAd.load(this,
+            getString(R.string.admob_rewarded_interstitial_id),
+            new AdRequest.Builder().build(),
+            new RewardedInterstitialAdLoadCallback() {
+                @Override
+                public void onAdLoaded(@NonNull RewardedInterstitialAd ad) {
+                    rewardedAd = ad;
+                    rewardedAdLoading = false;
+                    // Show immediately if watchAd was called while the ad was loading
+                    if (pendingAdToken != null && !isShowingAd) {
+                        runOnUiThread(() -> showRewardedInterstitialAd());
+                    }
                 }
-                @Override public void onAdFailedToLoad(@NonNull LoadAdError error) {
-                    appOpenAd      = null;
-                    appOpenLoading = false;
+                @Override
+                public void onAdFailedToLoad(@NonNull LoadAdError error) {
+                    rewardedAd = null;
+                    rewardedAdLoading = false;
+                    Log.w(TAG, "Rewarded interstitial failed to load: " + error.getMessage());
                 }
             });
     }
 
-    private void showAppOpenAd() {
-        if (appOpenAd == null || isShowingAd) return;
+    private void showRewardedInterstitialAd() {
+        if (rewardedAd == null || isShowingAd) {
+            // Ad not ready yet — notify the page
+            webView.evaluateJavascript("window.adNotReady && window.adNotReady()", null);
+            if (!rewardedAdLoading) loadRewardedInterstitialAd();
+            return;
+        }
         isShowingAd = true;
-        appOpenAd.setFullScreenContentCallback(new FullScreenContentCallback() {
-            @Override public void onAdDismissedFullScreenContent() {
-                appOpenAd   = null;
+        rewardedAd.setFullScreenContentCallback(new FullScreenContentCallback() {
+            @Override
+            public void onAdDismissedFullScreenContent() {
+                rewardedAd = null;
                 isShowingAd = false;
-                loadAppOpenAd();
+                loadRewardedInterstitialAd();
             }
-            @Override public void onAdFailedToShowFullScreenContent(@NonNull AdError e) {
-                appOpenAd   = null;
+            @Override
+            public void onAdFailedToShowFullScreenContent(@NonNull AdError e) {
+                rewardedAd = null;
                 isShowingAd = false;
-                loadAppOpenAd();
+                loadRewardedInterstitialAd();
+                webView.post(() ->
+                    webView.evaluateJavascript("window.adNotReady && window.adNotReady()", null));
             }
         });
-        appOpenAd.show(this);
-    }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    //  AdMob — Interstitial Ad
-    // ══════════════════════════════════════════════════════════════════════════
-
-    private void loadInterstitialAd() {
-        InterstitialAd.load(this, getString(R.string.admob_interstitial_id), new AdRequest.Builder().build(),
-            new InterstitialAdLoadCallback() {
-                @Override public void onAdLoaded(@NonNull InterstitialAd ad) {
-                    interstitialAd = ad;
-                }
-                @Override public void onAdFailedToLoad(@NonNull LoadAdError error) {
-                    interstitialAd = null;
-                }
-            });
-    }
-
-    private void showInterstitialAd() {
-        if (interstitialAd == null || isShowingAd) return;
-        isShowingAd = true;
-        interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
-            @Override public void onAdDismissedFullScreenContent() {
-                interstitialAd = null;
-                isShowingAd    = false;
-                loadInterstitialAd();
-            }
-            @Override public void onAdFailedToShowFullScreenContent(@NonNull AdError e) {
-                interstitialAd = null;
-                isShowingAd    = false;
-                loadInterstitialAd();
-            }
+        rewardedAd.show(this, rewardItem -> {
+            // User earned the reward — call backend to unlock download
+            String token = pendingAdToken;
+            pendingAdToken = null;
+            new Thread(() -> callAdRewardApi(token)).start();
         });
-        interstitialAd.show(this);
+    }
+
+    private void callAdRewardApi(String token) {
+        if (token == null || token.isEmpty()) return;
+        try {
+            URL url = new URL("https://vip-dl.com/api/ad-reward/" + token);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(10_000);
+            conn.setReadTimeout(10_000);
+            conn.connect();
+            int code = conn.getResponseCode();
+            conn.disconnect();
+            if (code == 200) {
+                runOnUiThread(() ->
+                    webView.evaluateJavascript("window.adWatchedSuccess && window.adWatchedSuccess()", null));
+            } else {
+                Log.w(TAG, "ad-reward API returned " + code);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "callAdRewardApi failed: " + e.getMessage());
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -486,6 +514,13 @@ public class MainActivity extends AppCompatActivity {
                             Uri.parse("https://play.google.com/store/apps/details?id=com.nazzilhaplus.app")));
                 }
             });
+        }
+
+        @JavascriptInterface
+        public void watchAd(String token) {
+            if (token == null || token.isEmpty()) return;
+            pendingAdToken = token;
+            runOnUiThread(() -> showRewardedInterstitialAd());
         }
     }
 
