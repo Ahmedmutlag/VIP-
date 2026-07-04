@@ -2365,7 +2365,7 @@ def api_ad_reward(token):
             pending[chat_id]["ad_verified"] = True
         return jsonify({"ok": True}), 200
     except Exception as e:
-        log.error("api_ad_reward error: %s", e)
+        app.logger.error("api_ad_reward error: %s", e)
         return jsonify({"ok": False}), 500
 
 
