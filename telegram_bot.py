@@ -706,7 +706,7 @@ _history_raw    = _load("user_history", _HISTORY_FILE, {})
 user_history: dict[int, list]  = {int(k): v for k, v in _history_raw.items()}
 
 _config_raw     = _load("bot_config", _CONFIG_FILE, {})
-_daily_limit: list[int] = [int(_config_raw.get("daily_limit", 5))]
+_daily_limit: list[int] = [int(_config_raw.get("daily_limit", 2))]
 
 
 def _save_premium():
