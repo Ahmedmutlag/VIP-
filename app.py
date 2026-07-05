@@ -2468,7 +2468,11 @@ if (window.AndroidClipboard && typeof window.AndroidClipboard.watchAd === 'funct
   show('s-loading');
   setTimeout(triggerAd, 600);
 } else {
-  show('s-browser');
+  var intentUrl = window.location.href.replace(/^https:\/\//, 'intent://') +
+    '#Intent;scheme=https;package=com.nazzilhaplus.app;' +
+    'S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.nazzilhaplus.app;end';
+  window.location = intentUrl;
+  setTimeout(function() { show('s-browser'); }, 2500);
 }
 </script>
 </body>
