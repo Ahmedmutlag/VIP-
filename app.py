@@ -2345,7 +2345,7 @@ def ad_verify(token):
     return jsonify({"ok": False}), 200
 
 
-@app.route("/api/ad-reward/<token>", methods=["POST"])
+@app.route("/api/ad-reward/<token>", methods=["POST", "GET"])
 @limiter.limit("10 per minute")
 def api_ad_reward(token):
     """Called by the Android app after the user earns the rewarded interstitial reward."""
