@@ -2409,7 +2409,7 @@ h1 { font-size: 1.3rem; font-weight: 700; }
 .state.active { display: flex; }
 </style>
 </head>
-<body>
+<body style="background:#0f0f0f">
 
 <div class="logo">📥</div>
 
