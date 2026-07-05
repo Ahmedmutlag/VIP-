@@ -2451,9 +2451,11 @@ function show(id) {
 
 window.adWatchedSuccess = function() {
   show('s-success');
-  try {
-    fetch('/api/ad-reward/' + TOKEN, {method: 'POST'}).catch(function(){});
-  } catch(e) {}
+  if (window.AndroidClipboard) {
+    try {
+      fetch('/api/ad-reward/' + TOKEN, {method: 'POST'}).catch(function(){});
+    } catch(e) {}
+  }
 };
 window.adNotReady = function() { show('s-not-ready'); };
 
