@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId "com.nazzilhaplus.app"
-        minSdk 21
+        minSdk 23
         targetSdk 35
         versionCode gitCommitCount
         versionName "2.${gitCommitCount}"
