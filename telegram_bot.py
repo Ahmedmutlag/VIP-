@@ -20,6 +20,8 @@ logging.basicConfig(
 log = logging.getLogger("vip-bot")
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+FCM_PROJECT_ID     = os.environ.get("FCM_PROJECT_ID", "")
+_FIREBASE_SA_JSON  = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", "")
 ADMIN_CHAT_IDS_RAW = os.environ.get("TELEGRAM_ADMIN_IDS", "")
 SITE_URL = os.environ.get("SITE_URL", "https://vip-dl.com").rstrip("/")
 ADMIN_IDS: set[int] = set()
@@ -60,6 +62,39 @@ def make_ad_url(target: str) -> str:
             return r.text.strip() or target
     except Exception:
         return target
+
+# ── FCM push notifications ─────────────────────────────────────────────────────
+
+def send_fcm_push(chat_id: int, title: str, body: str) -> None:
+    """Send an FCM push to the device associated with chat_id (if registered)."""
+    if not FCM_PROJECT_ID or not _FIREBASE_SA_JSON:
+        return
+    fcm_token = _redis_get(f"fcm:{chat_id}")
+    if not fcm_token:
+        return
+    try:
+        from google.oauth2 import service_account
+        import google.auth.transport.requests as ga_req
+        creds = service_account.Credentials.from_service_account_info(
+            json.loads(_FIREBASE_SA_JSON),
+            scopes=["https://www.googleapis.com/auth/firebase.messaging"],
+        )
+        creds.refresh(ga_req.Request())
+        requests.post(
+            f"https://fcm.googleapis.com/v1/projects/{FCM_PROJECT_ID}/messages:send",
+            headers={"Authorization": f"Bearer {creds.token}", "Content-Type": "application/json"},
+            json={
+                "message": {
+                    "token": fcm_token,
+                    "notification": {"title": title, "body": body},
+                    "android": {"priority": "high"},
+                }
+            },
+            timeout=15,
+        )
+    except Exception as e:
+        log.warning("FCM push failed for %s: %s", chat_id, e)
+
 
 # ── Telegram API helpers ───────────────────────────────────────────────────────
 
@@ -252,14 +287,17 @@ def _redis_get(key: str):
         log.warning("Redis GET %s: %s", key, e)
         return None
 
-def _redis_set(key: str, value) -> None:
+def _redis_set(key: str, value, ex: int = 0) -> None:
     if not _UPSTASH_URL:
         return
     try:
+        cmd = ["SET", key, json.dumps(value, ensure_ascii=False)]
+        if ex > 0:
+            cmd += ["EX", ex]
         requests.post(
             _UPSTASH_URL,
             headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
-            json=["SET", key, json.dumps(value, ensure_ascii=False)],
+            json=cmd,
             timeout=10,
         )
     except Exception as e:
@@ -1243,7 +1281,9 @@ def handle_adwatch_app(chat_id: int, cq_id: str):
         send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
         return
     token = secrets.token_urlsafe(20)
-    app_reward_tokens[token] = {"chat_id": chat_id, "created_at": time.time(), "redeemed": False}
+    entry = {"chat_id": chat_id, "created_at": time.time(), "redeemed": False}
+    app_reward_tokens[token] = entry
+    _redis_set(f"art:{token}", entry, ex=600)  # persist across server restarts
     pending[chat_id]["app_reward_token"] = token
     pending[chat_id]["ad_verified"] = False
     watch_url = f"{SITE_URL}/watch-ad/{token}"
@@ -1561,6 +1601,11 @@ def _finish_download(chat_id: int, task_id: str, url: str, title: str, format_id
 
             if sent_ok:
                 send_message(chat_id, t(uid, "download_complete"))
+                threading.Thread(
+                    target=send_fcm_push,
+                    args=(chat_id, "✅ تحميلك اكتمل!", display_name[:60]),
+                    daemon=True,
+                ).start()
             else:
                 err_detail = (res.get("description") or "")[:100] if 'res' in dir() else ""
                 send_message(chat_id, f"❌ فشل إرسال الملف: {err_detail}\n\nحاول من الموقع: {SITE_URL}")

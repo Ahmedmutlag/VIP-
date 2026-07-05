@@ -2355,14 +2355,38 @@ def api_ad_reward(token):
     """Called by the Android app after the user earns the rewarded interstitial reward."""
     try:
         from telegram_bot import app_reward_tokens, pending
-        entry = app_reward_tokens.pop(token, None)  # atomic claim — prevents double-redemption
+
+        # Try Redis first (survives Render restarts)
+        raw = _redis("GETDEL", f"art:{token}")
+        if raw:
+            try:
+                entry = json.loads(raw)
+            except Exception:
+                entry = None
+        else:
+            entry = None
+
+        # Fall back to in-memory dict
+        if entry is None:
+            entry = app_reward_tokens.pop(token, None)
+        else:
+            app_reward_tokens.pop(token, None)
+
         if entry is None:
             return jsonify({"ok": False, "reason": "invalid_token"}), 403
         if time.time() - entry["created_at"] > 600:
             return jsonify({"ok": False, "reason": "expired"}), 403
+
         chat_id = entry["chat_id"]
         if chat_id in pending:
             pending[chat_id]["ad_verified"] = True
+
+        # Store FCM token for push notifications (sent by Android app)
+        body = request.get_json(silent=True) or {}
+        fcm_token = body.get("fcm_token", "").strip()
+        if fcm_token and _UPSTASH_URL:
+            _redis("SET", f"fcm:{chat_id}", fcm_token)
+
         return jsonify({"ok": True}), 200
     except Exception as e:
         app.logger.error("api_ad_reward error: %s", e)
@@ -2420,10 +2444,9 @@ h1 { font-size: 1.3rem; font-weight: 700; }
 </div>
 
 <div id="s-not-ready" class="state">
-  <div class="icon">⚠️</div>
-  <h1>الإعلان غير جاهز بعد</h1>
-  <p class="sub">انتظر بضع ثوانٍ ثم اضغط إعادة المحاولة</p>
-  <button class="btn" onclick="retryAd()">🔄 إعادة المحاولة</button>
+  <div class="spinner"></div>
+  <h1>جاري تحضير الإعلان...</h1>
+  <p class="sub">سيظهر تلقائياً خلال ثوانٍ</p>
 </div>
 
 <div id="s-browser" class="state">
@@ -2461,7 +2484,10 @@ window.adWatchedSuccess = function() {
     } catch(e) {}
   }
 };
-window.adNotReady = function() { show('s-not-ready'); };
+window.adNotReady = function() {
+  show('s-not-ready');
+  setTimeout(retryAd, 5000);
+};
 
 function triggerAd() {
   try { window.AndroidClipboard.watchAd(TOKEN); }

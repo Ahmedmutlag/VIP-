@@ -35,6 +35,7 @@ import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd;
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback;
+import com.google.firebase.messaging.FirebaseMessaging;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -85,6 +86,16 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         MobileAds.initialize(this, initStatus -> {});
+
+        // Fetch and store FCM token for download-complete push notifications
+        FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
+            if (!task.isSuccessful()) return;
+            String fcmToken = task.getResult();
+            if (fcmToken != null) {
+                getSharedPreferences("nazzilha_prefs", MODE_PRIVATE)
+                    .edit().putString("fcm_token", fcmToken).apply();
+            }
+        });
 
         webView = findViewById(R.id.webview);
         setupWebView();
@@ -323,15 +334,22 @@ public class MainActivity extends AppCompatActivity {
         // Show success immediately — user already earned the reward from AdMob
         runOnUiThread(() ->
             webView.evaluateJavascript("window.adWatchedSuccess && window.adWatchedSuccess()", null));
+        // Include FCM token so backend can send a push when download completes
+        String fcmToken = getSharedPreferences("nazzilha_prefs", MODE_PRIVATE)
+                .getString("fcm_token", "");
         // Notify backend with retries (server may be waking up from sleep)
         for (int attempt = 0; attempt < 3; attempt++) {
             try {
                 URL url = new URL("https://vip-dl.com/api/ad-reward/" + token);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
                 conn.setConnectTimeout(30_000);
                 conn.setReadTimeout(30_000);
-                conn.connect();
+                byte[] body = ("{\"fcm_token\":\"" + fcmToken.replace("\"", "") + "\"}").getBytes("UTF-8");
+                conn.setRequestProperty("Content-Length", String.valueOf(body.length));
+                conn.getOutputStream().write(body);
                 int code = conn.getResponseCode();
                 conn.disconnect();
                 if (code == 200) return;
