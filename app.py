@@ -585,13 +585,17 @@ def download_android_app():
 
 @app.route("/.well-known/assetlinks.json")
 def asset_links():
-    sha256 = os.environ.get("ANDROID_CERT_SHA256", "REPLACE_WITH_YOUR_SHA256_FINGERPRINT")
+    raw = os.environ.get("ANDROID_CERT_SHA256", "")
+    fingerprints = [fp.strip() for fp in raw.split(",") if fp.strip()]
     data = [{
-        "relation": ["delegate_permission/common.handle_all_urls"],
+        "relation": [
+            "delegate_permission/common.handle_all_urls",
+            "delegate_permission/common.get_login_creds"
+        ],
         "target": {
             "namespace": "android_app",
             "package_name": "com.nazzilhaplus.app",
-            "sha256_cert_fingerprints": [sha256]
+            "sha256_cert_fingerprints": fingerprints
         }
     }]
     return jsonify(data)
