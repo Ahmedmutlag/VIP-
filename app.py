@@ -2449,7 +2449,12 @@ function show(id) {
   });
 }
 
-window.adWatchedSuccess = function() { show('s-success'); };
+window.adWatchedSuccess = function() {
+  show('s-success');
+  try {
+    fetch('/api/ad-reward/' + TOKEN, {method: 'POST'}).catch(function(){});
+  } catch(e) {}
+};
 window.adNotReady = function() { show('s-not-ready'); };
 
 function triggerAd() {
