@@ -39,7 +39,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="www.vip-dl.com" />
-                <data android:scheme="https" android:host="vip-dl.com" />
             </intent-filter>
 
         </activity>
