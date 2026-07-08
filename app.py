@@ -167,6 +167,7 @@ SMTP_PASS = os.environ.get("SMTP_PASS", "")
 RESET_SECRET = os.environ.get("RESET_SECRET", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 INSTAGRAM_COOKIES = os.environ.get("INSTAGRAM_COOKIES", "")  # Netscape cookies.txt content
+YOUTUBE_COOKIES  = os.environ.get("YOUTUBE_COOKIES",  "")  # Netscape cookies.txt content
 
 reset_tokens = {}  # token -> {"expires": datetime}
 
@@ -448,6 +449,19 @@ def get_cookies_file():
     try:
         tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
         tmp.write(INSTAGRAM_COOKIES)
+        tmp.close()
+        return tmp.name
+    except Exception:
+        return None
+
+def get_youtube_cookies_file():
+    """Write YOUTUBE_COOKIES env var to a temp file for yt-dlp."""
+    if not YOUTUBE_COOKIES:
+        return None
+    import tempfile
+    try:
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+        tmp.write(YOUTUBE_COOKIES)
         tmp.close()
         return tmp.name
     except Exception:
@@ -1921,6 +1935,9 @@ def start_download():
 
         if "youtube.com" in url.lower() or "youtu.be" in url.lower():
             ydl_opts["extractor_args"] = {"youtube": {"player_client": ["tv"]}}
+            yt_cookies = get_youtube_cookies_file()
+            if yt_cookies:
+                ydl_opts["cookiefile"] = yt_cookies
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
