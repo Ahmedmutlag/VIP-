@@ -1897,9 +1897,11 @@ def start_download():
                         record_download(platform, True, duration=time.time() - _start)
                         return
                     except Exception as e:
-                        progress_store[task_id] = {"status": "error", "error": str(e)[:200]}
-                        record_download(platform, False, str(e)[:200], duration=time.time() - _start)
-                        return
+                        if "youtube.com" not in url.lower() and "youtu.be" not in url.lower():
+                            progress_store[task_id] = {"status": "error", "error": str(e)[:200]}
+                            record_download(platform, False, str(e)[:200], duration=time.time() - _start)
+                            return
+                        # YouTube: fall through to yt-dlp with cookies
 
         # ── yt-dlp fallback ────────────────────────────────────────────────────
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
