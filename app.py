@@ -1936,12 +1936,11 @@ def start_download():
                 ydl_opts["cookiefile"] = cookies_file
 
         if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+            ydl_opts["geo_bypass"] = True
+            ydl_opts["geo_bypass_country"] = "US"
             yt_cookies = get_youtube_cookies_file()
             if yt_cookies:
                 ydl_opts["cookiefile"] = yt_cookies
-                ydl_opts["extractor_args"] = {"youtube": {"player_client": ["web"]}}
-            else:
-                ydl_opts["extractor_args"] = {"youtube": {"player_client": ["tv"]}}
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
