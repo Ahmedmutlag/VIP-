@@ -32,33 +32,6 @@ RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
 RAPIDAPI_HOST = "auto-download-all-in-one.p.rapidapi.com"
 RAPIDAPI_URL  = f"https://{RAPIDAPI_HOST}/v1/social/autolink"
 
-# ===== RapidAPI — YouTube (مفتاح ومضيف مستقلان) =====
-YT_RAPIDAPI_KEY  = os.environ.get("YT_RAPIDAPI_KEY", "")
-YT_RAPIDAPI_HOST = os.environ.get("YT_RAPIDAPI_HOST", "youtube-media-downloader.p.rapidapi.com")
-
-def _call_yt_rapidapi(video_id: str) -> dict:
-    key = YT_RAPIDAPI_KEY or RAPIDAPI_KEY
-    if not key:
-        return {"error": "no_key"}
-    try:
-        import requests as _req
-        resp = _req.get(
-            f"https://{YT_RAPIDAPI_HOST}/v2/video/streamingData",
-            headers={
-                "x-rapidapi-host": YT_RAPIDAPI_HOST,
-                "x-rapidapi-key": key,
-            },
-            params={"videoId": video_id},
-            timeout=30,
-        )
-        return resp.json()
-    except Exception as e:
-        return {"error": str(e)}
-
-def _extract_yt_video_id(url: str) -> str:
-    import re
-    m = re.search(r"(?:v=|youtu\.be/|/embed/|/v/)([a-zA-Z0-9_-]{11})", url)
-    return m.group(1) if m else ""
 
 def _call_rapidapi(url: str) -> dict:
     if not RAPIDAPI_KEY:
@@ -1929,53 +1902,7 @@ def start_download():
                             progress_store[task_id] = {"status": "error", "error": str(e)[:200]}
                             record_download(platform, False, str(e)[:200], duration=time.time() - _start)
                             return
-                        # YouTube: fall through to YouTube RapidAPI then yt-dlp
-
-        # ── YouTube RapidAPI ───────────────────────────────────────────────────
-        if RAPIDAPI_KEY and ("youtube.com" in url.lower() or "youtu.be" in url.lower()):
-            vid_id = _extract_yt_video_id(url)
-            if vid_id:
-                yt_data = _call_yt_rapidapi(vid_id)
-                import json as _json
-                videos = yt_data.get("videos", {})
-                # Support both {items:[...]} and {"720p":[...]} response formats
-                raw_items = videos.get("items", [])
-                if not raw_items:
-                    for quality in ("1080", "720", "480", "360", "240", "144"):
-                        q_list = videos.get(quality, [])
-                        if q_list:
-                            raw_items = q_list
-                            break
-                if not raw_items:
-                    for k, v in videos.items():
-                        if isinstance(v, list) and v:
-                            raw_items = v
-                            break
-                if raw_items:
-                    direct_url = raw_items[0].get("url", "")
-                    ext = ".mp4"
-                    safe_title = re.sub(r'[\\/*?:"<>|]', "", yt_data.get("title", yt_data.get("name", "video")))[:60]
-                    if direct_url:
-                        try:
-                            progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
-                            out_path = DOWNLOAD_DIR / f"{task_id}{ext}"
-                            with _req.get(direct_url, stream=True, timeout=120) as r:
-                                r.raise_for_status()
-                                total = int(r.headers.get("content-length", 0))
-                                downloaded = 0
-                                with open(out_path, "wb") as f:
-                                    for chunk in r.iter_content(chunk_size=65536):
-                                        if chunk:
-                                            f.write(chunk)
-                                            downloaded += len(chunk)
-                                            if total:
-                                                pct = int(downloaded * 100 / total)
-                                                progress_store[task_id] = {"status": "downloading", "percent": pct, "_ts": time.time()}
-                            progress_store[task_id] = {"status": "done", "percent": 100, "file": task_id + ext, "filename": safe_title + ext}
-                            record_download(platform, True, duration=time.time() - _start)
-                            return
-                        except Exception as _yt_e:
-                            app.logger.warning("YT RapidAPI download failed: %s", str(_yt_e)[:200])
+                        # YouTube: fall through to yt-dlp
 
         # ── yt-dlp fallback ────────────────────────────────────────────────────
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
