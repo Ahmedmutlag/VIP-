@@ -1934,8 +1934,8 @@ def start_download():
             vid_id = _extract_yt_video_id(url)
             if vid_id:
                 yt_data = _call_yt_rapidapi(vid_id)
-                app.logger.info("YT_RAPIDAPI response keys: %s", list(yt_data.keys()))
-                app.logger.info("YT_RAPIDAPI videos type: %s", type(yt_data.get("videos")).__name__)
+                import json as _json
+                app.logger.info("YT_RAPIDAPI videos content: %s", _json.dumps(yt_data.get("videos", {}))[:500])
                 videos = yt_data.get("videos", {})
                 # Support both {items:[...]} and {"720p":[...]} response formats
                 raw_items = videos.get("items", [])
@@ -2012,6 +2012,7 @@ def start_download():
             ydl_opts["geo_bypass"] = True
             ydl_opts["geo_bypass_country"] = "US"
             yt_cookies = get_youtube_cookies_file()
+            app.logger.info("YT cookies file: %s, YOUTUBE_COOKIES len: %d", yt_cookies, len(YOUTUBE_COOKIES))
             if yt_cookies:
                 ydl_opts["cookiefile"] = yt_cookies
 
