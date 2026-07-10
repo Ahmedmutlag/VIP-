@@ -41,7 +41,7 @@ def _call_yt_rapidapi(video_id: str) -> dict:
     try:
         import requests as _req
         resp = _req.get(
-            f"https://{YT_RAPIDAPI_HOST}/v2/video/details",
+            f"https://{YT_RAPIDAPI_HOST}/v2/video/streamingData",
             headers={
                 "x-rapidapi-host": YT_RAPIDAPI_HOST,
                 "x-rapidapi-key": RAPIDAPI_KEY,
@@ -1973,8 +1973,8 @@ def start_download():
                             progress_store[task_id] = {"status": "done", "percent": 100, "file": task_id + ext, "filename": safe_title + ext}
                             record_download(platform, True, duration=time.time() - _start)
                             return
-                        except Exception:
-                            pass  # fall through to yt-dlp
+                        except Exception as _yt_e:
+                            app.logger.warning("YT RapidAPI download failed: %s", str(_yt_e)[:200])
 
         # ── yt-dlp fallback ────────────────────────────────────────────────────
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
