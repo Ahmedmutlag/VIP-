@@ -32,11 +32,13 @@ RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
 RAPIDAPI_HOST = "auto-download-all-in-one.p.rapidapi.com"
 RAPIDAPI_URL  = f"https://{RAPIDAPI_HOST}/v1/social/autolink"
 
-# ===== RapidAPI — YouTube Media Downloader =====
-YT_RAPIDAPI_HOST = "youtube-media-downloader.p.rapidapi.com"
+# ===== RapidAPI — YouTube (مفتاح ومضيف مستقلان) =====
+YT_RAPIDAPI_KEY  = os.environ.get("YT_RAPIDAPI_KEY", "")
+YT_RAPIDAPI_HOST = os.environ.get("YT_RAPIDAPI_HOST", "youtube-media-downloader.p.rapidapi.com")
 
 def _call_yt_rapidapi(video_id: str) -> dict:
-    if not RAPIDAPI_KEY:
+    key = YT_RAPIDAPI_KEY or RAPIDAPI_KEY
+    if not key:
         return {"error": "no_key"}
     try:
         import requests as _req
@@ -44,7 +46,7 @@ def _call_yt_rapidapi(video_id: str) -> dict:
             f"https://{YT_RAPIDAPI_HOST}/v2/video/streamingData",
             headers={
                 "x-rapidapi-host": YT_RAPIDAPI_HOST,
-                "x-rapidapi-key": RAPIDAPI_KEY,
+                "x-rapidapi-key": key,
             },
             params={"videoId": video_id},
             timeout=30,
@@ -1935,7 +1937,6 @@ def start_download():
             if vid_id:
                 yt_data = _call_yt_rapidapi(vid_id)
                 import json as _json
-                app.logger.info("YT_RAPIDAPI videos content: %s", _json.dumps(yt_data.get("videos", {}))[:500])
                 videos = yt_data.get("videos", {})
                 # Support both {items:[...]} and {"720p":[...]} response formats
                 raw_items = videos.get("items", [])
@@ -2011,8 +2012,13 @@ def start_download():
         if "youtube.com" in url.lower() or "youtu.be" in url.lower():
             ydl_opts["geo_bypass"] = True
             ydl_opts["geo_bypass_country"] = "US"
+            ydl_opts["extractor_args"] = {
+                "youtube": {
+                    "player_client": ["android_vr", "mweb", "android"],
+                }
+            }
+            ydl_opts["format"] = "best[height<=720][ext=mp4]/best[height<=720]/best[ext=mp4]/best"
             yt_cookies = get_youtube_cookies_file()
-            app.logger.info("YT cookies file: %s, YOUTUBE_COOKIES len: %d", yt_cookies, len(YOUTUBE_COOKIES))
             if yt_cookies:
                 ydl_opts["cookiefile"] = yt_cookies
 
