@@ -1343,9 +1343,9 @@ def handle_share(chat_id: int, uid: int = 0):
 
 
 SUBSCRIBE_PLANS = [
-    {"days": 7,  "stars": 50,  "label": "7 أيام"},
-    {"days": 30, "stars": 150, "label": "30 يوم"},
-    {"days": 90, "stars": 500, "label": "90 يوم"},
+    {"days": 30,  "stars": 30,  "label": "شهر"},
+    {"days": 90,  "stars": 70,  "label": "3 أشهر"},
+    {"days": 365, "stars": 220, "label": "سنة"},
 ]
 
 SUBSCRIBE_KEYBOARD = {
