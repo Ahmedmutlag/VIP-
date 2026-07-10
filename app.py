@@ -1934,6 +1934,8 @@ def start_download():
             vid_id = _extract_yt_video_id(url)
             if vid_id:
                 yt_data = _call_yt_rapidapi(vid_id)
+                app.logger.info("YT_RAPIDAPI response keys: %s", list(yt_data.keys()))
+                app.logger.info("YT_RAPIDAPI videos type: %s", type(yt_data.get("videos")).__name__)
                 videos = yt_data.get("videos", {})
                 # Support both {items:[...]} and {"720p":[...]} response formats
                 raw_items = videos.get("items", [])
