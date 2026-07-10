@@ -1935,21 +1935,23 @@ def start_download():
             if vid_id:
                 yt_data = _call_yt_rapidapi(vid_id)
                 videos = yt_data.get("videos", {})
-                items = []
-                for quality in ("1080", "720", "480", "360", "240", "144"):
-                    q_list = videos.get(quality, [])
-                    if q_list:
-                        items.append(q_list[0])
-                        break
-                if not items:
+                # Support both {items:[...]} and {"720p":[...]} response formats
+                raw_items = videos.get("items", [])
+                if not raw_items:
+                    for quality in ("1080", "720", "480", "360", "240", "144"):
+                        q_list = videos.get(quality, [])
+                        if q_list:
+                            raw_items = q_list
+                            break
+                if not raw_items:
                     for k, v in videos.items():
                         if isinstance(v, list) and v:
-                            items.append(v[0])
+                            raw_items = v
                             break
-                if items:
-                    direct_url = items[0].get("url", "")
+                if raw_items:
+                    direct_url = raw_items[0].get("url", "")
                     ext = ".mp4"
-                    safe_title = re.sub(r'[\\/*?:"<>|]', "", yt_data.get("title", "video"))[:60]
+                    safe_title = re.sub(r'[\\/*?:"<>|]', "", yt_data.get("title", yt_data.get("name", "video")))[:60]
                     if direct_url:
                         try:
                             progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
