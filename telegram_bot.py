@@ -44,7 +44,7 @@ ADS_PUBLISHER_ID = os.environ.get("ADS_PUBLISHER_ID", "")
 ADS_API_KEY = os.environ.get("ADS_API_KEY", "")
 
 # ── Affiliate / referral config ────────────────────────────────────────────────
-AFF_COMMISSION_PCT: int = int(os.environ.get("AFF_COMMISSION_PCT", "80"))
+AFF_COMMISSION_PCT: int = int(os.environ.get("AFF_COMMISSION_PCT", "50"))
 AFF_MIN_PAYOUT: int     = int(os.environ.get("AFF_MIN_PAYOUT", "50"))
 
 # ── Ad shortener for "watch ad" flow (OuoIO by default) ───────────────────────
