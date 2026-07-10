@@ -43,6 +43,10 @@ ADS_ENABLED: list[bool] = [os.environ.get("ADS_ENABLED", "false").lower() == "tr
 ADS_PUBLISHER_ID = os.environ.get("ADS_PUBLISHER_ID", "")
 ADS_API_KEY = os.environ.get("ADS_API_KEY", "")
 
+# ── Affiliate / referral config ────────────────────────────────────────────────
+AFF_COMMISSION_PCT: int = int(os.environ.get("AFF_COMMISSION_PCT", "80"))
+AFF_MIN_PAYOUT: int     = int(os.environ.get("AFF_MIN_PAYOUT", "50"))
+
 # ── Ad shortener for "watch ad" flow (OuoIO by default) ───────────────────────
 AD_SHORTENER_KEY = os.environ.get("AD_SHORTENER_KEY", "")
 AD_SHORTENER_SERVICE = os.environ.get("AD_SHORTENER_SERVICE", "ouo")
@@ -344,6 +348,77 @@ def _redis_srem(key: str, member: str) -> None:
     except Exception as e:
         log.warning("Redis SREM %s: %s", key, e)
 
+def _redis_incr(key: str, by: int = 1) -> int:
+    if not _UPSTASH_URL:
+        return 0
+    try:
+        r = requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["INCRBY", key, by],
+            timeout=10,
+        )
+        return int(r.json().get("result", 0))
+    except Exception as e:
+        log.warning("Redis INCRBY %s: %s", key, e)
+        return 0
+
+def _redis_scard(key: str) -> int:
+    if not _UPSTASH_URL:
+        return 0
+    try:
+        r = requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["SCARD", key],
+            timeout=10,
+        )
+        return int(r.json().get("result", 0))
+    except Exception as e:
+        log.warning("Redis SCARD %s: %s", key, e)
+        return 0
+
+
+# ── Affiliate helpers ──────────────────────────────────────────────────────────
+
+def _aff_record_referral(new_user_id: int, referrer_id: int) -> bool:
+    """Record that new_user_id was referred by referrer_id. Returns True if first-time."""
+    if new_user_id == referrer_id:
+        return False
+    existing = _redis_get(f"ref_by:{new_user_id}")
+    if existing:
+        return False
+    _redis_set(f"ref_by:{new_user_id}", referrer_id)
+    _redis_sadd(f"aff_refs:{referrer_id}", str(new_user_id))
+    _redis_incr(f"aff_refs_count:{referrer_id}")
+    return True
+
+def _aff_get_referrer(user_id: int) -> int | None:
+    val = _redis_get(f"ref_by:{user_id}")
+    return int(val) if val else None
+
+def _aff_credit_commission(referrer_id: int, stars: int, plan_label: str) -> int:
+    """Credit commission to referrer. Returns new balance."""
+    amount = max(1, round(stars * AFF_COMMISSION_PCT / 100))
+    new_balance = _redis_incr(f"aff_balance:{referrer_id}", amount)
+    _redis_incr(f"aff_total_earned:{referrer_id}", amount)
+    _redis_incr(f"aff_conv_count:{referrer_id}")
+    # notify referrer
+    balance_after = new_balance
+    send_message(
+        referrer_id,
+        t(referrer_id, "commission_notif", amount=amount, plan=plan_label, balance=balance_after),
+    )
+    return new_balance
+
+def _aff_stats(user_id: int) -> dict:
+    return {
+        "refs":    _redis_scard(f"aff_refs:{user_id}"),
+        "convs":   int(_redis_get(f"aff_conv_count:{user_id}") or 0),
+        "balance": int(_redis_get(f"aff_balance:{user_id}") or 0),
+        "total":   int(_redis_get(f"aff_total_earned:{user_id}") or 0),
+    }
+
 # ── Local file fallback ────────────────────────────────────────────────────────
 DATA_DIR = Path("bot_data")
 DATA_DIR.mkdir(exist_ok=True)
@@ -432,7 +507,8 @@ STRINGS: dict[str, dict] = {
             "/redeem — تفعيل كود بريميوم\n"
             "/status — حالة اشتراكك\n"
             "/history — آخر تحميلاتك\n"
-            "/language — تغيير اللغة\n\n"
+            "/language — تغيير اللغة\n"
+            "/affiliate — برنامج الإحالة وأرباحك\n\n"
             "📎 فقط الصق الرابط وأنا أتولى الباقي!\n\n"
             "🆓 المجاني: <b>5 تحميلات/يوم</b>\n"
             "💎 البريميوم: <b>غير محدود</b>"
@@ -530,6 +606,24 @@ STRINGS: dict[str, dict] = {
         "download_from": "📥 تحميل من {platform}",
         "top_empty": "لا يوجد بيانات بعد",
         "top_downloads": "تحميل",
+        "btn_affiliate": "👥 الإحالة",
+        "btn_withdraw": "💸 سحب الأرباح",
+        "affiliate_info": (
+            "👥 <b>نظام الإحالة — نزلها بلس</b>\n\n"
+            "🔗 رابط الإحالة الخاص بك:\n"
+            "<code>https://t.me/nazzilhaplus_bot?start=ref_{uid}</code>\n\n"
+            "📊 إحصائياتك:\n"
+            "👤 عدد المُحالين: <b>{refs}</b>\n"
+            "💰 تحويلات (اشتركوا): <b>{convs}</b>\n"
+            "⭐ رصيدك الحالي: <b>{balance}</b> Stars\n"
+            "📈 إجمالي الأرباح: <b>{total}</b> Stars\n\n"
+            "💡 تكسب <b>{pct}%</b> من كل اشتراك يدفعه مَن تُحيله!\n"
+            "💸 الحد الأدنى للسحب: <b>{min_payout}</b> Stars"
+        ),
+        "withdraw_low": "❌ رصيدك الحالي (<b>{balance} Stars</b>) أقل من الحد الأدنى ({min} Stars).",
+        "withdraw_sent": "✅ <b>تم إرسال طلب السحب!</b>\n\nالمبلغ: <b>{amount} Stars</b>\n\nسيتم مراجعة طلبك خلال 48 ساعة.",
+        "commission_notif": "💰 <b>كسبت عمولة جديدة!</b>\n\n⭐ <b>+{amount} Stars</b> (باقة {plan})\n📊 رصيدك الآن: <b>{balance}</b> Stars",
+        "referred_welcome": "🎁 انضممت عبر دعوة صديق — نتمنى لك تجربة رائعة!",
     },
     "en": {
         "help": (
@@ -548,7 +642,8 @@ STRINGS: dict[str, dict] = {
             "/redeem — Activate a premium code\n"
             "/status — Your subscription status\n"
             "/history — Your recent downloads\n"
-            "/language — Change language\n\n"
+            "/language — Change language\n"
+            "/affiliate — Affiliate program & earnings\n\n"
             "📎 Just paste the link and I'll handle the rest!\n\n"
             "🆓 Free: <b>5 downloads/day</b>\n"
             "💎 Premium: <b>unlimited</b>"
@@ -646,6 +741,24 @@ STRINGS: dict[str, dict] = {
         "download_from": "📥 Download from {platform}",
         "top_empty": "No data yet",
         "top_downloads": "downloads",
+        "btn_affiliate": "👥 Affiliate",
+        "btn_withdraw": "💸 Withdraw",
+        "affiliate_info": (
+            "👥 <b>Affiliate Program — Nazzilha Plus</b>\n\n"
+            "🔗 Your referral link:\n"
+            "<code>https://t.me/nazzilhaplus_bot?start=ref_{uid}</code>\n\n"
+            "📊 Your stats:\n"
+            "👤 Referred users: <b>{refs}</b>\n"
+            "💰 Conversions (paid): <b>{convs}</b>\n"
+            "⭐ Current balance: <b>{balance}</b> Stars\n"
+            "📈 Total earned: <b>{total}</b> Stars\n\n"
+            "💡 Earn <b>{pct}%</b> of every subscription from your referrals!\n"
+            "💸 Minimum payout: <b>{min_payout}</b> Stars"
+        ),
+        "withdraw_low": "❌ Your balance (<b>{balance} Stars</b>) is below the minimum ({min} Stars).",
+        "withdraw_sent": "✅ <b>Withdrawal request submitted!</b>\n\nAmount: <b>{amount} Stars</b>\n\nWe'll review your request within 48 hours.",
+        "commission_notif": "💰 <b>You earned a commission!</b>\n\n⭐ <b>+{amount} Stars</b> (plan: {plan})\n📊 Your new balance: <b>{balance}</b> Stars",
+        "referred_welcome": "🎁 You joined via a friend's invite — enjoy!",
     },
 }
 
@@ -865,17 +978,27 @@ PLATFORM_LABELS = {
 def handle_start(chat_id: int, first_name: str, param: str = "", uid: int = 0):
     if uid == 0:
         uid = chat_id
+
     if param:
-        try:
-            r = requests.get(f"{SITE_URL}/api/url-token/{param}", timeout=10)
-            if r.status_code == 200:
-                url = r.json().get("url", "")
-                if url and URL_PATTERN.search(url):
-                    send_message(chat_id, t(uid, "auto_dl_intro", name=first_name))
-                    threading.Thread(target=handle_url, args=(chat_id, url, first_name, uid), daemon=True).start()
-                    return
-        except Exception:
-            pass
+        # Referral link: ?start=ref_123456789
+        if param.startswith("ref_"):
+            try:
+                referrer_id = int(param[4:])
+                if _aff_record_referral(uid, referrer_id):
+                    send_message(chat_id, t(uid, "referred_welcome"))
+            except (ValueError, TypeError):
+                pass
+        else:
+            try:
+                r = requests.get(f"{SITE_URL}/api/url-token/{param}", timeout=10)
+                if r.status_code == 200:
+                    url = r.json().get("url", "")
+                    if url and URL_PATTERN.search(url):
+                        send_message(chat_id, t(uid, "auto_dl_intro", name=first_name))
+                        threading.Thread(target=handle_url, args=(chat_id, url, first_name, uid), daemon=True).start()
+                        return
+            except Exception:
+                pass
 
     if custom_welcome:
         text = custom_welcome[0].replace("{name}", first_name)
@@ -975,6 +1098,7 @@ ADMIN_KEYBOARD = {
         [{"text": "🎁 كود جديد 30 يوم", "callback_data": "adm:gencode:30"}, {"text": "🎁 كود 7 أيام", "callback_data": "adm:gencode:7"}],
         [{"text": "🗑️ تنظيف الملفات", "callback_data": "adm:clear"}, {"text": "🔄 تحديث yt-dlp", "callback_data": "adm:update"}],
         [{"text": "📢 رسالة جماعية", "callback_data": "adm:broadcast"}, {"text": "👥 المستخدمون", "callback_data": "adm:users"}],
+        [{"text": "🤝 إحصائيات الإحالة", "callback_data": "adm:affiliates"}],
         [{"text": "🚫 حظر مستخدم", "callback_data": "adm:block"}, {"text": "✅ رفع حظر", "callback_data": "adm:unblock"}],
         [{"text": "✏️ تعديل رسالة الترحيب", "callback_data": "adm:setwelcome"}],
         [{"text": "💰 الإعلانات: مُوقف ⚫", "callback_data": "adm:toggleads"}],
@@ -1161,6 +1285,26 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
         send_message(chat_id, f"💰 <b>وضع الإعلانات: {status}</b>", reply_markup=_build_admin_keyboard())
         return
 
+    if action == "affiliates":
+        # Scan Redis for top earners — limited to known_users for efficiency
+        lines = []
+        for uid in list(known_users.keys())[:200]:
+            total = int(_redis_get(f"aff_total_earned:{uid}") or 0)
+            if total > 0:
+                balance = int(_redis_get(f"aff_balance:{uid}") or 0)
+                refs = _redis_scard(f"aff_refs:{uid}")
+                convs = int(_redis_get(f"aff_conv_count:{uid}") or 0)
+                info = known_users.get(uid, {})
+                name = info.get("name", "?") if isinstance(info, dict) else str(info)
+                lines.append((total, f"  • {name} <code>{uid}</code> | refs:{refs} conv:{convs} total:{total}⭐ bal:{balance}⭐"))
+        lines.sort(key=lambda x: x[0], reverse=True)
+        body = "\n".join(l for _, l in lines[:15]) or "  لا بيانات بعد"
+        send_message(chat_id,
+            f"🤝 <b>إحصائيات الإحالة</b>\n\n{body}\n\n"
+            f"💡 نسبة العمولة: <b>{AFF_COMMISSION_PCT}%</b> | الحد الأدنى: <b>{AFF_MIN_PAYOUT} Stars</b>",
+            reply_markup=_build_admin_keyboard())
+        return
+
     if action == "broadcast":
         pending[chat_id] = {"waiting_broadcast": True}
         send_message(chat_id, "📢 أرسل الرسالة التي تريد إرسالها لجميع المستخدمين:")
@@ -1245,6 +1389,46 @@ def handle_subscribe_callback(chat_id: int, cq_id: str, plan: str):
     if not p:
         return
     send_invoice(chat_id, p["days"], p["stars"], p["label"])
+
+
+def handle_affiliate(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    stats = _aff_stats(uid)
+    text = t(uid, "affiliate_info",
+        uid=uid,
+        refs=stats["refs"],
+        convs=stats["convs"],
+        balance=stats["balance"],
+        total=stats["total"],
+        pct=AFF_COMMISSION_PCT,
+        min_payout=AFF_MIN_PAYOUT,
+    )
+    kb = {"inline_keyboard": [[
+        {"text": t(uid, "btn_withdraw"), "callback_data": "aff:withdraw"},
+    ]]}
+    send_message(chat_id, text, reply_markup=kb, disable_web_page_preview=True)
+
+
+def handle_affiliate_withdraw(chat_id: int, cq_id: str):
+    answer_callback(cq_id)
+    balance = int(_redis_get(f"aff_balance:{chat_id}") or 0)
+    if balance < AFF_MIN_PAYOUT:
+        send_message(chat_id, t(chat_id, "withdraw_low", balance=balance, min=AFF_MIN_PAYOUT))
+        return
+    # deduct balance and notify admin
+    _redis_set(f"aff_balance:{chat_id}", 0)
+    user_info = known_users.get(chat_id, {})
+    user_name = user_info.get("name", "?") if isinstance(user_info, dict) else str(user_info)
+    username = user_info.get("username") if isinstance(user_info, dict) else None
+    uname_line = f"🔖 @{username}\n" if username else ""
+    notify_admins(
+        f"💸 <b>طلب سحب أرباح إحالة</b>\n\n"
+        f"👤 {user_name}\n{uname_line}"
+        f"🆔 <code>{chat_id}</code>\n"
+        f"⭐ المبلغ: <b>{balance} Stars</b>"
+    )
+    send_message(chat_id, t(chat_id, "withdraw_sent", amount=balance))
 
 
 def handle_adwatch_start(chat_id: int, cq_id: str):
@@ -1367,12 +1551,21 @@ def handle_successful_payment(chat_id: int, payment: dict):
     premium_users[chat_id] = expires
     _save_premium()
     stars = payment.get("total_amount", 0)
+    plan_label = next((p["label"] for p in SUBSCRIBE_PLANS if p["days"] == days), f"{days} يوم")
     send_message(chat_id, t(chat_id, "payment_success", stars=stars, days=days, expires=expires))
     notify_admins(
         f"💰 <b>اشتراك جديد!</b>\n"
         f"👤 Chat ID: <code>{chat_id}</code>\n"
         f"⭐ {stars} Stars — {days} يوم"
     )
+    # Credit affiliate commission if this user was referred
+    referrer_id = _aff_get_referrer(chat_id)
+    if referrer_id and stars > 0:
+        threading.Thread(
+            target=_aff_credit_commission,
+            args=(referrer_id, stars, plan_label),
+            daemon=True,
+        ).start()
 
 
 def handle_redeem(chat_id: int, code: str, uid: int = 0):
@@ -1898,6 +2091,8 @@ def handle_message(msg: dict):
     elif text.startswith("/language"):
         parts = text.split(maxsplit=1)
         handle_language(chat_id, parts[1].strip().lower() if len(parts) > 1 else "", uid)
+    elif text.startswith("/affiliate") or text.startswith("/ref") or text in _btn_any("btn_affiliate"):
+        handle_affiliate(chat_id, uid)
     elif text.startswith("/subscribe") or text in _btn_any("btn_premium"):
         handle_subscribe_menu(chat_id, uid)
     elif text in _btn_any("btn_app"):
@@ -1962,6 +2157,8 @@ def handle_callback_query(cq: dict):
     elif data.startswith("sub:"):
         plan = data[4:]
         threading.Thread(target=handle_subscribe_callback, args=(chat_id, cq_id, plan), daemon=True).start()
+    elif data == "aff:withdraw":
+        threading.Thread(target=handle_affiliate_withdraw, args=(chat_id, cq_id), daemon=True).start()
     elif data == "adwatch:start":
         threading.Thread(target=handle_adwatch_start, args=(chat_id, cq_id), daemon=True).start()
     elif data == "adwatch:done":
