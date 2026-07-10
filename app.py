@@ -65,6 +65,38 @@ def _rapidapi_pick_url(medias: list, prefer_audio: bool = False) -> str:
     return medias[0].get("url", "")
 
 
+# ===== SMVD RapidAPI — YouTube =====
+SMVD_RAPIDAPI_KEY  = os.environ.get("SMVD_RAPIDAPI_KEY", "") or os.environ.get("RAPIDAPI_KEY", "")
+SMVD_RAPIDAPI_HOST = "social-media-video-downloader.p.rapidapi.com"
+
+def _extract_yt_video_id(url: str) -> str:
+    m = re.search(r"(?:v=|/v/|youtu\.be/|/embed/|/shorts/)([A-Za-z0-9_-]{11})", url)
+    return m.group(1) if m else ""
+
+def _call_smvd_youtube(video_id: str) -> dict:
+    if not SMVD_RAPIDAPI_KEY or not video_id:
+        return {"error": "no_key_or_id"}
+    try:
+        import requests as _req
+        resp = _req.get(
+            f"https://{SMVD_RAPIDAPI_HOST}/youtube/be/v3/video/details",
+            headers={
+                "x-rapidapi-host": SMVD_RAPIDAPI_HOST,
+                "x-rapidapi-key": SMVD_RAPIDAPI_KEY,
+            },
+            params={
+                "videoId": video_id,
+                "urlAccess": "normal",
+                "renderableFormats": "720p,highres",
+                "getTranscript": "false",
+            },
+            timeout=30,
+        )
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ===== Auto-update yt-dlp =====
 def auto_update_ytdlp():
     try:
@@ -1703,6 +1735,49 @@ def get_info():
                     "formats": formats,
                 })
 
+    # ── YouTube: try SMVD API ─────────────────────────────────────────────
+    if SMVD_RAPIDAPI_KEY and ("youtube.com" in url.lower() or "youtu.be" in url.lower()):
+        video_id = _extract_yt_video_id(url)
+        if video_id:
+            smvd = _call_smvd_youtube(video_id)
+            if not smvd.get("error") and smvd.get("contents"):
+                content = smvd["contents"][0]
+                meta = smvd.get("metadata", {})
+                formats = []
+                for rv in (content.get("renderableVideos") or []):
+                    if rv.get("error") or not rv.get("executionUrl"):
+                        continue
+                    quality = rv.get("quality", "video")
+                    formats.append({
+                        "format_id": f"smvd_yt_{quality}",
+                        "label": quality,
+                        "ext": "mp4",
+                        "type": "video",
+                        "filesize": None,
+                    })
+                for i, v in enumerate(content.get("videos") or []):
+                    if not v.get("url"):
+                        continue
+                    quality = v.get("qualityLabel") or v.get("quality", "")
+                    if not quality or any(f["label"] == quality for f in formats):
+                        continue
+                    formats.append({
+                        "format_id": f"smvd_yt_stream_{i}",
+                        "label": quality,
+                        "ext": "mp4",
+                        "type": "video",
+                        "filesize": None,
+                    })
+                if formats:
+                    return jsonify({
+                        "title": meta.get("title", "فيديو يوتيوب"),
+                        "thumbnail": meta.get("thumbnail"),
+                        "duration": meta.get("duration"),
+                        "uploader": meta.get("channelName") or meta.get("author", ""),
+                        "platform": "YouTube",
+                        "formats": formats,
+                    })
+
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -1902,7 +1977,72 @@ def start_download():
                             progress_store[task_id] = {"status": "error", "error": str(e)[:200]}
                             record_download(platform, False, str(e)[:200], duration=time.time() - _start)
                             return
-                        # YouTube: fall through to yt-dlp
+                        # YouTube: fall through to SMVD / yt-dlp
+
+        # ── YouTube: try SMVD API ─────────────────────────────────────────────
+        if SMVD_RAPIDAPI_KEY and ("youtube.com" in url.lower() or "youtu.be" in url.lower()):
+            video_id = _extract_yt_video_id(url)
+            if video_id:
+                smvd = _call_smvd_youtube(video_id)
+                if not smvd.get("error") and smvd.get("contents"):
+                    content = smvd["contents"][0]
+                    meta = smvd.get("metadata", {})
+                    safe_title = re.sub(r'[\\/*?:"<>|]', "", meta.get("title", "video"))[:60]
+                    direct_url = None
+                    if format_id.startswith("smvd_yt_stream_"):
+                        try:
+                            idx = int(format_id.rsplit("_", 1)[-1])
+                            videos = content.get("videos") or []
+                            if idx < len(videos):
+                                direct_url = videos[idx].get("url", "")
+                        except (ValueError, IndexError):
+                            pass
+                    elif format_id.startswith("smvd_yt_"):
+                        quality = format_id[len("smvd_yt_"):]
+                        for rv in (content.get("renderableVideos") or []):
+                            if rv.get("quality") == quality and rv.get("executionUrl"):
+                                direct_url = rv["executionUrl"]
+                                break
+                    else:
+                        for rv in (content.get("renderableVideos") or []):
+                            if not rv.get("error") and rv.get("executionUrl"):
+                                direct_url = rv["executionUrl"]
+                                break
+                        if not direct_url:
+                            videos = content.get("videos") or []
+                            if videos:
+                                direct_url = videos[0].get("url", "")
+                    if direct_url:
+                        try:
+                            progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
+                            out_path = DOWNLOAD_DIR / f"{task_id}.mp4"
+                            with _req.get(
+                                direct_url, stream=True, timeout=300, allow_redirects=True,
+                                headers={"User-Agent": "Mozilla/5.0"},
+                            ) as r:
+                                r.raise_for_status()
+                                total = int(r.headers.get("content-length", 0))
+                                dl = 0
+                                with open(out_path, "wb") as f:
+                                    for chunk in r.iter_content(chunk_size=65536):
+                                        if chunk:
+                                            f.write(chunk)
+                                            dl += len(chunk)
+                                            if total:
+                                                progress_store[task_id] = {
+                                                    "status": "downloading",
+                                                    "percent": int(dl * 100 / total),
+                                                    "_ts": time.time(),
+                                                }
+                            progress_store[task_id] = {
+                                "status": "done", "percent": 100,
+                                "file": task_id + ".mp4",
+                                "filename": safe_title + ".mp4",
+                            }
+                            record_download("YouTube", True, duration=time.time() - _start)
+                            return
+                        except Exception:
+                            pass  # fall through to yt-dlp
 
         # ── yt-dlp fallback ────────────────────────────────────────────────────
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
