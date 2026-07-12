@@ -2287,6 +2287,51 @@ def admin_visitor_device_stats():
     return jsonify({"mobile": mobile, "desktop": desktop, "new": new_v, "returning": returning, "peak_hour": peak})
 
 
+@app.route("/admin/api/test-smvd")
+@requires_auth
+def admin_test_smvd():
+    video_id = request.args.get("id", "dQw4w9WgXcQ")
+    smvd = _call_smvd_youtube(video_id)
+    if smvd.get("error"):
+        return jsonify({"ok": False, "error": smvd["error"]})
+    contents = smvd.get("contents", [])
+    if not contents:
+        return jsonify({"ok": False, "error": "no contents", "raw": smvd})
+    c = contents[0]
+    vids = c.get("videos") or []
+    auds = c.get("audios") or []
+    rvs  = c.get("renderableVideos") or []
+    meta = smvd.get("metadata", {})
+    # probe first video URL
+    probe_ok = False
+    probe_ct = ""
+    probe_size = 0
+    if vids and vids[0].get("url"):
+        try:
+            import requests as _rq
+            pr = _rq.head(vids[0]["url"], allow_redirects=True, timeout=10,
+                          headers={"User-Agent": "Mozilla/5.0"})
+            probe_ok = pr.ok
+            probe_ct = pr.headers.get("content-type", "")
+            probe_size = int(pr.headers.get("content-length", 0))
+        except Exception as e:
+            probe_ct = str(e)
+    return jsonify({
+        "ok": True,
+        "title": meta.get("title", ""),
+        "key_used": SMVD_RAPIDAPI_KEY[:8] + "..." if SMVD_RAPIDAPI_KEY else "NOT SET",
+        "videos_count": len(vids),
+        "audios_count": len(auds),
+        "renderable_count": len(rvs),
+        "first_video_url": (vids[0].get("url", ""))[:100] if vids else "",
+        "first_video_quality": (vids[0].get("qualityLabel") or vids[0].get("quality", "")) if vids else "",
+        "probe_ok": probe_ok,
+        "probe_content_type": probe_ct,
+        "probe_content_length": probe_size,
+        "renderable": [{"q": r.get("quality"), "err": r.get("error"), "hasUrl": bool(r.get("executionUrl"))} for r in rvs],
+    })
+
+
 @app.route("/admin/api/test-url", methods=["POST"])
 @requires_auth
 def admin_test_url():
