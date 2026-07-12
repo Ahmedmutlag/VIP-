@@ -2005,6 +2005,7 @@ def start_download():
                         audio_tmp = DOWNLOAD_DIR / f"{task_id}.a.tmp"
                         out_path  = DOWNLOAD_DIR / f"{task_id}.mp4"
                         try:
+                            import requests as _req
                             progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
                             # download video stream
                             with _req.get(best_vid, stream=True, timeout=300, allow_redirects=True,
