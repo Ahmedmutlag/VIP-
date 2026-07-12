@@ -1990,15 +1990,13 @@ def start_download():
                     safe_title = re.sub(r'[\\/*?:"<>|]', "", meta.get("title", "video"))[:60]
                     vid_streams = content.get("videos") or []
                     aud_streams = content.get("audios") or []
-                    # streams are sorted quality-descending; pick from the end
-                    # to avoid huge 4K/1080p files — target ~360p-480p range
-                    _vlist = [v["url"] for v in vid_streams if v.get("url")]
-                    if len(_vlist) >= 6:
-                        best_vid = _vlist[-(min(len(_vlist), 6))]  # ~6th from end ≈ 360p
-                    elif _vlist:
-                        best_vid = _vlist[-1]
-                    else:
-                        best_vid = ""
+                    # SMVD wraps high-quality streams through its own CDN (smvd.xyz).
+                    # Low-quality streams are direct googlevideo.com URLs — blocked on Render.
+                    # Prefer smvd.xyz URLs; pick the last (lowest quality = smallest file).
+                    _vlist_smvd = [v["url"] for v in vid_streams if v.get("url") and "smvd" in v.get("url", "")]
+                    _vlist_all  = [v["url"] for v in vid_streams if v.get("url")]
+                    _vlist = _vlist_smvd if _vlist_smvd else _vlist_all
+                    best_vid = _vlist[-1] if _vlist else ""
                     best_aud = next((a["url"] for a in aud_streams if a.get("url")), "")
                     if best_vid:
                         video_tmp = DOWNLOAD_DIR / f"{task_id}.v.tmp"
