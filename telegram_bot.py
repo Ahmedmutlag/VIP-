@@ -1492,6 +1492,13 @@ def handle_adwatch_app_done(chat_id: int, cq_id: str):
         send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
         return
     if not data.get("ad_verified"):
+        # grace period: reward callback may still be in-flight — poll for up to 5s
+        for _ in range(10):
+            time.sleep(0.5)
+            data = pending.get(chat_id, {})
+            if data.get("ad_verified"):
+                break
+    if not data.get("ad_verified"):
         answer_callback(cq_id, "❌ لم يتم التحقق من مشاهدة الإعلان!")
         send_message(
             chat_id,
