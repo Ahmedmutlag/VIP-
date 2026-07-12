@@ -1930,11 +1930,12 @@ def start_download():
         _start = time.time()
 
         # ── RapidAPI path ──────────────────────────────────────────────────────
+        _is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
         use_rapidapi = RAPIDAPI_KEY and (
             format_id.startswith("rapidapi_") or
             not format_id.startswith("bestvideo") and not format_id.startswith("best[")
         )
-        if RAPIDAPI_KEY:
+        if RAPIDAPI_KEY and not _is_youtube:
             prefer_audio = "audio" in format_id or "bestaudio" in format_id
             api_data = _call_rapidapi(url)
             medias = api_data.get("medias", [])
@@ -1973,11 +1974,9 @@ def start_download():
                         record_download(platform, True, duration=time.time() - _start)
                         return
                     except Exception as e:
-                        if "youtube.com" not in url.lower() and "youtu.be" not in url.lower():
-                            progress_store[task_id] = {"status": "error", "error": str(e)[:200]}
-                            record_download(platform, False, str(e)[:200], duration=time.time() - _start)
-                            return
-                        # YouTube: fall through to SMVD / yt-dlp
+                        progress_store[task_id] = {"status": "error", "error": str(e)[:200]}
+                        record_download(platform, False, str(e)[:200], duration=time.time() - _start)
+                        return
 
         # ── YouTube: try SMVD API (video+audio streams → ffmpeg merge) ───────────
         if SMVD_RAPIDAPI_KEY and ("youtube.com" in url.lower() or "youtu.be" in url.lower()):
