@@ -122,6 +122,35 @@ def _invidious_get_url(video_id: str) -> str:
     return ""
 
 
+# ===== cobalt.tools — YouTube tunnel download =====
+def _cobalt_youtube(yt_url: str) -> str:
+    """Return a proxied tunnel URL via cobalt.tools (content served from their CDN)."""
+    import requests as _req
+    try:
+        r = _req.post(
+            "https://api.cobalt.tools/",
+            json={
+                "url": yt_url,
+                "videoQuality": "480",
+                "filenameStyle": "basic",
+                "downloadMode": "auto",
+            },
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0",
+            },
+            timeout=20,
+        )
+        data = r.json()
+        status = data.get("status", "")
+        if status in ("tunnel", "stream", "redirect"):
+            return data.get("url", "")
+    except Exception:
+        pass
+    return ""
+
+
 # ===== Auto-update yt-dlp =====
 def auto_update_ytdlp():
     try:
@@ -2005,6 +2034,46 @@ def start_download():
                         progress_store[task_id] = {"status": "error", "error": str(e)[:200]}
                         record_download(platform, False, str(e)[:200], duration=time.time() - _start)
                         return
+
+        # ── YouTube: try cobalt.tools tunnel (480p, served from cobalt CDN) ─────
+        if _is_youtube:
+            cobalt_url = _cobalt_youtube(url)
+            app.logger.info("Cobalt URL found: %s", bool(cobalt_url))
+            if cobalt_url:
+                try:
+                    out_path = DOWNLOAD_DIR / f"{task_id}.mp4"
+                    progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
+                    with _req.get(cobalt_url, stream=True, timeout=300,
+                                  headers={"User-Agent": "Mozilla/5.0"}) as r:
+                        r.raise_for_status()
+                        total = int(r.headers.get("content-length", 0))
+                        downloaded = 0
+                        with open(out_path, "wb") as f:
+                            for chunk in r.iter_content(chunk_size=65536):
+                                if chunk:
+                                    f.write(chunk)
+                                    downloaded += len(chunk)
+                                    if total:
+                                        progress_store[task_id] = {
+                                            "status": "downloading",
+                                            "percent": int(downloaded / total * 100),
+                                            "_ts": time.time(),
+                                        }
+                    if out_path.exists() and out_path.stat().st_size > 51200:
+                        progress_store[task_id] = {
+                            "status": "done", "percent": 100,
+                            "file": task_id + ".mp4",
+                            "filename": "video.mp4",
+                        }
+                        record_download("YouTube", True, duration=time.time() - _start)
+                        return
+                except Exception as _cob_exc:
+                    app.logger.error("Cobalt download failed: %s", _cob_exc)
+                    try:
+                        if out_path.exists():
+                            out_path.unlink()
+                    except Exception:
+                        pass
 
         # ── YouTube: try Invidious proxy (360p MP4 combined, true proxy) ────────
         if _is_youtube:
