@@ -1990,12 +1990,15 @@ def start_download():
                     safe_title = re.sub(r'[\\/*?:"<>|]', "", meta.get("title", "video"))[:60]
                     vid_streams = content.get("videos") or []
                     aud_streams = content.get("audios") or []
-                    # pick 720p video stream, fall back to first available
-                    best_vid = next(
-                        (v["url"] for v in vid_streams
-                         if v.get("url") and "720" in str(v.get("qualityLabel", "") or v.get("quality", ""))),
-                        next((v["url"] for v in vid_streams if v.get("url")), ""),
-                    )
+                    # streams are sorted quality-descending; pick from the end
+                    # to avoid huge 4K/1080p files — target ~360p-480p range
+                    _vlist = [v["url"] for v in vid_streams if v.get("url")]
+                    if len(_vlist) >= 6:
+                        best_vid = _vlist[-(min(len(_vlist), 6))]  # ~6th from end ≈ 360p
+                    elif _vlist:
+                        best_vid = _vlist[-1]
+                    else:
+                        best_vid = ""
                     best_aud = next((a["url"] for a in aud_streams if a.get("url")), "")
                     if best_vid:
                         video_tmp = DOWNLOAD_DIR / f"{task_id}.v.tmp"
@@ -2043,9 +2046,9 @@ def start_download():
                                 progress_store[task_id] = {"status": "processing", "percent": 90, "_ts": time.time()}
                                 merge = subprocess.run(
                                     ["ffmpeg", "-i", str(video_tmp), "-i", str(audio_tmp),
-                                     "-c:v", "copy", "-c:a", "aac", "-strict", "experimental",
-                                     str(out_path), "-y"],
-                                    timeout=120, capture_output=True,
+                                     "-c:v", "libx264", "-c:a", "aac", "-preset", "fast",
+                                     "-movflags", "+faststart", str(out_path), "-y"],
+                                    timeout=180, capture_output=True,
                                 )
                                 if merge.returncode != 0 or not out_path.exists() or out_path.stat().st_size < 51200:
                                     import shutil as _shutil
