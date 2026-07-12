@@ -79,7 +79,7 @@ def _call_smvd_youtube(video_id: str) -> dict:
     try:
         import requests as _req
         resp = _req.get(
-            f"https://{SMVD_RAPIDAPI_HOST}/youtube/be/v3/video/details",
+            f"https://{SMVD_RAPIDAPI_HOST}/youtube/v3/video/details",
             headers={
                 "x-rapidapi-host": SMVD_RAPIDAPI_HOST,
                 "x-rapidapi-key": SMVD_RAPIDAPI_KEY,
