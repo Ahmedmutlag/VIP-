@@ -230,6 +230,7 @@ PLATFORM_NAMES = {
     "twitter": "Twitter / X",
     "x.com": "Twitter / X",
     "youtube": "YouTube",
+    "youtu.be": "YouTube",
     "pinterest": "Pinterest",
     "snapchat": "Snapchat",
     "snap.com": "Snapchat",

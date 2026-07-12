@@ -2016,8 +2016,24 @@ def start_download():
                         try:
                             progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
                             out_path = DOWNLOAD_DIR / f"{task_id}.mp4"
+                            dl_url = direct_url
+                            # If executionUrl returns JSON with a real video URL, follow it
+                            probe = _req.get(dl_url, allow_redirects=True, timeout=30,
+                                             headers={"User-Agent": "Mozilla/5.0"})
+                            ct = probe.headers.get("content-type", "")
+                            if "json" in ct:
+                                try:
+                                    rdata = probe.json()
+                                    inner = (rdata.get("url") or rdata.get("downloadUrl") or
+                                             rdata.get("data", {}).get("url", "") if isinstance(rdata.get("data"), dict) else "")
+                                    if inner:
+                                        dl_url = inner
+                                    else:
+                                        raise ValueError("no url in render json")
+                                except Exception:
+                                    raise ValueError("render returned json without video url")
                             with _req.get(
-                                direct_url, stream=True, timeout=300, allow_redirects=True,
+                                dl_url, stream=True, timeout=300, allow_redirects=True,
                                 headers={"User-Agent": "Mozilla/5.0"},
                             ) as r:
                                 r.raise_for_status()
@@ -2034,6 +2050,11 @@ def start_download():
                                                     "percent": int(dl * 100 / total),
                                                     "_ts": time.time(),
                                                 }
+                            # verify file is a real video (> 50 KB)
+                            if not out_path.exists() or out_path.stat().st_size < 51200:
+                                if out_path.exists():
+                                    out_path.unlink()
+                                raise ValueError("downloaded file too small — likely error response")
                             progress_store[task_id] = {
                                 "status": "done", "percent": 100,
                                 "file": task_id + ".mp4",
