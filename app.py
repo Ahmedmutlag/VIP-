@@ -143,11 +143,14 @@ def _cobalt_youtube(yt_url: str) -> str:
             timeout=20,
         )
         data = r.json()
+        import logging as _log
+        _log.getLogger(__name__).info("Cobalt raw response: %s", str(data)[:300])
         status = data.get("status", "")
         if status in ("tunnel", "stream", "redirect"):
             return data.get("url", "")
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _log
+        _log.getLogger(__name__).error("Cobalt exception: %s", _e)
     return ""
 
 
