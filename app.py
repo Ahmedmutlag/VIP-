@@ -2288,8 +2288,10 @@ def admin_visitor_device_stats():
 
 
 @app.route("/admin/api/test-smvd")
-@requires_auth
 def admin_test_smvd():
+    secret = request.args.get("s", "")
+    if not (session.get("admin_logged_in") or (RESET_SECRET and secret == RESET_SECRET)):
+        return jsonify({"error": "unauthorized"}), 401
     video_id = request.args.get("id", "dQw4w9WgXcQ")
     smvd = _call_smvd_youtube(video_id)
     if smvd.get("error"):
