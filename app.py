@@ -86,7 +86,7 @@ def _call_smvd_youtube(video_id: str) -> dict:
             },
             params={
                 "videoId": video_id,
-                "urlAccess": "proxy",
+                "urlAccess": "normal",
                 "renderableFormats": "720p",
                 "getTranscript": "false",
             },
@@ -95,6 +95,31 @@ def _call_smvd_youtube(video_id: str) -> dict:
         return resp.json()
     except Exception as e:
         return {"error": str(e)}
+
+
+# ===== Invidious proxy download for YouTube =====
+_INVIDIOUS_INSTANCES = [
+    "inv.nadeko.net",
+    "invidious.privacyredirect.com",
+    "inv.tux.pizza",
+    "yt.cdaut.de",
+    "invidious.nerdvpn.de",
+]
+
+def _invidious_get_url(video_id: str) -> str:
+    """Return a proxied download URL via Invidious (itag 18 = 360p MP4 combined)."""
+    import requests as _req
+    for instance in _INVIDIOUS_INSTANCES:
+        try:
+            # itag 18 = 360p MP4 video+audio combined — small, no merge needed
+            url = f"https://{instance}/latest_version?id={video_id}&itag=18&local=true"
+            r = _req.head(url, timeout=8, allow_redirects=True,
+                          headers={"User-Agent": "Mozilla/5.0"})
+            if r.ok and int(r.headers.get("content-length", 0)) > 100_000:
+                return url
+        except Exception:
+            continue
+    return ""
 
 
 # ===== Auto-update yt-dlp =====
@@ -583,9 +608,12 @@ def clean_old_files():
         for ip in stale_ips:
             login_attempts.pop(ip, None)
         # evict stale _ad_view_times (older than 60s — ad watch window)
-        ad_cutoff = time.time() - 60
-        for k in [k for k, v in list(_ad_view_times.items()) if v < ad_cutoff]:
-            _ad_view_times.pop(k, None)
+        try:
+            ad_cutoff = time.time() - 60
+            for k in [k for k, v in list(_ad_view_times.items()) if v < ad_cutoff]:
+                _ad_view_times.pop(k, None)
+        except NameError:
+            pass  # _ad_view_times not yet defined at startup
         # evict expired _url_tokens
         for k, v in list(_url_tokens.items()):
             if isinstance(v, tuple) and time.time() > v[1]:
@@ -1978,8 +2006,50 @@ def start_download():
                         record_download(platform, False, str(e)[:200], duration=time.time() - _start)
                         return
 
+        # ── YouTube: try Invidious proxy (360p MP4 combined, true proxy) ────────
+        if _is_youtube:
+            video_id = _extract_yt_video_id(url)
+            if video_id:
+                inv_url = _invidious_get_url(video_id)
+                app.logger.info("Invidious URL found: %s", bool(inv_url))
+                if inv_url:
+                    try:
+                        out_path = DOWNLOAD_DIR / f"{task_id}.mp4"
+                        progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
+                        with _req.get(inv_url, stream=True, timeout=300,
+                                      headers={"User-Agent": "Mozilla/5.0"}) as r:
+                            r.raise_for_status()
+                            total = int(r.headers.get("content-length", 0))
+                            downloaded = 0
+                            with open(out_path, "wb") as f:
+                                for chunk in r.iter_content(chunk_size=65536):
+                                    if chunk:
+                                        f.write(chunk)
+                                        downloaded += len(chunk)
+                                        if total:
+                                            progress_store[task_id] = {
+                                                "status": "downloading",
+                                                "percent": int(downloaded / total * 100),
+                                                "_ts": time.time(),
+                                            }
+                        if out_path.exists() and out_path.stat().st_size > 51200:
+                            progress_store[task_id] = {
+                                "status": "done", "percent": 100,
+                                "file": task_id + ".mp4",
+                                "filename": "video.mp4",
+                            }
+                            record_download("YouTube", True, duration=time.time() - _start)
+                            return
+                    except Exception as _inv_exc:
+                        app.logger.error("Invidious download failed: %s", _inv_exc)
+                        try:
+                            if out_path.exists():
+                                out_path.unlink()
+                        except Exception:
+                            pass
+
         # ── YouTube: try SMVD API (video+audio streams → ffmpeg merge) ───────────
-        if SMVD_RAPIDAPI_KEY and ("youtube.com" in url.lower() or "youtu.be" in url.lower()):
+        if SMVD_RAPIDAPI_KEY and _is_youtube:
             video_id = _extract_yt_video_id(url)
             if video_id:
                 smvd = _call_smvd_youtube(video_id)
