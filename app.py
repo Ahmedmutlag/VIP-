@@ -1984,6 +1984,7 @@ def start_download():
             video_id = _extract_yt_video_id(url)
             if video_id:
                 smvd = _call_smvd_youtube(video_id)
+                app.logger.info("SMVD response error=%s contents_count=%s", smvd.get("error"), len(smvd.get("contents", [])))
                 if not smvd.get("error") and smvd.get("contents"):
                     content  = smvd["contents"][0]
                     meta     = smvd.get("metadata", {})
@@ -2066,7 +2067,8 @@ def start_download():
                                 record_download("YouTube", True, duration=time.time() - _start)
                                 return
                             raise ValueError("output too small")
-                        except Exception:
+                        except Exception as _smvd_exc:
+                            app.logger.error("SMVD download failed: %s", _smvd_exc)
                             pass  # fall through to yt-dlp
                         finally:
                             for tmp in [video_tmp, audio_tmp]:
