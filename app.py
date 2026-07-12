@@ -1979,91 +1979,98 @@ def start_download():
                             return
                         # YouTube: fall through to SMVD / yt-dlp
 
-        # ── YouTube: try SMVD API ─────────────────────────────────────────────
+        # ── YouTube: try SMVD API (video+audio streams → ffmpeg merge) ───────────
         if SMVD_RAPIDAPI_KEY and ("youtube.com" in url.lower() or "youtu.be" in url.lower()):
             video_id = _extract_yt_video_id(url)
             if video_id:
                 smvd = _call_smvd_youtube(video_id)
                 if not smvd.get("error") and smvd.get("contents"):
-                    content = smvd["contents"][0]
-                    meta = smvd.get("metadata", {})
+                    content  = smvd["contents"][0]
+                    meta     = smvd.get("metadata", {})
                     safe_title = re.sub(r'[\\/*?:"<>|]', "", meta.get("title", "video"))[:60]
-                    direct_url = None
-                    if format_id.startswith("smvd_yt_stream_"):
-                        try:
-                            idx = int(format_id.rsplit("_", 1)[-1])
-                            videos = content.get("videos") or []
-                            if idx < len(videos):
-                                direct_url = videos[idx].get("url", "")
-                        except (ValueError, IndexError):
-                            pass
-                    elif format_id.startswith("smvd_yt_"):
-                        quality = format_id[len("smvd_yt_"):]
-                        for rv in (content.get("renderableVideos") or []):
-                            if rv.get("quality") == quality and rv.get("executionUrl"):
-                                direct_url = rv["executionUrl"]
-                                break
-                    else:
-                        for rv in (content.get("renderableVideos") or []):
-                            if not rv.get("error") and rv.get("executionUrl"):
-                                direct_url = rv["executionUrl"]
-                                break
-                        if not direct_url:
-                            videos = content.get("videos") or []
-                            if videos:
-                                direct_url = videos[0].get("url", "")
-                    if direct_url:
+                    vid_streams = content.get("videos") or []
+                    aud_streams = content.get("audios") or []
+                    # pick 720p video stream, fall back to first available
+                    best_vid = next(
+                        (v["url"] for v in vid_streams
+                         if v.get("url") and "720" in str(v.get("qualityLabel", "") or v.get("quality", ""))),
+                        next((v["url"] for v in vid_streams if v.get("url")), ""),
+                    )
+                    best_aud = next((a["url"] for a in aud_streams if a.get("url")), "")
+                    if best_vid:
+                        video_tmp = DOWNLOAD_DIR / f"{task_id}.v.tmp"
+                        audio_tmp = DOWNLOAD_DIR / f"{task_id}.a.tmp"
+                        out_path  = DOWNLOAD_DIR / f"{task_id}.mp4"
                         try:
                             progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
-                            out_path = DOWNLOAD_DIR / f"{task_id}.mp4"
-                            dl_url = direct_url
-                            # If executionUrl returns JSON with a real video URL, follow it
-                            probe = _req.get(dl_url, allow_redirects=True, timeout=30,
-                                             headers={"User-Agent": "Mozilla/5.0"})
-                            ct = probe.headers.get("content-type", "")
-                            if "json" in ct:
-                                try:
-                                    rdata = probe.json()
-                                    inner = (rdata.get("url") or rdata.get("downloadUrl") or
-                                             rdata.get("data", {}).get("url", "") if isinstance(rdata.get("data"), dict) else "")
-                                    if inner:
-                                        dl_url = inner
-                                    else:
-                                        raise ValueError("no url in render json")
-                                except Exception:
-                                    raise ValueError("render returned json without video url")
-                            with _req.get(
-                                dl_url, stream=True, timeout=300, allow_redirects=True,
-                                headers={"User-Agent": "Mozilla/5.0"},
-                            ) as r:
+                            # download video stream
+                            with _req.get(best_vid, stream=True, timeout=300, allow_redirects=True,
+                                         headers={"User-Agent": "Mozilla/5.0"}) as r:
                                 r.raise_for_status()
-                                total = int(r.headers.get("content-length", 0))
-                                dl = 0
-                                with open(out_path, "wb") as f:
+                                total_v = int(r.headers.get("content-length", 0))
+                                dl_v = 0
+                                with open(video_tmp, "wb") as f:
                                     for chunk in r.iter_content(chunk_size=65536):
                                         if chunk:
                                             f.write(chunk)
-                                            dl += len(chunk)
-                                            if total:
+                                            dl_v += len(chunk)
+                                            if total_v:
                                                 progress_store[task_id] = {
                                                     "status": "downloading",
-                                                    "percent": int(dl * 100 / total),
+                                                    "percent": int(dl_v / total_v * 60),
                                                     "_ts": time.time(),
                                                 }
-                            # verify file is a real video (> 50 KB)
-                            if not out_path.exists() or out_path.stat().st_size < 51200:
-                                if out_path.exists():
-                                    out_path.unlink()
-                                raise ValueError("downloaded file too small — likely error response")
-                            progress_store[task_id] = {
-                                "status": "done", "percent": 100,
-                                "file": task_id + ".mp4",
-                                "filename": safe_title + ".mp4",
-                            }
-                            record_download("YouTube", True, duration=time.time() - _start)
-                            return
+                            if not video_tmp.exists() or video_tmp.stat().st_size < 51200:
+                                raise ValueError("video stream empty")
+                            # download audio stream
+                            if best_aud:
+                                with _req.get(best_aud, stream=True, timeout=120, allow_redirects=True,
+                                             headers={"User-Agent": "Mozilla/5.0"}) as r:
+                                    r.raise_for_status()
+                                    total_a = int(r.headers.get("content-length", 0))
+                                    dl_a = 0
+                                    with open(audio_tmp, "wb") as f:
+                                        for chunk in r.iter_content(chunk_size=65536):
+                                            if chunk:
+                                                f.write(chunk)
+                                                dl_a += len(chunk)
+                                                if total_a:
+                                                    progress_store[task_id] = {
+                                                        "status": "downloading",
+                                                        "percent": 60 + int(dl_a / total_a * 30),
+                                                        "_ts": time.time(),
+                                                    }
+                                progress_store[task_id] = {"status": "processing", "percent": 90, "_ts": time.time()}
+                                merge = subprocess.run(
+                                    ["ffmpeg", "-i", str(video_tmp), "-i", str(audio_tmp),
+                                     "-c:v", "copy", "-c:a", "aac", "-strict", "experimental",
+                                     str(out_path), "-y"],
+                                    timeout=120, capture_output=True,
+                                )
+                                if merge.returncode != 0 or not out_path.exists() or out_path.stat().st_size < 51200:
+                                    import shutil as _shutil
+                                    _shutil.copy(str(video_tmp), str(out_path))
+                            else:
+                                import shutil as _shutil
+                                _shutil.copy(str(video_tmp), str(out_path))
+                            if out_path.exists() and out_path.stat().st_size > 51200:
+                                progress_store[task_id] = {
+                                    "status": "done", "percent": 100,
+                                    "file": task_id + ".mp4",
+                                    "filename": safe_title + ".mp4",
+                                }
+                                record_download("YouTube", True, duration=time.time() - _start)
+                                return
+                            raise ValueError("output too small")
                         except Exception:
                             pass  # fall through to yt-dlp
+                        finally:
+                            for tmp in [video_tmp, audio_tmp]:
+                                try:
+                                    if tmp.exists():
+                                        tmp.unlink()
+                                except Exception:
+                                    pass
 
         # ── yt-dlp fallback ────────────────────────────────────────────────────
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
