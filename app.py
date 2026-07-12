@@ -86,8 +86,8 @@ def _call_smvd_youtube(video_id: str) -> dict:
             },
             params={
                 "videoId": video_id,
-                "urlAccess": "normal",
-                "renderableFormats": "720p,highres",
+                "urlAccess": "proxy",
+                "renderableFormats": "720p",
                 "getTranscript": "false",
             },
             timeout=30,
@@ -1990,11 +1990,11 @@ def start_download():
                     safe_title = re.sub(r'[\\/*?:"<>|]', "", meta.get("title", "video"))[:60]
                     vid_streams = content.get("videos") or []
                     aud_streams = content.get("audios") or []
-                    # SMVD wraps high-quality streams through its own CDN (smvd.xyz).
-                    # Low-quality streams are direct googlevideo.com URLs — blocked on Render.
-                    # Prefer smvd.xyz URLs; pick the last (lowest quality = smallest file).
+                    # Prefer smvd.xyz proxied URLs (work from Render).
+                    # googlevideo.com direct URLs get 403 from Render's data center.
                     _vlist_smvd = [v["url"] for v in vid_streams if v.get("url") and "smvd" in v.get("url", "")]
                     _vlist_all  = [v["url"] for v in vid_streams if v.get("url")]
+                    app.logger.info("SMVD streams: %d smvd.xyz / %d total", len(_vlist_smvd), len(_vlist_all))
                     _vlist = _vlist_smvd if _vlist_smvd else _vlist_all
                     best_vid = _vlist[-1] if _vlist else ""
                     best_aud = next((a["url"] for a in aud_streams if a.get("url")), "")
@@ -2112,7 +2112,7 @@ def start_download():
             ydl_opts["geo_bypass_country"] = "US"
             ydl_opts["extractor_args"] = {
                 "youtube": {
-                    "player_client": ["android_vr", "mweb", "android"],
+                    "player_client": ["ios", "android_testsuite"],
                 }
             }
             ydl_opts["format"] = "best[height<=720][ext=mp4]/best[height<=720]/best[ext=mp4]/best"
