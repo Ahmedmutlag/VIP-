@@ -1705,6 +1705,11 @@ def handle_url(chat_id: int, url: str, first_name: str, user_id: int = 0):
         send_message(chat_id, t(user_id, "already_downloading"))
         return
 
+    # YouTube not supported
+    if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+        send_message(chat_id, "❌ تحميل يوتيوب غير متاح حالياً\n\nيمكنك التحميل من:\n🎵 TikTok\n📸 Instagram\n📘 Facebook\n📌 Pinterest\n👻 Snapchat")
+        return
+
     # Check daily limit for free users (admins bypass all limits)
     if user_id not in ADMIN_IDS and not is_premium(user_id) and not check_download_limit(user_id):
         pending[user_id] = {"ad_pending_url": url}

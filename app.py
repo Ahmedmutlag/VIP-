@@ -65,95 +65,6 @@ def _rapidapi_pick_url(medias: list, prefer_audio: bool = False) -> str:
     return medias[0].get("url", "")
 
 
-# ===== SMVD RapidAPI — YouTube =====
-SMVD_RAPIDAPI_KEY  = os.environ.get("SMVD_RAPIDAPI_KEY", "") or os.environ.get("RAPIDAPI_KEY", "")
-SMVD_RAPIDAPI_HOST = "social-media-video-downloader.p.rapidapi.com"
-
-def _extract_yt_video_id(url: str) -> str:
-    m = re.search(r"(?:v=|/v/|youtu\.be/|/embed/|/shorts/)([A-Za-z0-9_-]{11})", url)
-    return m.group(1) if m else ""
-
-def _call_smvd_youtube(video_id: str) -> dict:
-    if not SMVD_RAPIDAPI_KEY or not video_id:
-        return {"error": "no_key_or_id"}
-    try:
-        import requests as _req
-        resp = _req.get(
-            f"https://{SMVD_RAPIDAPI_HOST}/youtube/v3/video/details",
-            headers={
-                "x-rapidapi-host": SMVD_RAPIDAPI_HOST,
-                "x-rapidapi-key": SMVD_RAPIDAPI_KEY,
-            },
-            params={
-                "videoId": video_id,
-                "urlAccess": "normal",
-                "renderableFormats": "720p",
-                "getTranscript": "false",
-            },
-            timeout=30,
-        )
-        return resp.json()
-    except Exception as e:
-        return {"error": str(e)}
-
-
-# ===== Invidious proxy download for YouTube =====
-_INVIDIOUS_INSTANCES = [
-    "inv.nadeko.net",
-    "invidious.privacyredirect.com",
-    "inv.tux.pizza",
-    "yt.cdaut.de",
-    "invidious.nerdvpn.de",
-]
-
-def _invidious_get_url(video_id: str) -> str:
-    """Return a proxied download URL via Invidious (itag 18 = 360p MP4 combined)."""
-    import requests as _req
-    for instance in _INVIDIOUS_INSTANCES:
-        try:
-            # itag 18 = 360p MP4 video+audio combined — small, no merge needed
-            url = f"https://{instance}/latest_version?id={video_id}&itag=18&local=true"
-            r = _req.head(url, timeout=8, allow_redirects=True,
-                          headers={"User-Agent": "Mozilla/5.0"})
-            if r.ok and int(r.headers.get("content-length", 0)) > 100_000:
-                return url
-        except Exception:
-            continue
-    return ""
-
-
-# ===== cobalt.tools — YouTube tunnel download =====
-def _cobalt_youtube(yt_url: str) -> str:
-    """Return a proxied tunnel URL via cobalt.tools (content served from their CDN)."""
-    import requests as _req
-    try:
-        r = _req.post(
-            "https://api.cobalt.tools/",
-            json={
-                "url": yt_url,
-                "videoQuality": "480",
-                "filenameStyle": "basic",
-                "downloadMode": "auto",
-            },
-            headers={
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            timeout=20,
-        )
-        data = r.json()
-        import logging as _log
-        _log.getLogger(__name__).info("Cobalt raw response: %s", str(data)[:300])
-        status = data.get("status", "")
-        if status in ("tunnel", "stream", "redirect"):
-            return data.get("url", "")
-    except Exception as _e:
-        import logging as _log
-        _log.getLogger(__name__).error("Cobalt exception: %s", _e)
-    return ""
-
-
 # ===== Auto-update yt-dlp =====
 def auto_update_ytdlp():
     try:
@@ -1795,48 +1706,9 @@ def get_info():
                     "formats": formats,
                 })
 
-    # ── YouTube: try SMVD API ─────────────────────────────────────────────
-    if SMVD_RAPIDAPI_KEY and ("youtube.com" in url.lower() or "youtu.be" in url.lower()):
-        video_id = _extract_yt_video_id(url)
-        if video_id:
-            smvd = _call_smvd_youtube(video_id)
-            if not smvd.get("error") and smvd.get("contents"):
-                content = smvd["contents"][0]
-                meta = smvd.get("metadata", {})
-                formats = []
-                for rv in (content.get("renderableVideos") or []):
-                    if rv.get("error") or not rv.get("executionUrl"):
-                        continue
-                    quality = rv.get("quality", "video")
-                    formats.append({
-                        "format_id": f"smvd_yt_{quality}",
-                        "label": quality,
-                        "ext": "mp4",
-                        "type": "video",
-                        "filesize": None,
-                    })
-                for i, v in enumerate(content.get("videos") or []):
-                    if not v.get("url"):
-                        continue
-                    quality = v.get("qualityLabel") or v.get("quality", "")
-                    if not quality or any(f["label"] == quality for f in formats):
-                        continue
-                    formats.append({
-                        "format_id": f"smvd_yt_stream_{i}",
-                        "label": quality,
-                        "ext": "mp4",
-                        "type": "video",
-                        "filesize": None,
-                    })
-                if formats:
-                    return jsonify({
-                        "title": meta.get("title", "فيديو يوتيوب"),
-                        "thumbnail": meta.get("thumbnail"),
-                        "duration": meta.get("duration"),
-                        "uploader": meta.get("channelName") or meta.get("author", ""),
-                        "platform": "YouTube",
-                        "formats": formats,
-                    })
+    # YouTube not supported
+    if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+        return jsonify({"error": "YouTube غير مدعوم حالياً"}), 400
 
     ydl_opts = {
         "quiet": True,
@@ -1989,13 +1861,18 @@ def start_download():
         import requests as _req
         _start = time.time()
 
+        # ── Block YouTube (not supported) ──────────────────────────────────────
+        if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+            progress_store[task_id] = {"status": "error", "error": "YouTube غير مدعوم حالياً"}
+            record_download(platform, False, "unsupported", duration=time.time() - _start)
+            return
+
         # ── RapidAPI path ──────────────────────────────────────────────────────
-        _is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
         use_rapidapi = RAPIDAPI_KEY and (
             format_id.startswith("rapidapi_") or
             not format_id.startswith("bestvideo") and not format_id.startswith("best[")
         )
-        if RAPIDAPI_KEY and not _is_youtube:
+        if RAPIDAPI_KEY:
             prefer_audio = "audio" in format_id or "bestaudio" in format_id
             api_data = _call_rapidapi(url)
             medias = api_data.get("medias", [])
@@ -2038,185 +1915,6 @@ def start_download():
                         record_download(platform, False, str(e)[:200], duration=time.time() - _start)
                         return
 
-        # ── YouTube: try cobalt.tools tunnel (480p, served from cobalt CDN) ─────
-        if _is_youtube:
-            cobalt_url = _cobalt_youtube(url)
-            app.logger.info("Cobalt URL found: %s", bool(cobalt_url))
-            if cobalt_url:
-                try:
-                    out_path = DOWNLOAD_DIR / f"{task_id}.mp4"
-                    progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
-                    with _req.get(cobalt_url, stream=True, timeout=300,
-                                  headers={"User-Agent": "Mozilla/5.0"}) as r:
-                        r.raise_for_status()
-                        total = int(r.headers.get("content-length", 0))
-                        downloaded = 0
-                        with open(out_path, "wb") as f:
-                            for chunk in r.iter_content(chunk_size=65536):
-                                if chunk:
-                                    f.write(chunk)
-                                    downloaded += len(chunk)
-                                    if total:
-                                        progress_store[task_id] = {
-                                            "status": "downloading",
-                                            "percent": int(downloaded / total * 100),
-                                            "_ts": time.time(),
-                                        }
-                    if out_path.exists() and out_path.stat().st_size > 51200:
-                        progress_store[task_id] = {
-                            "status": "done", "percent": 100,
-                            "file": task_id + ".mp4",
-                            "filename": "video.mp4",
-                        }
-                        record_download("YouTube", True, duration=time.time() - _start)
-                        return
-                except Exception as _cob_exc:
-                    app.logger.error("Cobalt download failed: %s", _cob_exc)
-                    try:
-                        if out_path.exists():
-                            out_path.unlink()
-                    except Exception:
-                        pass
-
-        # ── YouTube: try Invidious proxy (360p MP4 combined, true proxy) ────────
-        if _is_youtube:
-            video_id = _extract_yt_video_id(url)
-            if video_id:
-                inv_url = _invidious_get_url(video_id)
-                app.logger.info("Invidious URL found: %s", bool(inv_url))
-                if inv_url:
-                    try:
-                        out_path = DOWNLOAD_DIR / f"{task_id}.mp4"
-                        progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
-                        with _req.get(inv_url, stream=True, timeout=300,
-                                      headers={"User-Agent": "Mozilla/5.0"}) as r:
-                            r.raise_for_status()
-                            total = int(r.headers.get("content-length", 0))
-                            downloaded = 0
-                            with open(out_path, "wb") as f:
-                                for chunk in r.iter_content(chunk_size=65536):
-                                    if chunk:
-                                        f.write(chunk)
-                                        downloaded += len(chunk)
-                                        if total:
-                                            progress_store[task_id] = {
-                                                "status": "downloading",
-                                                "percent": int(downloaded / total * 100),
-                                                "_ts": time.time(),
-                                            }
-                        if out_path.exists() and out_path.stat().st_size > 51200:
-                            progress_store[task_id] = {
-                                "status": "done", "percent": 100,
-                                "file": task_id + ".mp4",
-                                "filename": "video.mp4",
-                            }
-                            record_download("YouTube", True, duration=time.time() - _start)
-                            return
-                    except Exception as _inv_exc:
-                        app.logger.error("Invidious download failed: %s", _inv_exc)
-                        try:
-                            if out_path.exists():
-                                out_path.unlink()
-                        except Exception:
-                            pass
-
-        # ── YouTube: try SMVD API (video+audio streams → ffmpeg merge) ───────────
-        if SMVD_RAPIDAPI_KEY and _is_youtube:
-            video_id = _extract_yt_video_id(url)
-            if video_id:
-                smvd = _call_smvd_youtube(video_id)
-                app.logger.info("SMVD response error=%s contents_count=%s", smvd.get("error"), len(smvd.get("contents", [])))
-                if not smvd.get("error") and smvd.get("contents"):
-                    content  = smvd["contents"][0]
-                    meta     = smvd.get("metadata", {})
-                    safe_title = re.sub(r'[\\/*?:"<>|]', "", meta.get("title", "video"))[:60]
-                    vid_streams = content.get("videos") or []
-                    aud_streams = content.get("audios") or []
-                    # Prefer smvd.xyz proxied URLs (work from Render).
-                    # googlevideo.com direct URLs get 403 from Render's data center.
-                    _vlist_smvd = [v["url"] for v in vid_streams if v.get("url") and "smvd" in v.get("url", "")]
-                    _vlist_all  = [v["url"] for v in vid_streams if v.get("url")]
-                    app.logger.info("SMVD streams: %d smvd.xyz / %d total", len(_vlist_smvd), len(_vlist_all))
-                    _vlist = _vlist_smvd if _vlist_smvd else _vlist_all
-                    best_vid = _vlist[-1] if _vlist else ""
-                    best_aud = next((a["url"] for a in aud_streams if a.get("url")), "")
-                    if best_vid:
-                        video_tmp = DOWNLOAD_DIR / f"{task_id}.v.tmp"
-                        audio_tmp = DOWNLOAD_DIR / f"{task_id}.a.tmp"
-                        out_path  = DOWNLOAD_DIR / f"{task_id}.mp4"
-                        try:
-                            import requests as _req
-                            progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
-                            # download video stream
-                            with _req.get(best_vid, stream=True, timeout=300, allow_redirects=True,
-                                         headers={"User-Agent": "Mozilla/5.0"}) as r:
-                                r.raise_for_status()
-                                total_v = int(r.headers.get("content-length", 0))
-                                dl_v = 0
-                                with open(video_tmp, "wb") as f:
-                                    for chunk in r.iter_content(chunk_size=65536):
-                                        if chunk:
-                                            f.write(chunk)
-                                            dl_v += len(chunk)
-                                            if total_v:
-                                                progress_store[task_id] = {
-                                                    "status": "downloading",
-                                                    "percent": int(dl_v / total_v * 60),
-                                                    "_ts": time.time(),
-                                                }
-                            if not video_tmp.exists() or video_tmp.stat().st_size < 51200:
-                                raise ValueError("video stream empty")
-                            # download audio stream
-                            if best_aud:
-                                with _req.get(best_aud, stream=True, timeout=120, allow_redirects=True,
-                                             headers={"User-Agent": "Mozilla/5.0"}) as r:
-                                    r.raise_for_status()
-                                    total_a = int(r.headers.get("content-length", 0))
-                                    dl_a = 0
-                                    with open(audio_tmp, "wb") as f:
-                                        for chunk in r.iter_content(chunk_size=65536):
-                                            if chunk:
-                                                f.write(chunk)
-                                                dl_a += len(chunk)
-                                                if total_a:
-                                                    progress_store[task_id] = {
-                                                        "status": "downloading",
-                                                        "percent": 60 + int(dl_a / total_a * 30),
-                                                        "_ts": time.time(),
-                                                    }
-                                progress_store[task_id] = {"status": "processing", "percent": 90, "_ts": time.time()}
-                                merge = subprocess.run(
-                                    ["ffmpeg", "-i", str(video_tmp), "-i", str(audio_tmp),
-                                     "-c:v", "libx264", "-c:a", "aac", "-preset", "fast",
-                                     "-movflags", "+faststart", str(out_path), "-y"],
-                                    timeout=180, capture_output=True,
-                                )
-                                if merge.returncode != 0 or not out_path.exists() or out_path.stat().st_size < 51200:
-                                    import shutil as _shutil
-                                    _shutil.copy(str(video_tmp), str(out_path))
-                            else:
-                                import shutil as _shutil
-                                _shutil.copy(str(video_tmp), str(out_path))
-                            if out_path.exists() and out_path.stat().st_size > 51200:
-                                progress_store[task_id] = {
-                                    "status": "done", "percent": 100,
-                                    "file": task_id + ".mp4",
-                                    "filename": safe_title + ".mp4",
-                                }
-                                record_download("YouTube", True, duration=time.time() - _start)
-                                return
-                            raise ValueError("output too small")
-                        except Exception as _smvd_exc:
-                            app.logger.error("SMVD download failed: %s", _smvd_exc)
-                            pass  # fall through to yt-dlp
-                        finally:
-                            for tmp in [video_tmp, audio_tmp]:
-                                try:
-                                    if tmp.exists():
-                                        tmp.unlink()
-                                except Exception:
-                                    pass
-
         # ── yt-dlp fallback ────────────────────────────────────────────────────
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
         needs_merge = "+" in format_id
@@ -2248,19 +1946,6 @@ def start_download():
             cookies_file = get_cookies_file()
             if cookies_file:
                 ydl_opts["cookiefile"] = cookies_file
-
-        if "youtube.com" in url.lower() or "youtu.be" in url.lower():
-            ydl_opts["geo_bypass"] = True
-            ydl_opts["geo_bypass_country"] = "US"
-            ydl_opts["extractor_args"] = {
-                "youtube": {
-                    "player_client": ["ios", "android_testsuite"],
-                }
-            }
-            ydl_opts["format"] = "best[height<=720][ext=mp4]/best[height<=720]/best[ext=mp4]/best"
-            yt_cookies = get_youtube_cookies_file()
-            if yt_cookies:
-                ydl_opts["cookiefile"] = yt_cookies
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -2431,52 +2116,6 @@ def admin_visitor_device_stats():
     peak = max(range(24), key=lambda h: hourly.get(str(h), 0))
     return jsonify({"mobile": mobile, "desktop": desktop, "new": new_v, "returning": returning, "peak_hour": peak})
 
-
-@app.route("/admin/api/test-smvd")
-def admin_test_smvd():
-    secret = request.args.get("s", "")
-    if not (session.get("admin_logged_in") or (RESET_SECRET and secret == RESET_SECRET)):
-        return jsonify({"error": "unauthorized"}), 401
-    video_id = request.args.get("id", "dQw4w9WgXcQ")
-    smvd = _call_smvd_youtube(video_id)
-    if smvd.get("error"):
-        return jsonify({"ok": False, "error": smvd["error"]})
-    contents = smvd.get("contents", [])
-    if not contents:
-        return jsonify({"ok": False, "error": "no contents", "raw": smvd})
-    c = contents[0]
-    vids = c.get("videos") or []
-    auds = c.get("audios") or []
-    rvs  = c.get("renderableVideos") or []
-    meta = smvd.get("metadata", {})
-    # probe first video URL
-    probe_ok = False
-    probe_ct = ""
-    probe_size = 0
-    if vids and vids[0].get("url"):
-        try:
-            import requests as _rq
-            pr = _rq.head(vids[0]["url"], allow_redirects=True, timeout=10,
-                          headers={"User-Agent": "Mozilla/5.0"})
-            probe_ok = pr.ok
-            probe_ct = pr.headers.get("content-type", "")
-            probe_size = int(pr.headers.get("content-length", 0))
-        except Exception as e:
-            probe_ct = str(e)
-    return jsonify({
-        "ok": True,
-        "title": meta.get("title", ""),
-        "key_used": SMVD_RAPIDAPI_KEY[:8] + "..." if SMVD_RAPIDAPI_KEY else "NOT SET",
-        "videos_count": len(vids),
-        "audios_count": len(auds),
-        "renderable_count": len(rvs),
-        "first_video_url": (vids[0].get("url", ""))[:100] if vids else "",
-        "first_video_quality": (vids[0].get("qualityLabel") or vids[0].get("quality", "")) if vids else "",
-        "probe_ok": probe_ok,
-        "probe_content_type": probe_ct,
-        "probe_content_length": probe_size,
-        "renderable": [{"q": r.get("quality"), "err": r.get("error"), "hasUrl": bool(r.get("executionUrl"))} for r in rvs],
-    })
 
 
 @app.route("/admin/api/test-url", methods=["POST"])
