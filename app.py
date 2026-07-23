@@ -27,6 +27,43 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 import yt_dlp
 
+# ===== RapidAPI — Auto Download All In One =====
+RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
+RAPIDAPI_HOST = "auto-download-all-in-one.p.rapidapi.com"
+RAPIDAPI_URL  = f"https://{RAPIDAPI_HOST}/v1/social/autolink"
+
+
+def _call_rapidapi(url: str) -> dict:
+    if not RAPIDAPI_KEY:
+        return {"error": "no_key"}
+    try:
+        import requests as _req
+        resp = _req.post(
+            RAPIDAPI_URL,
+            headers={
+                "Content-Type": "application/json",
+                "x-rapidapi-host": RAPIDAPI_HOST,
+                "x-rapidapi-key": RAPIDAPI_KEY,
+            },
+            json={"url": url},
+            timeout=30,
+        )
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def _rapidapi_pick_url(medias: list, prefer_audio: bool = False) -> str:
+    if not medias:
+        return ""
+    if prefer_audio:
+        for u in medias:
+            if u.get("type", "") == "audio" or u.get("extension", "") in ("mp3", "m4a", "aac"):
+                return u.get("url", "")
+    for u in medias:
+        if u.get("extension", "") == "mp4" and u.get("type", "") == "video":
+            return u.get("url", "")
+    return medias[0].get("url", "")
+
 
 # ===== Auto-update yt-dlp =====
 def auto_update_ytdlp():
@@ -46,7 +83,7 @@ _server_start = time.time()
 _last_activity = time.time()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "vip-secret-2026-xk9z")
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 CORS(app, origins=["https://www.vip-dl.com", "https://vip-dl.com"])
 Compress(app)
@@ -74,12 +111,12 @@ def add_cache_headers(response):
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com "
-        "https://pagead2.googlesyndication.com https://www.googletagmanager.com; "
+        "https://www.googletagmanager.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
-        "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://region1.google-analytics.com; "
-        "frame-src https://googleads.g.doubleclick.net https://www.google.com;"
+        "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; "
+        "frame-src 'none';"
     )
     if request.is_secure:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
@@ -107,7 +144,7 @@ def is_locked(ip):
 
 def record_failed_login(ip):
     if ip not in login_attempts:
-        login_attempts[ip] = {"count": 0, "locked_until": None}
+        login_attempts[ip] = {"count": 0, "locked_until": None, "_ts": time.time()}
     login_attempts[ip]["count"] += 1
     if login_attempts[ip]["count"] >= 5:
         login_attempts[ip]["locked_until"] = now() + timedelta(minutes=15)
@@ -120,27 +157,18 @@ DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 progress_store = {}
-info_cache = {}  # cache_id -> {info, expires}
-
-def _cleanup_info_cache():
-    while True:
-        time.sleep(120)
-        now = time.time()
-        expired = [k for k, v in list(info_cache.items()) if v["expires"] < now]
-        for k in expired:
-            info_cache.pop(k, None)
-
-threading.Thread(target=_cleanup_info_cache, daemon=True).start()
+_codes_lock = threading.Lock()
 
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
-ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
-ADMIN_PASS = os.environ.get("ADMIN_PASS", "vip2026")
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "ahmed.alabdan2@gmail.com")
+ADMIN_USER = os.environ.get("ADMIN_USER", "")
+ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 RESET_SECRET = os.environ.get("RESET_SECRET", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 INSTAGRAM_COOKIES = os.environ.get("INSTAGRAM_COOKIES", "")  # Netscape cookies.txt content
+YOUTUBE_COOKIES  = os.environ.get("YOUTUBE_COOKIES",  "")  # Netscape cookies.txt content
 
 reset_tokens = {}  # token -> {"expires": datetime}
 
@@ -274,7 +302,7 @@ def load_stats_file():
     if STATS_FILE.exists():
         try: return json.loads(STATS_FILE.read_text())
         except: pass
-    return {"total_downloads": 0, "failed_downloads": 0, "platform_counts": {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Other": 0}}
+    return {"total_downloads": 0, "failed_downloads": 0, "platform_counts": {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Snapchat": 0, "Other": 0}}
 
 def save_stats_file(data):
     try:
@@ -296,6 +324,9 @@ def save_config(data):
 _UPSTASH_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "")
 _UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 _CODES_REDIS_KEY = "vip_codes"
+
+# Short-lived URL tokens for bot deep links
+_url_tokens: dict = {}
 
 def _redis(cmd, *args):
     if not _UPSTASH_URL:
@@ -354,7 +385,7 @@ stats = {
     "total_downloads": _saved.get("total_downloads", 0),
     "today_downloads": 0,
     "failed_downloads": _saved.get("failed_downloads", 0),
-    "platform_counts": _saved.get("platform_counts", {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Other": 0}),
+    "platform_counts": _saved.get("platform_counts", {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Snapchat": 0, "Other": 0}),
     "recent_errors": [],
     "ytdlp_updated": "لم يتم بعد",
     "last_reset_date": now().date().isoformat(),
@@ -424,6 +455,19 @@ def get_cookies_file():
     except Exception:
         return None
 
+def get_youtube_cookies_file():
+    """Write YOUTUBE_COOKIES env var to a temp file for yt-dlp."""
+    if not YOUTUBE_COOKIES:
+        return None
+    import tempfile
+    try:
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+        tmp.write(YOUTUBE_COOKIES)
+        tmp.close()
+        return tmp.name
+    except Exception:
+        return None
+
 
 def detect_platform(url):
     url = url.lower()
@@ -435,16 +479,43 @@ def detect_platform(url):
         return "Facebook"
     if "pinterest.com" in url or "pin.it" in url:
         return "Pinterest"
+    if "snapchat.com" in url or "snap.com" in url:
+        return "Snapchat"
     return "Other"
 
 
 # ===== Admin Auth =====
+def _is_safe_url(url: str) -> bool:
+    try:
+        import ipaddress
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        host = (parsed.hostname or "").lower()
+        if not host:
+            return False
+        if host in ("localhost", "metadata.google.internal", "169.254.169.254") or host.endswith(".local"):
+            return False
+        try:
+            addr = ipaddress.ip_address(host)
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+                return False
+        except ValueError:
+            pass
+        return True
+    except Exception:
+        return False
+
+
 def verify_password(stored, provided):
     if stored and stored.startswith(("pbkdf2:", "scrypt:")):
         return check_password_hash(stored, provided)
     return stored == provided
 
 def check_auth(username, password):
+    if not ADMIN_PASS:
+        return False
     return username == ADMIN_USER and verify_password(ADMIN_PASS, password)
 
 
@@ -461,13 +532,35 @@ def requires_auth(f):
 
 def clean_old_files():
     while True:
-        now = time.time()
+        ts = time.time()
         for f in DOWNLOAD_DIR.iterdir():
-            if f.is_file() and (now - f.stat().st_mtime) > 3600:  # 1 hour
+            if f.is_file() and (ts - f.stat().st_mtime) > 10800:  # 3 hours
                 try:
                     f.unlink()
                 except Exception:
                     pass
+        # evict stale progress entries (older than 3 hours)
+        stale = [k for k, v in list(progress_store.items())
+                 if v.get("_ts", ts) < ts - 10800]
+        for k in stale:
+            progress_store.pop(k, None)
+        # evict stale login_attempts (unlocked entries older than 1 hour)
+        cutoff = time.time() - 3600
+        stale_ips = [ip for ip, v in list(login_attempts.items())
+                     if not v.get("locked_until") and v.get("_ts", 0) < cutoff]
+        for ip in stale_ips:
+            login_attempts.pop(ip, None)
+        # evict stale _ad_view_times (older than 60s — ad watch window)
+        try:
+            ad_cutoff = time.time() - 60
+            for k in [k for k, v in list(_ad_view_times.items()) if v < ad_cutoff]:
+                _ad_view_times.pop(k, None)
+        except NameError:
+            pass  # _ad_view_times not yet defined at startup
+        # evict expired _url_tokens
+        for k, v in list(_url_tokens.items()):
+            if isinstance(v, tuple) and time.time() > v[1]:
+                _url_tokens.pop(k, None)
         time.sleep(300)
 
 
@@ -505,18 +598,22 @@ def app_icon(size):
 
 @app.route("/download-app")
 def download_android_app():
-    return send_file("static/android-app.zip", as_attachment=True, download_name="android-app.zip")
+    return redirect("https://play.google.com/store/apps/details?id=com.nazzilhaplus.app", 302)
 
 
 @app.route("/.well-known/assetlinks.json")
 def asset_links():
-    sha256 = os.environ.get("ANDROID_CERT_SHA256", "REPLACE_WITH_YOUR_SHA256_FINGERPRINT")
+    raw = os.environ.get("ANDROID_CERT_SHA256", "")
+    fingerprints = [fp.strip() for fp in raw.split(",") if fp.strip()]
     data = [{
-        "relation": ["delegate_permission/common.handle_all_urls"],
+        "relation": [
+            "delegate_permission/common.handle_all_urls",
+            "delegate_permission/common.get_login_creds"
+        ],
         "target": {
             "namespace": "android_app",
             "package_name": "com.nazzilhaplus.app",
-            "sha256_cert_fingerprints": [sha256]
+            "sha256_cert_fingerprints": fingerprints
         }
     }]
     return jsonify(data)
@@ -528,7 +625,13 @@ def robots_txt():
 Allow: /
 Disallow: /admin
 Disallow: /admin/
-Sitemap: https://www.vip-dl.com/sitemap.xml"""
+Sitemap: https://www.vip-dl.com/sitemap.xml
+
+User-agent: Google-adstxt
+Disallow:
+
+User-agent: Mediapartners-Google
+Disallow:"""
     return content, 200, {"Content-Type": "text/plain"}
 
 
@@ -541,6 +644,31 @@ def sitemap_xml():
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
+  <url>
+    <loc>https://www.vip-dl.com/how-to-use</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.vip-dl.com/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.vip-dl.com/blog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.vip-dl.com/privacy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.vip-dl.com/download-app</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
 </urlset>'''
     return xml, 200, {"Content-Type": "application/xml"}
 
@@ -550,6 +678,29 @@ def ads_txt():
     return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
 
 
+@app.route("/api/bot-link", methods=["POST"])
+@limiter.limit("30 per minute")
+def create_bot_link():
+    url = (request.get_json() or {}).get("url", "").strip()
+    if not url or not url.startswith("http"):
+        return jsonify({"error": "url required"}), 400
+    token = secrets.token_hex(8)
+    _url_tokens[token] = (url, time.time() + 1800)
+    return jsonify({"token": token})
+
+
+@app.route("/api/url-token/<token>")
+def get_url_token(token):
+    entry = _url_tokens.get(token)
+    if not entry or time.time() > entry[1]:
+        _url_tokens.pop(token, None)
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"url": entry[0]})
+
+
+@app.route("/app-ads.txt")
+def app_ads_txt():
+    return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0\n", 200, {"Content-Type": "text/plain; charset=utf-8"}
 @app.route("/api/public-stats")
 def public_stats():
     r = load_ratings()
@@ -1072,7 +1223,7 @@ function go(){{
 function go(){{
   const p=document.getElementById('p').value;
   if(p.length<6){{alert('6 أحرف على الأقل');return;}}
-  window.location='/admin/emergency?secret={secret}&new_pass='+encodeURIComponent(p);
+  window.location='/admin/emergency?secret='+encodeURIComponent({json.dumps(secret)})+'&new_pass='+encodeURIComponent(p);
 }}
 </script>
 </div></body></html>""", mimetype="text/html")
@@ -1104,6 +1255,7 @@ def send_reset_email(token):
 
 
 @app.route("/admin/forgot")
+@limiter.limit("10 per hour")
 def admin_forgot():
     return Response("""<!DOCTYPE html><html lang="ar" dir="rtl">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1150,6 +1302,7 @@ async function sendReset() {
 
 
 @app.route("/admin/api/send-reset", methods=["POST"])
+@limiter.limit("3 per hour")
 def send_reset():
     email = ((request.get_json() or {}).get("email", "")).strip().lower()
     if email != ADMIN_EMAIL.lower():
@@ -1170,6 +1323,7 @@ def send_reset():
 
 
 @app.route("/admin/reset")
+@limiter.limit("10 per hour")
 def admin_reset_page():
     token = request.args.get("token", "")
     valid = token in reset_tokens and now() < reset_tokens[token]["expires"]
@@ -1221,6 +1375,7 @@ a{{color:#8888aa;font-size:.85rem;display:block;text-align:center;margin-top:1re
 
 
 @app.route("/admin/api/do-reset", methods=["POST"])
+@limiter.limit("5 per hour")
 def do_reset():
     global ADMIN_PASS
     data = request.get_json() or {}
@@ -1298,7 +1453,10 @@ def generate_code():
     import secrets
     data = request.get_json() or {}
     email = data.get("email", data.get("note", "")).strip()[:100]
-    days = int(data.get("days", 30))
+    try:
+        days = max(1, min(int(data.get("days", 30)), 3650))
+    except (ValueError, TypeError):
+        return jsonify({"error": "قيمة days غير صالحة"}), 400
 
     raw = secrets.token_hex(4).upper()
     code = f"VIP-{raw[:4]}-{raw[4:]}"
@@ -1358,7 +1516,10 @@ def list_codes():
 def extend_code():
     data = request.get_json() or {}
     code = data.get("code", "").strip()
-    days = int(data.get("days", 30))
+    try:
+        days = max(1, min(int(data.get("days", 30)), 3650))
+    except (ValueError, TypeError):
+        return jsonify({"error": "قيمة days غير صالحة"}), 400
     codes = load_codes()
     if code not in codes:
         return jsonify({"error": "الكود غير موجود"}), 404
@@ -1423,21 +1584,22 @@ def redeem_code():
     if not code:
         return jsonify({"error": "أدخل الكود"}), 400
 
-    codes = load_codes()
-    if code not in codes:
-        return jsonify({"error": "الكود غير صحيح"}), 404
-    if codes[code]["used"]:
-        return jsonify({"error": "هذا الكود مستخدم مسبقاً"}), 409
+    with _codes_lock:
+        codes = load_codes()
+        if code not in codes:
+            return jsonify({"error": "الكود غير صحيح"}), 404
+        if codes[code]["used"]:
+            return jsonify({"error": "هذا الكود مستخدم مسبقاً"}), 409
 
-    days = codes[code].get("days", 30)
-    from datetime import timedelta
-    current_time = now()
-    expires_at = (current_time + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+        days = codes[code].get("days", 30)
+        from datetime import timedelta
+        current_time = now()
+        expires_at = (current_time + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
 
-    codes[code]["used"] = True
-    codes[code]["used_at"] = current_time.strftime("%Y-%m-%d %H:%M")
-    codes[code]["expires_at"] = expires_at
-    save_codes(codes)
+        codes[code]["used"] = True
+        codes[code]["used_at"] = current_time.strftime("%Y-%m-%d %H:%M")
+        codes[code]["expires_at"] = expires_at
+        save_codes(codes)
     return jsonify({
         "message": f"تم تفعيل الاشتراك المميز ✅ صالح لـ {days} يوم",
         "expires_at": expires_at,
@@ -1445,6 +1607,7 @@ def redeem_code():
 
 
 @app.route("/api/check-premium", methods=["POST"])
+@limiter.limit("10 per minute")
 def check_premium():
     code = ((request.get_json() or {}).get("code", "")).strip().upper()
     if not code:
@@ -1478,7 +1641,7 @@ def change_password():
     new_pass = (data or {}).get("new_pass", "")
     new_user = (data or {}).get("new_user", "").strip()
 
-    if current != ADMIN_PASS:
+    if not verify_password(ADMIN_PASS, current):
         return jsonify({"error": "كلمة السر الحالية غير صحيحة"}), 401
     if len(new_pass) < 6:
         return jsonify({"error": "كلمة السر الجديدة يجب أن تكون 6 أحرف على الأقل"}), 400
@@ -1504,6 +1667,48 @@ def get_info():
 
     if not url:
         return jsonify({"error": "الرابط مطلوب"}), 400
+    if not _is_safe_url(url):
+        return jsonify({"error": "رابط غير مسموح"}), 400
+
+    # Try RapidAPI first
+    if RAPIDAPI_KEY:
+        api_data = _call_rapidapi(url)
+        medias = api_data.get("medias", [])
+        if medias and not api_data.get("error"):
+            formats = []
+            for i, u in enumerate(medias):
+                if not isinstance(u, dict) or not u.get("url"):
+                    continue
+                ext = u.get("extension", "mp4")
+                quality = u.get("quality", "")
+                height = u.get("height")
+                ftype = u.get("type", "video")
+                if height:
+                    label = f"{height}p"
+                elif quality:
+                    label = quality
+                else:
+                    label = f"جودة {i+1}"
+                formats.append({
+                    "format_id": f"rapidapi_{i}",
+                    "label": label,
+                    "ext": ext,
+                    "type": ftype,
+                    "filesize": u.get("data_size"),
+                })
+            if formats:
+                return jsonify({
+                    "title": api_data.get("title", "فيديو"),
+                    "thumbnail": api_data.get("thumbnail"),
+                    "duration": api_data.get("duration"),
+                    "uploader": api_data.get("author", ""),
+                    "platform": api_data.get("source", ""),
+                    "formats": formats,
+                })
+
+    # YouTube not supported
+    if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+        return jsonify({"error": "YouTube غير مدعوم حالياً"}), 400
 
     ydl_opts = {
         "quiet": True,
@@ -1550,14 +1755,12 @@ def get_info():
                 continue
             seen.add(key)
 
-            has_both = f.get("vcodec", "none") != "none" and f.get("acodec", "none") != "none"
             formats.append({
                 "format_id": f["format_id"],
                 "label": label,
                 "ext": ext,
                 "type": ftype,
                 "filesize": f.get("filesize") or f.get("filesize_approx"),
-                "direct_url": f.get("url") if has_both else None,
             })
 
         formats.sort(
@@ -1577,9 +1780,6 @@ def get_info():
                 "filesize": None,
             })
 
-        cache_id = str(uuid.uuid4())
-        info_cache[cache_id] = {"info": info, "expires": time.time() + 600}
-
         return jsonify({
             "title": info.get("title", "فيديو"),
             "thumbnail": info.get("thumbnail") or next((t.get("url") for t in reversed(info.get("thumbnails") or []) if t.get("url")), None),
@@ -1587,7 +1787,6 @@ def get_info():
             "uploader": info.get("uploader") or info.get("channel"),
             "platform": info.get("extractor_key", ""),
             "formats": formats,
-            "cache_id": cache_id,
         })
 
     except yt_dlp.utils.DownloadError as e:
@@ -1601,11 +1800,28 @@ def get_info():
         return jsonify({"error": "حدث خطأ غير متوقع"}), 500
 
 
+_ALLOWED_THUMB_HOSTS = {
+    "scontent.cdninstagram.com", "instagram.com", "cdninstagram.com",
+    "p16-sign.tiktokcdn.com", "p19-sign.tiktokcdn.com", "p16-sign-va.tiktokcdn.com",
+    "p16-sign-sg.tiktokcdn.com", "v19-webapp.tiktok.com",
+    "pbs.twimg.com", "ton.twimg.com",
+    "i.ytimg.com", "img.youtube.com",
+    "external.fmss3-1.fna.fbcdn.net", "scontent.fmss3-1.fna.fbcdn.net",
+    "pinimg.com", "i.pinimg.com",
+}
+
 @app.route("/api/thumb")
 @limiter.limit("60 per minute")
 def proxy_thumbnail():
     url = request.args.get("url", "").strip()
-    if not url or not url.startswith("http"):
+    if not url or not url.startswith("https://"):
+        return "", 400
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).hostname or ""
+        if not any(host == h or host.endswith("." + h) for h in _ALLOWED_THUMB_HOSTS):
+            return "", 403
+    except Exception:
         return "", 400
     try:
         headers = {
@@ -1630,47 +1846,93 @@ def start_download():
     data = request.get_json()
     url = (data or {}).get("url", "").strip()
     format_id = (data or {}).get("format_id", "bestvideo+bestaudio/best")
-    cache_id = (data or {}).get("cache_id", "")
 
     if not url:
         return jsonify({"error": "الرابط مطلوب"}), 400
 
+    if not _is_safe_url(url):
+        return jsonify({"error": "رابط غير مسموح"}), 400
+
     task_id = str(uuid.uuid4())
     platform = detect_platform(url)
-    progress_store[task_id] = {"status": "starting", "percent": 0}
-    cached = info_cache.pop(cache_id, None) if cache_id else None
-
-    # Check available disk space before starting (need at least 300 MB)
-    import shutil
-    try:
-        free_mb = shutil.disk_usage(DOWNLOAD_DIR).free // (1024 * 1024)
-        if free_mb < 300:
-            return jsonify({"error": "السيرفر ممتلئ مؤقتاً، حاول بعد دقيقة"}), 503
-    except Exception:
-        pass
+    progress_store[task_id] = {"status": "starting", "percent": 0, "_ts": time.time()}
 
     def do_download():
+        import requests as _req
         _start = time.time()
+
+        # ── Block YouTube (not supported) ──────────────────────────────────────
+        if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+            progress_store[task_id] = {"status": "error", "error": "YouTube غير مدعوم حالياً"}
+            record_download(platform, False, "unsupported", duration=time.time() - _start)
+            return
+
+        # ── RapidAPI path ──────────────────────────────────────────────────────
+        use_rapidapi = RAPIDAPI_KEY and (
+            format_id.startswith("rapidapi_") or
+            not format_id.startswith("bestvideo") and not format_id.startswith("best[")
+        )
+        if RAPIDAPI_KEY:
+            prefer_audio = "audio" in format_id or "bestaudio" in format_id
+            api_data = _call_rapidapi(url)
+            medias = api_data.get("medias", [])
+            if medias and not api_data.get("error"):
+                safe_title = re.sub(r'[\\/*?:"<>|]', "", api_data.get("title", "video"))[:60]
+                # pick the right media
+                if format_id.startswith("rapidapi_"):
+                    idx = int(format_id.split("_")[1])
+                    item = medias[idx] if idx < len(medias) else medias[0]
+                    direct_url = item.get("url", "")
+                    ext = "." + item.get("extension", "mp4")
+                else:
+                    direct_url = _rapidapi_pick_url(medias, prefer_audio=prefer_audio)
+                    ext = ".mp3" if prefer_audio else ".mp4"
+                if direct_url:
+                    try:
+                        progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
+                        out_path = DOWNLOAD_DIR / f"{task_id}{ext}"
+                        with _req.get(direct_url, stream=True, timeout=120) as r:
+                            r.raise_for_status()
+                            total = int(r.headers.get("content-length", 0))
+                            downloaded = 0
+                            with open(out_path, "wb") as f:
+                                for chunk in r.iter_content(chunk_size=65536):
+                                    if chunk:
+                                        f.write(chunk)
+                                        downloaded += len(chunk)
+                                        if total:
+                                            pct = int(downloaded * 100 / total)
+                                            progress_store[task_id] = {"status": "downloading", "percent": pct, "_ts": time.time()}
+                        progress_store[task_id] = {
+                            "status": "done", "percent": 100,
+                            "file": task_id + ext,
+                            "filename": safe_title + ext,
+                        }
+                        record_download(platform, True, duration=time.time() - _start)
+                        return
+                    except Exception as e:
+                        progress_store[task_id] = {"status": "error", "error": str(e)[:200]}
+                        record_download(platform, False, str(e)[:200], duration=time.time() - _start)
+                        return
+
+        # ── yt-dlp fallback ────────────────────────────────────────────────────
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
+        needs_merge = "+" in format_id
         ydl_opts = {
             "format": format_id,
             "outtmpl": output_path,
-            "merge_output_format": "mp4",
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
             "nocheckcertificate": True,
             "prefer_ffmpeg": True,
-            "socket_timeout": 30,
-            "retries": 5,
-            "fragment_retries": 5,
-            "http_chunk_size": 10485760,
+            "concurrent_fragment_downloads": 4,
             "progress_hooks": [make_progress_hook(task_id)],
-            "postprocessors": [
-                {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"},
-                {"key": "FFmpegMetadata", "add_metadata": True},
-            ],
+            "postprocessors": [],
         }
+        if needs_merge:
+            ydl_opts["merge_output_format"] = "mp4"
+            ydl_opts["postprocessors"].append({"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"})
 
         if format_id in ("bestaudio", "bestaudio/best"):
             ydl_opts["format"] = "bestaudio/best"
@@ -1680,7 +1942,6 @@ def start_download():
                 "preferredquality": "320",
             }]
 
-        # Instagram requires cookies for public and private content
         if "instagram.com" in url.lower():
             cookies_file = get_cookies_file()
             if cookies_file:
@@ -1688,11 +1949,8 @@ def start_download():
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                if cached:
-                    info = ydl.process_ie_result(cached["info"], download=True)
-                else:
-                    info = ydl.extract_info(url, download=True)
-                title = (info or {}).get("title", "video") if info else "video"
+                info = ydl.extract_info(url, download=True)
+                title = info.get("title", "video")
                 safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:60]
 
             found = list(DOWNLOAD_DIR.glob(f"{task_id}.*"))
@@ -1710,18 +1968,7 @@ def start_download():
                 record_download(platform, False, "الملف لم يُوجد", duration=time.time()-_start)
         except Exception as e:
             err = str(e)[:200]
-            err_lower = err.lower()
-            if "no space left" in err_lower or "disk" in err_lower:
-                friendly = "السيرفر ممتلئ مؤقتاً، حاول بعد دقيقة"
-            elif "timed out" in err_lower or "timeout" in err_lower or "socket" in err_lower:
-                friendly = "انتهت مهلة التحميل، الفيديو كبير جداً أو الاتصال بطيء — حاول مرة أخرى"
-            elif "fragment" in err_lower:
-                friendly = "فشل تحميل أجزاء الفيديو، حاول بجودة أقل"
-            elif "memory" in err_lower:
-                friendly = "الفيديو كبير جداً على السيرفر، حاول بجودة أقل"
-            else:
-                friendly = err
-            progress_store[task_id] = {"status": "error", "error": friendly}
+            progress_store[task_id] = {"status": "error", "error": err}
             record_download(platform, False, err, duration=time.time()-_start)
 
     threading.Thread(target=do_download, daemon=True).start()
@@ -1745,9 +1992,14 @@ def serve_file(filename):
     if not filepath.exists():
         return jsonify({"error": "الملف غير موجود أو انتهت صلاحيته"}), 404
 
-    download_name = request.args.get("name", filename)
+    raw_name = request.args.get("name", filename)
+    download_name = re.sub(r'[\x00-\x1f\x7f/\\]', '', raw_name)[:200] or filename
     file_size = filepath.stat().st_size
     CHUNK = 512 * 1024  # 512 KB per chunk
+
+    import urllib.parse
+    encoded_name = urllib.parse.quote(download_name.encode("utf-8"))
+    content_disposition = f"attachment; filename*=UTF-8''{encoded_name}"
 
     range_header = request.headers.get("Range")
     if range_header:
@@ -1755,6 +2007,8 @@ def serve_file(filename):
             byte_start = int(range_header.replace("bytes=", "").split("-")[0])
         except Exception:
             byte_start = 0
+        if byte_start < 0 or byte_start >= file_size:
+            return Response("Range Not Satisfiable", status=416)
     else:
         byte_start = 0
 
@@ -1774,7 +2028,7 @@ def serve_file(filename):
 
     status = 206 if range_header else 200
     headers = {
-        "Content-Disposition": f'attachment; filename="{download_name}"',
+        "Content-Disposition": content_disposition,
         "Accept-Ranges": "bytes",
         "Content-Length": str(content_length),
         "Cache-Control": "no-store, no-transform",  # prevent any proxy/compress from altering the stream
@@ -1795,7 +2049,10 @@ def serve_file(filename):
 @app.route("/admin/api/download-trend")
 @requires_auth
 def admin_download_trend():
-    days = int(request.args.get("days", 7))
+    try:
+        days = max(1, min(int(request.args.get("days", 7)), 365))
+    except (ValueError, TypeError):
+        days = 7
     daily = load_daily_stats()
     result = []
     for i in range(days - 1, -1, -1):
@@ -1860,12 +2117,15 @@ def admin_visitor_device_stats():
     return jsonify({"mobile": mobile, "desktop": desktop, "new": new_v, "returning": returning, "peak_hour": peak})
 
 
+
 @app.route("/admin/api/test-url", methods=["POST"])
 @requires_auth
 def admin_test_url():
     url = (request.get_json() or {}).get("url", "").strip()
     if not url:
         return jsonify({"error": "أدخل رابطاً"}), 400
+    if not _is_safe_url(url):
+        return jsonify({"error": "رابط غير مسموح"}), 400
     try:
         with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "noplaylist": True}) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -1922,6 +2182,406 @@ def page_not_found(e):
 @app.errorhandler(500)
 def internal_error(e):
     return render_template("404.html", error_code=500), 500
+
+
+@app.route("/webhook/telegram/<secret>", methods=["POST"])
+def telegram_webhook(secret):
+    expected = os.environ.get("WEBHOOK_SECRET") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not expected or secret != expected:
+        return "Forbidden", 403
+    try:
+        from telegram_bot import process_update
+        update = request.get_json(force=True) or {}
+        threading.Thread(target=process_update, args=(update,), daemon=True).start()
+    except Exception as e:
+        app.logger.error("Webhook error: %s", e)
+    return "ok", 200
+
+
+def _bot_auth():
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    return bool(token) and request.headers.get("X-Bot-Token", "") == token
+
+
+@app.route("/bot-admin/stats")
+def bot_admin_stats():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    try:
+        ytdlp_ver = yt_dlp.version.__version__
+    except Exception:
+        ytdlp_ver = "غير معروف"
+    dl_files = list(DOWNLOAD_DIR.glob("*"))
+    storage_mb = sum(f.stat().st_size for f in dl_files if f.is_file()) / (1024 * 1024)
+    active = sum(1 for v in progress_store.values() if v.get("status") in ("downloading", "processing", "starting"))
+    return jsonify({
+        "total_downloads": stats["total_downloads"],
+        "today_downloads": stats["today_downloads"],
+        "failed_downloads": stats["failed_downloads"],
+        "platform_counts": stats["platform_counts"],
+        "active_tasks": active,
+        "storage_mb": round(storage_mb, 1),
+        "temp_files": len(dl_files),
+        "ytdlp_version": ytdlp_ver,
+        "recent_errors": stats.get("recent_errors", [])[:5],
+        "server_time": now().strftime("%Y-%m-%d %H:%M:%S"),
+    })
+
+
+@app.route("/bot-admin/clear-files", methods=["POST"])
+def bot_admin_clear_files():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    removed = 0
+    for f in DOWNLOAD_DIR.glob("*"):
+        try:
+            f.unlink()
+            removed += 1
+        except Exception:
+            pass
+    return jsonify({"removed": removed})
+
+
+@app.route("/bot-admin/update-ytdlp", methods=["POST"])
+def bot_admin_update_ytdlp():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    def do_update():
+        subprocess.run(["pip", "install", "-U", "yt-dlp", "--quiet", "--break-system-packages"], timeout=120, check=False)
+    threading.Thread(target=do_update, daemon=True).start()
+    return jsonify({"status": "started"})
+
+
+@app.route("/bot-admin/visitor-stats")
+def bot_admin_visitor_stats():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    visitors = load_visitors()
+    today = now().date().isoformat()
+    yesterday = (now().date() - timedelta(days=1)).isoformat()
+    week_total = sum(visitors.get((now().date() - timedelta(days=i)).isoformat(), {}).get("count", 0) for i in range(7))
+    return jsonify({
+        "today": visitors.get(today, {}).get("count", 0),
+        "yesterday": visitors.get(yesterday, {}).get("count", 0),
+        "week": week_total,
+    })
+
+
+@app.route("/bot-admin/codes")
+def bot_admin_codes():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    codes = load_codes()
+    current_time = now()
+    active = unused = expired = 0
+    for v in codes.values():
+        if not v["used"]:
+            unused += 1
+        elif v.get("expires_at"):
+            try:
+                exp = datetime.strptime(v["expires_at"], "%Y-%m-%d %H:%M")
+                if current_time > exp:
+                    expired += 1
+                else:
+                    active += 1
+            except Exception:
+                active += 1
+        else:
+            active += 1
+    recent = []
+    for k, v in sorted(codes.items(), key=lambda x: x[1]["created_at"], reverse=True)[:5]:
+        recent.append({"code": k, "used": v["used"], "days": v.get("days", 0), "email": v.get("email", "")})
+    return jsonify({"total": len(codes), "active": active, "unused": unused, "expired": expired, "recent": recent})
+
+
+@app.route("/bot-admin/generate-code", methods=["POST"])
+def bot_admin_generate_code():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    data = request.get_json() or {}
+    try:
+        days = max(1, min(int(data.get("days", 30)), 3650))
+    except (ValueError, TypeError):
+        days = 30
+    import string
+    alphabet = string.ascii_uppercase + string.digits
+    code = "VIP-" + "".join(secrets.choice(alphabet) for _ in range(8))
+    codes = load_codes()
+    codes[code] = {"used": False, "email": "bot-generated", "days": days, "created_at": now().strftime("%Y-%m-%d %H:%M"), "used_at": None, "expires_at": None}
+    save_codes(codes)
+    return jsonify({"code": code, "days": days})
+
+
+@app.route("/bot-admin/health")
+def bot_admin_health():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    idle_sec = int(time.time() - _last_activity)
+    uptime_sec = int(time.time() - _server_start)
+    hours = uptime_sec // 3600
+    minutes = (uptime_sec % 3600) // 60
+    dl_files = list(DOWNLOAD_DIR.glob("*"))
+    storage_mb = round(sum(f.stat().st_size for f in dl_files if f.is_file()) / 1024 / 1024, 2)
+    return jsonify({
+        "status": "online",
+        "uptime": f"{hours}h {minutes}m",
+        "idle_sec": idle_sec,
+        "storage_mb": storage_mb,
+        "active_tasks": sum(1 for v in progress_store.values() if v.get("status") in ("downloading", "processing", "starting")),
+    })
+
+
+@app.route("/bot-admin/redeem-code", methods=["POST"])
+def bot_admin_redeem_code():
+    if not _bot_auth():
+        return jsonify({"error": "unauthorized"}), 403
+    data = request.get_json() or {}
+    code = data.get("code", "").strip().upper()
+    chat_id = data.get("chat_id")
+    if not code:
+        return jsonify({"error": "الكود مطلوب"}), 400
+    with _codes_lock:
+        codes = load_codes()
+        if code not in codes:
+            return jsonify({"error": "الكود غير صحيح"}), 404
+        entry = codes[code]
+        if entry.get("used"):
+            return jsonify({"error": "الكود مستخدم مسبقاً"}), 400
+        days = entry.get("days", 30)
+        from datetime import datetime as dt, timedelta
+        expires = (dt.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+        entry["used"] = True
+        entry["used_at"] = now().strftime("%Y-%m-%d %H:%M")
+        entry["expires_at"] = expires
+        entry["email"] = f"bot:{chat_id}"
+        save_codes(codes)
+    return jsonify({"days": days, "expires_at": expires})
+
+
+_ad_view_times: dict = {}  # token -> timestamp when /watch-ad was loaded
+
+@app.route("/adverify/<token>")
+@limiter.limit("10 per minute")
+def ad_verify(token):
+    """Called by /watch-ad page JS after countdown. Requires 15s to have elapsed server-side."""
+    try:
+        view_time = _ad_view_times.pop(token, None)
+        if view_time is None or (time.time() - view_time) < 15:
+            return jsonify({"ok": False, "reason": "too_soon"}), 403
+        from telegram_bot import ad_verif_tokens, pending
+        chat_id = ad_verif_tokens.pop(token, None)
+        if chat_id and chat_id in pending:
+            pending[chat_id]["ad_verified"] = True
+            return jsonify({"ok": True}), 200
+    except Exception:
+        pass
+    return jsonify({"ok": False}), 200
+
+
+@app.route("/api/ad-reward/<token>", methods=["POST", "GET"])
+@limiter.limit("10 per minute")
+def api_ad_reward(token):
+    """Called by the Android app after the user earns the rewarded interstitial reward."""
+    try:
+        from telegram_bot import app_reward_tokens, pending
+
+        # Try Redis first (survives Render restarts)
+        raw = _redis("GETDEL", f"art:{token}")
+        if raw:
+            try:
+                entry = json.loads(raw)
+            except Exception:
+                entry = None
+        else:
+            entry = None
+
+        # Fall back to in-memory dict
+        if entry is None:
+            entry = app_reward_tokens.pop(token, None)
+        else:
+            app_reward_tokens.pop(token, None)
+
+        if entry is None:
+            return jsonify({"ok": False, "reason": "invalid_token"}), 403
+        if time.time() - entry["created_at"] > 600:
+            return jsonify({"ok": False, "reason": "expired"}), 403
+
+        chat_id = entry["chat_id"]
+        if chat_id in pending:
+            pending[chat_id]["ad_verified"] = True
+
+        # Store FCM token for push notifications (sent by Android app)
+        body = request.get_json(silent=True) or {}
+        fcm_token = body.get("fcm_token", "").strip()
+        if fcm_token and _UPSTASH_URL:
+            _redis("SET", f"fcm:{chat_id}", fcm_token)
+
+        return jsonify({"ok": True}), 200
+    except Exception as e:
+        app.logger.error("api_ad_reward error: %s", e)
+        return jsonify({"ok": False}), 500
+
+
+_AADS_UNIT = os.environ.get("AADS_UNIT_ID", "2444681")
+_HILLTOPADS_LINK = os.environ.get("HILLTOPADS_DIRECT_LINK", "")
+
+
+@app.route("/go-ad")
+def go_ad():
+    """Server-side redirect to the ad link. Update HILLTOPADS_DIRECT_LINK env var to change the destination."""
+    link = os.environ.get("HILLTOPADS_DIRECT_LINK", "")
+    if not link:
+        return "No ad link configured", 404
+    return redirect(link, code=302)
+
+
+_WATCH_AD_PAGE = """<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إعلان مكافأة — نزّلها بلس</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #fff;
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 24px; text-align: center; gap: 20px; }
+.logo { font-size: 2.4rem; }
+h1 { font-size: 1.3rem; font-weight: 700; }
+.sub { color: #999; font-size: .9rem; line-height: 1.6; }
+.icon { font-size: 3.5rem; }
+.spinner { width: 56px; height: 56px; border: 5px solid #333; border-top-color: #5865F2;
+  border-radius: 50%; animation: spin .9s linear infinite; margin: 0 auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.green { color: #4ade80; }
+.btn { display: inline-block; padding: 14px 36px; background: #5865F2; color: #fff;
+  border-radius: 14px; text-decoration: none; font-size: 1rem; font-weight: 700;
+  cursor: pointer; border: none; margin-top: 8px; }
+.btn-green { background: #22c55e; }
+.state { display: none; flex-direction: column; align-items: center; gap: 16px; }
+.state.active { display: flex; }
+</style>
+</head>
+<body style="background:#0f0f0f">
+
+<div class="logo">📥</div>
+
+<div id="s-loading" class="state">
+  <div class="spinner"></div>
+  <h1>⏳ جاري تحميل الإعلان...</h1>
+  <p class="sub">انتظر لحظة</p>
+</div>
+
+<div id="s-not-ready" class="state">
+  <div class="spinner"></div>
+  <h1>جاري تحضير الإعلان...</h1>
+  <p class="sub">سيظهر تلقائياً خلال ثوانٍ</p>
+</div>
+
+<div id="s-browser" class="state">
+  <div class="icon">📱</div>
+  <h1>افتح التطبيق أولاً</h1>
+  <p class="sub">هذه الصفحة تعمل داخل تطبيق <b>نزلها بلس</b> فقط<br>افتح التطبيق وسيظهر الإعلان تلقائياً</p>
+  <a class="btn" href="https://play.google.com/store/apps/details?id=com.nazzilhaplus.app">
+    ⬇️ تحميل التطبيق
+  </a>
+</div>
+
+<div id="s-success" class="state">
+  <div class="icon green">✅</div>
+  <h1 class="green">أحسنت! تم انهاء الإعلان</h1>
+  <p class="sub">ارجع للبوت الآن واضغط<br><b>✅ شاهدت الإعلان</b></p>
+  <a class="btn btn-green" href="https://t.me/nazzilhaplus_bot">📲 العودة للبوت</a>
+</div>
+
+<script>
+var TOKEN = '{TOKEN}';
+var retries = 0;
+
+function show(id) {
+  ['s-loading','s-not-ready','s-browser','s-success'].forEach(function(s) {
+    var el = document.getElementById(s);
+    el.className = 'state' + (s === id ? ' active' : '');
+  });
+}
+
+window.adWatchedSuccess = function() {
+  show('s-success');
+  if (window.AndroidClipboard) {
+    try {
+      fetch('/api/ad-reward/' + TOKEN, {method: 'POST'}).catch(function(){});
+    } catch(e) {}
+  }
+};
+window.adNotReady = function() {
+  show('s-not-ready');
+  setTimeout(retryAd, 5000);
+};
+
+function triggerAd() {
+  try { window.AndroidClipboard.watchAd(TOKEN); }
+  catch(e) { show('s-not-ready'); }
+}
+
+function retryAd() {
+  retries++;
+  if (retries > 5) { show('s-browser'); return; }
+  show('s-loading');
+  setTimeout(triggerAd, 800);
+}
+
+if (window.AndroidClipboard && typeof window.AndroidClipboard.watchAd === 'function') {
+  show('s-loading');
+  setTimeout(triggerAd, 600);
+} else {
+  show('s-loading');
+  setTimeout(function() {
+    var intentUrl = window.location.href.replace(/^https:\/\//, 'intent://') +
+      '#Intent;scheme=https;package=com.nazzilhaplus.app;' +
+      'S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.nazzilhaplus.app;end';
+    window.location = intentUrl;
+    setTimeout(function() { show('s-browser'); }, 2500);
+  }, 300);
+}
+</script>
+</body>
+</html>"""
+
+
+@app.route("/watch-ad/<token>")
+@limiter.limit("20 per minute")
+def watch_ad(token):
+    """Countdown page — button opens /go-ad (server redirect), 15s timer, then /adverify."""
+    import json as _json
+    _ad_view_times[token] = time.time()
+    page = _WATCH_AD_PAGE.replace("'{TOKEN}'", _json.dumps(token))
+    return page, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+@app.route("/bot-dl/<task_id>")
+def bot_download_file(task_id):
+    """Serve a completed download file for ad-based link flow."""
+    prog = progress_store.get(task_id, {})
+    if prog.get("status") != "done":
+        return "الملف غير متوفر أو انتهت مدته.", 404
+    file_name = prog.get("file", "")
+    file_path = DOWNLOAD_DIR / file_name
+    if not file_path.exists():
+        return "الملف غير موجود.", 404
+    return send_file(str(file_path), as_attachment=True, download_name=file_name)
+
+
+def _setup_telegram_webhook():
+    if not os.environ.get("TELEGRAM_BOT_TOKEN"):
+        return
+    try:
+        from telegram_bot import setup_webhook
+        threading.Thread(target=setup_webhook, daemon=True, name="tg-webhook-setup").start()
+    except Exception as e:
+        app.logger.warning("Telegram webhook setup failed: %s", e)
+
+
+_setup_telegram_webhook()
 
 
 if __name__ == "__main__":

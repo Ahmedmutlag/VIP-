@@ -1,0 +1,2368 @@
+"""
+VIP-DL Telegram Bot — Webhook mode
+يدعم: تحميل فيديوهات، إشعارات الأدمن، إحصائيات الموقع
+"""
+import os
+import re
+import time
+import json
+import logging
+import secrets
+import hashlib
+import threading
+import requests
+from pathlib import Path
+
+logging.basicConfig(
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    level=logging.INFO,
+)
+log = logging.getLogger("vip-bot")
+
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+FCM_PROJECT_ID     = os.environ.get("FCM_PROJECT_ID", "")
+_FIREBASE_SA_JSON  = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", "")
+ADMIN_CHAT_IDS_RAW = os.environ.get("TELEGRAM_ADMIN_IDS", "")
+SITE_URL = os.environ.get("SITE_URL", "https://vip-dl.com").rstrip("/")
+ADMIN_IDS: set[int] = set()
+if ADMIN_CHAT_IDS_RAW:
+    for part in ADMIN_CHAT_IDS_RAW.split(","):
+        part = part.strip()
+        if part.lstrip("-").isdigit():
+            ADMIN_IDS.add(int(part))
+
+_ADMIN_CHANNEL_RAW = os.environ.get("TELEGRAM_ADMIN_CHANNEL", "").strip()
+ADMIN_CHANNEL_ID: int | None = int(_ADMIN_CHANNEL_RAW) if _ADMIN_CHANNEL_RAW.lstrip("-").isdigit() else None
+
+API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+DOWNLOAD_DIR = Path("downloads")
+DOWNLOAD_DIR.mkdir(exist_ok=True)
+
+# ── Ads config (disabled by default — toggle from admin panel) ─────────────────
+ADS_ENABLED: list[bool] = [os.environ.get("ADS_ENABLED", "false").lower() == "true"]
+ADS_PUBLISHER_ID = os.environ.get("ADS_PUBLISHER_ID", "")
+ADS_API_KEY = os.environ.get("ADS_API_KEY", "")
+
+# ── Affiliate / referral config ────────────────────────────────────────────────
+AFF_COMMISSION_PCT: int = int(os.environ.get("AFF_COMMISSION_PCT", "50"))
+AFF_MIN_PAYOUT: int     = int(os.environ.get("AFF_MIN_PAYOUT", "50"))
+
+# ── Ad shortener for "watch ad" flow (OuoIO by default) ───────────────────────
+AD_SHORTENER_KEY = os.environ.get("AD_SHORTENER_KEY", "")
+AD_SHORTENER_SERVICE = os.environ.get("AD_SHORTENER_SERVICE", "ouo")
+
+def make_ad_url(target: str) -> str:
+    """Wrap target through an ad-shortener. Falls back to target on failure."""
+    if not AD_SHORTENER_KEY:
+        return target
+    try:
+        if AD_SHORTENER_SERVICE == "shrinkme":
+            r = requests.get("https://shrinkme.io/api",
+                params={"api": AD_SHORTENER_KEY, "url": target}, timeout=10)
+            return r.json().get("shortenedUrl", target)
+        else:  # ouo (default)
+            r = requests.get(f"https://ouo.io/api/{AD_SHORTENER_KEY}",
+                params={"s": target}, timeout=10)
+            return r.text.strip() or target
+    except Exception:
+        return target
+
+# ── FCM push notifications ─────────────────────────────────────────────────────
+
+def send_fcm_push(chat_id: int, title: str, body: str) -> None:
+    """Send an FCM push to the device associated with chat_id (if registered)."""
+    if not FCM_PROJECT_ID or not _FIREBASE_SA_JSON:
+        return
+    fcm_token = _redis_get(f"fcm:{chat_id}")
+    if not fcm_token:
+        return
+    try:
+        from google.oauth2 import service_account
+        import google.auth.transport.requests as ga_req
+        creds = service_account.Credentials.from_service_account_info(
+            json.loads(_FIREBASE_SA_JSON),
+            scopes=["https://www.googleapis.com/auth/firebase.messaging"],
+        )
+        creds.refresh(ga_req.Request())
+        requests.post(
+            f"https://fcm.googleapis.com/v1/projects/{FCM_PROJECT_ID}/messages:send",
+            headers={"Authorization": f"Bearer {creds.token}", "Content-Type": "application/json"},
+            json={
+                "message": {
+                    "token": fcm_token,
+                    "notification": {"title": title, "body": body},
+                    "android": {"priority": "high"},
+                }
+            },
+            timeout=15,
+        )
+    except Exception as e:
+        log.warning("FCM push failed for %s: %s", chat_id, e)
+
+
+# ── Telegram API helpers ───────────────────────────────────────────────────────
+
+def _post(method: str, **kwargs) -> dict:
+    try:
+        r = requests.post(f"{API}/{method}", timeout=60, **kwargs)
+        return r.json()
+    except Exception as e:
+        log.error("Telegram API error (%s): %s", method, e)
+        return {}
+
+
+def send_message(chat_id: int, text: str, parse_mode: str = "HTML", **kwargs) -> dict:
+    return _post("sendMessage", json={"chat_id": chat_id, "text": text, "parse_mode": parse_mode, **kwargs})
+
+
+def send_video(chat_id: int, video_path: str, caption: str = "") -> dict:
+    with open(video_path, "rb") as f:
+        return _post("sendVideo", data={"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}, files={"video": f})
+
+
+def send_audio(chat_id: int, audio_path: str, caption: str = "") -> dict:
+    with open(audio_path, "rb") as f:
+        return _post("sendAudio", data={"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}, files={"audio": f})
+
+
+def send_document(chat_id: int, file_path: str, caption: str = "") -> dict:
+    with open(file_path, "rb") as f:
+        return _post("sendDocument", data={"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}, files={"document": f})
+
+
+def answer_callback(callback_query_id: str, text: str = "") -> dict:
+    return _post("answerCallbackQuery", json={"callback_query_id": callback_query_id, "text": text})
+
+
+def set_webhook(webhook_url: str) -> bool:
+    result = _post("setWebhook", json={"url": webhook_url, "max_connections": 10, "drop_pending_updates": True})
+    ok = result.get("ok", False)
+    if ok:
+        log.info("Webhook set: %s", webhook_url)
+    else:
+        log.error("Failed to set webhook: %s", result)
+    return ok
+
+
+# ── Site API helpers ───────────────────────────────────────────────────────────
+
+def admin_api(endpoint: str, method: str = "GET") -> dict:
+    headers = {"X-Bot-Token": BOT_TOKEN}
+    try:
+        fn = requests.post if method == "POST" else requests.get
+        r = fn(f"{SITE_URL}/bot-admin/{endpoint}", headers=headers, timeout=30)
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def site_info(url: str) -> dict:
+    try:
+        r = requests.post(f"{SITE_URL}/api/info", json={"url": url}, timeout=60)
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def site_download(url: str, format_id: str, cache_id: str = "") -> dict:
+    for attempt in range(2):
+        try:
+            r = requests.post(
+                f"{SITE_URL}/api/download",
+                json={"url": url, "format_id": format_id, "cache_id": cache_id},
+                timeout=60,
+            )
+            return r.json()
+        except Exception as e:
+            if attempt == 1:
+                return {"error": str(e)}
+            time.sleep(3)
+    return {"error": "فشل الاتصال بالسيرفر"}
+
+
+def site_progress(task_id: str) -> dict:
+    try:
+        r = requests.get(f"{SITE_URL}/api/progress/{task_id}", timeout=10)
+        return r.json()
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+def site_stats() -> dict:
+    try:
+        r = requests.get(f"{SITE_URL}/api/public-stats", timeout=10)
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ── Ad link shortener ─────────────────────────────────────────────────────────
+
+def shorten_url(target_url: str) -> str:
+    """Wrap target_url through AdFly. Returns target_url unchanged on failure."""
+    if not ADS_API_KEY or not ADS_PUBLISHER_ID:
+        return target_url
+    try:
+        r = requests.get(
+            "https://api.adf.ly/api.php",
+            params={
+                "key": ADS_API_KEY,
+                "uid": ADS_PUBLISHER_ID,
+                "advert_type": "int",
+                "url": target_url,
+            },
+            timeout=10,
+        )
+        shortened = r.text.strip()
+        return shortened if shortened.startswith("http") else target_url
+    except Exception:
+        return target_url
+
+
+# ── URL detection ──────────────────────────────────────────────────────────────
+
+URL_PATTERN = re.compile(r"https?://\S+", re.IGNORECASE)
+
+PLATFORM_NAMES = {
+    "tiktok": "TikTok",
+    "instagram": "Instagram",
+    "facebook": "Facebook",
+    "twitter": "Twitter / X",
+    "x.com": "Twitter / X",
+    "youtube": "YouTube",
+    "youtu.be": "YouTube",
+    "pinterest": "Pinterest",
+    "snapchat": "Snapchat",
+    "snap.com": "Snapchat",
+}
+
+
+def _friendly_error(err: str) -> str:
+    e = err.lower()
+    if "private" in e or "login" in e or "sign in" in e or "authenticate" in e:
+        return "❌ الفيديو خاص أو يتطلب تسجيل دخول"
+    if "unsupported url" in e or "not supported" in e:
+        return "❌ هذا الرابط غير مدعوم"
+    if "not available" in e or "unavailable" in e or "removed" in e or "deleted" in e:
+        return "❌ الفيديو غير متاح أو تم حذفه"
+    if "empty" in e or "no media" in e or "no video" in e:
+        return "❌ لم يتم العثور على فيديو في هذا الرابط"
+    if "timeout" in e or "timed out" in e:
+        return "❌ انتهت مهلة التحميل، حاول مجدداً"
+    if "connection" in e or "network" in e or "connect" in e:
+        return "❌ خطأ في الاتصال، حاول مجدداً"
+    if "429" in e or "rate limit" in e or "too many" in e:
+        return "❌ طلبات كثيرة، انتظر قليلاً وحاول مجدداً"
+    if "403" in e or "forbidden" in e:
+        return "❌ الوصول مرفوض من المنصة"
+    if "404" in e or "not found" in e:
+        return "❌ الفيديو غير موجود"
+    if "copyright" in e or "blocked" in e:
+        return "❌ الفيديو محمي بحقوق النشر"
+    if "subscribed" in e or "api" in e:
+        return "❌ خدمة التحميل غير متاحة مؤقتاً"
+    return "❌ تعذّر التحميل، حاول مجدداً أو جرب من الموقع"
+
+
+def detect_platform(url: str) -> str:
+    url_lower = url.lower()
+    for key, name in PLATFORM_NAMES.items():
+        if key in url_lower:
+            return name
+    return "موقع غير معروف"
+
+
+# ── Upstash Redis persistence ──────────────────────────────────────────────────
+_UPSTASH_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "").rstrip("/")
+_UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
+
+def _redis_get(key: str):
+    if not _UPSTASH_URL:
+        return None
+    try:
+        r = requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["GET", key],
+            timeout=10,
+        )
+        val = r.json().get("result")
+        return json.loads(val) if val else None
+    except Exception as e:
+        log.warning("Redis GET %s: %s", key, e)
+        return None
+
+def _redis_set(key: str, value, ex: int = 0) -> None:
+    if not _UPSTASH_URL:
+        return
+    try:
+        cmd = ["SET", key, json.dumps(value, ensure_ascii=False)]
+        if ex > 0:
+            cmd += ["EX", ex]
+        requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=cmd,
+            timeout=10,
+        )
+    except Exception as e:
+        log.warning("Redis SET %s: %s", key, e)
+
+def _redis_sadd(key: str, member: str) -> None:
+    if not _UPSTASH_URL:
+        return
+    try:
+        requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["SADD", key, member],
+            timeout=10,
+        )
+    except Exception as e:
+        log.warning("Redis SADD %s: %s", key, e)
+
+def _redis_sismember(key: str, member: str) -> bool:
+    if not _UPSTASH_URL:
+        return False
+    try:
+        r = requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["SISMEMBER", key, member],
+            timeout=10,
+        )
+        return bool(r.json().get("result", 0))
+    except Exception as e:
+        log.warning("Redis SISMEMBER %s: %s", key, e)
+        return False
+
+def _redis_srem(key: str, member: str) -> None:
+    if not _UPSTASH_URL:
+        return
+    try:
+        requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["SREM", key, member],
+            timeout=10,
+        )
+    except Exception as e:
+        log.warning("Redis SREM %s: %s", key, e)
+
+def _redis_incr(key: str, by: int = 1) -> int:
+    if not _UPSTASH_URL:
+        return 0
+    try:
+        r = requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["INCRBY", key, by],
+            timeout=10,
+        )
+        return int(r.json().get("result", 0))
+    except Exception as e:
+        log.warning("Redis INCRBY %s: %s", key, e)
+        return 0
+
+def _redis_scard(key: str) -> int:
+    if not _UPSTASH_URL:
+        return 0
+    try:
+        r = requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["SCARD", key],
+            timeout=10,
+        )
+        return int(r.json().get("result", 0))
+    except Exception as e:
+        log.warning("Redis SCARD %s: %s", key, e)
+        return 0
+
+
+# ── Affiliate helpers ──────────────────────────────────────────────────────────
+
+def _aff_record_referral(new_user_id: int, referrer_id: int) -> bool:
+    """Record that new_user_id was referred by referrer_id. Returns True if first-time."""
+    if new_user_id == referrer_id:
+        return False
+    existing = _redis_get(f"ref_by:{new_user_id}")
+    if existing:
+        return False
+    _redis_set(f"ref_by:{new_user_id}", referrer_id)
+    _redis_sadd(f"aff_refs:{referrer_id}", str(new_user_id))
+    _redis_incr(f"aff_refs_count:{referrer_id}")
+    return True
+
+def _aff_get_referrer(user_id: int) -> int | None:
+    val = _redis_get(f"ref_by:{user_id}")
+    return int(val) if val else None
+
+def _aff_credit_commission(referrer_id: int, stars: int, plan_label: str) -> int:
+    """Credit commission to referrer. Returns new balance."""
+    amount = max(1, round(stars * AFF_COMMISSION_PCT / 100))
+    new_balance = _redis_incr(f"aff_balance:{referrer_id}", amount)
+    _redis_incr(f"aff_total_earned:{referrer_id}", amount)
+    _redis_incr(f"aff_conv_count:{referrer_id}")
+    # notify referrer
+    balance_after = new_balance
+    send_message(
+        referrer_id,
+        t(referrer_id, "commission_notif", amount=amount, plan=plan_label, balance=balance_after),
+    )
+    return new_balance
+
+def _aff_stats(user_id: int) -> dict:
+    return {
+        "refs":    _redis_scard(f"aff_refs:{user_id}"),
+        "convs":   int(_redis_get(f"aff_conv_count:{user_id}") or 0),
+        "balance": int(_redis_get(f"aff_balance:{user_id}") or 0),
+        "total":   int(_redis_get(f"aff_total_earned:{user_id}") or 0),
+    }
+
+# ── Local file fallback ────────────────────────────────────────────────────────
+DATA_DIR = Path("bot_data")
+DATA_DIR.mkdir(exist_ok=True)
+
+_PREMIUM_FILE   = DATA_DIR / "premium_users.json"
+_BLOCKED_FILE   = DATA_DIR / "blocked_users.json"
+_DOWNLOADS_FILE = DATA_DIR / "user_downloads.json"
+_WELCOME_FILE   = DATA_DIR / "custom_welcome.json"
+_HISTORY_FILE   = DATA_DIR / "user_history.json"
+_CONFIG_FILE    = DATA_DIR / "bot_config.json"
+
+def _load_json(path: Path, default):
+    try:
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        log.warning("Failed to load %s: %s", path, e)
+    return default
+
+def _save_json(path: Path, data) -> None:
+    try:
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        log.warning("Failed to save %s: %s", path, e)
+
+def _load(redis_key: str, file_path: Path, default):
+    val = _redis_get(redis_key)
+    if val is not None:
+        return val
+    return _load_json(file_path, default)
+
+def _save(redis_key: str, file_path: Path, data) -> None:
+    _redis_set(redis_key, data)
+    _save_json(file_path, data)
+
+
+# ── User state ─────────────────────────────────────────────────────────────────
+pending: dict[int, dict] = {}
+known_users: dict[int, dict] = {}   # uid -> {"name": str, "username": str|None}
+ad_verif_tokens: dict[str, int] = {}  # token -> chat_id (cleared once verified)
+app_reward_tokens: dict[str, dict] = {}  # token -> {chat_id, created_at, redeemed}
+active_downloads: set[int] = set()  # chat_ids with a download in progress
+_app_sessions_local: set[int] = set()  # fallback when Redis unavailable
+
+# ── Language support ───────────────────────────────────────────────────────────
+user_lang: dict[int, str] = {}
+
+def _detect_lang(language_code: str) -> str:
+    if language_code and language_code.lower().startswith("ar"):
+        return "ar"
+    return "en"
+
+_lang_pref: dict[int, str] = {}  # manually set preferences, persisted to Redis
+
+def _get_lang(user_id: int) -> str:
+    # Manual preference beats auto-detected language
+    if user_id in _lang_pref:
+        return _lang_pref[user_id]
+    # First access after restart: check Redis
+    stored = _redis_get(f"langpref:{user_id}")
+    if stored in ("ar", "en"):
+        _lang_pref[user_id] = stored
+        return stored
+    return user_lang.get(user_id, "en")
+
+def _set_lang_pref(user_id: int, lang: str) -> None:
+    _lang_pref[user_id] = lang
+    user_lang[user_id] = lang
+    _redis_set(f"langpref:{user_id}", lang)
+
+STRINGS: dict[str, dict] = {
+    "ar": {
+        "help": (
+            "🤖 <b>بوت نزلها بلس للتحميل</b>\n\n"
+            "أرسل لي رابط الفيديو مباشرةً وسأحمله لك!\n\n"
+            "<b>المنصات المدعومة:</b>\n"
+            "• TikTok  |  Instagram  |  Facebook\n"
+            "• Twitter/X  |  Pinterest  |  وأكثر\n\n"
+            "<b>الأوامر:</b>\n"
+            "/start — رسالة الترحيب\n"
+            "/help — هذه القائمة\n"
+            "/platforms — المنصات المدعومة\n"
+            "/stats — إحصائيات الموقع\n"
+            "/site — رابط الموقع\n"
+            "/share — شارك البوت مع أصدقائك\n"
+            "/redeem — تفعيل كود بريميوم\n"
+            "/status — حالة اشتراكك\n"
+            "/history — آخر تحميلاتك\n"
+            "/language — تغيير اللغة\n"
+            "/affiliate — برنامج الإحالة وأرباحك\n\n"
+            "📎 فقط الصق الرابط وأنا أتولى الباقي!\n\n"
+            "🆓 المجاني: <b>5 تحميلات/يوم</b>\n"
+            "💎 البريميوم: <b>غير محدود</b>"
+        ),
+        "welcome": "مرحباً {name} 🌟\n\nنزّل أي فيديو تريده بضغطة واحدة!\nمن تيك توك، إنستغرام، فيسبوك وأكثر 🎯\n\nأرسل الرابط الآن وجرّب بنفسك 👇",
+        "auto_dl_intro": "مرحباً {name}! 🎯\nجاري تحميل الفيديو تلقائياً...",
+        "btn_open_website": "🚀 فتح الموقع",
+        "btn_download": "📲 حمّل فيديو",
+        "btn_stats": "📊 الإحصائيات",
+        "btn_top": "🔥 الأكثر تحميلاً",
+        "btn_share": "📣 شارك البوت",
+        "btn_help": "ℹ️ المساعدة",
+        "btn_premium": "💎 بريميوم",
+        "btn_site": "🌐 الموقع",
+        "btn_app": "📱 حمّل التطبيق",
+        "btn_panel": "🛠️ لوحة التحكم",
+        "blocked": "⛔ عذراً، تم تعليق حسابك. تواصل مع الدعم.",
+        "already_downloading": "⏳ يوجد تحميل جارٍ بالفعل، انتظر حتى ينتهي.",
+        "daily_limit": "⛔ <b>وصلت للحد اليومي المجاني ({limit} تحميلات)</b>\n\nاختر طريقة للمتابعة:",
+        "btn_watch_ad": "📺 شاهد إعلان على الموقع",
+        "btn_watch_ad_app": "📱 شاهد إعلان عبر التطبيق",
+        "btn_subscribe_now": "💎 اشترك بالبريميوم ⭐",
+        "adwatch_app_msg": "📱 <b>شاهد إعلاناً في التطبيق واحصل على تحميل مجاني</b>\n\n1️⃣ اضغط <b>فتح التطبيق</b> أدناه\n2️⃣ سيظهر الإعلان تلقائياً — شاهده كاملاً\n3️⃣ ارجع هنا واضغط ✅ تم",
+        "btn_app_ad_done": "✅ شاهدت الإعلان — حمّل الآن",
+        "choose_format": "🎬 <b>{platform}</b> — اختر الصيغة:{rem}",
+        "btn_video": "🎬 فيديو",
+        "btn_audio": "🎵 MP3",
+        "cache_hit": "⚡ تم العثور على الفيديو في الكاش، جاري الإرسال...",
+        "download_complete": "✅ اكتمل التحميل! أرسل رابطاً آخر لتحميل المزيد 🚀",
+        "downloading_audio": "⬇️ جاري التحميل 🎵 الصوت...",
+        "downloading_from": "⬇️ جاري التحميل من <b>{platform}</b>...",
+        "dl_start_failed": "❌ فشل بدء التحميل.",
+        "no_file": "❌ الملف غير موجود على السيرفر.",
+        "send_failed": "⚠️ تعذّر إرسال الملف مباشرةً.\n\n📥 حمّله من الموقع:\n{site}",
+        "timeout": "⏰ انتهت مهلة التحميل — حاول مرة أخرى.",
+        "retry_site": "🔄 حاول من الموقع",
+        "send_url_prompt": "❓ أرسل رابط فيديو لتحميله، أو اضغط 📲 حمّل فيديو.",
+        "not_valid_url": "❗ هذا ليس رابطاً صحيحاً، أرسل رابط الفيديو مباشرةً.",
+        "multiple_urls": "🔗 وجدت <b>{count}</b> روابط — سأحمّلها بالترتيب...",
+        "multiple_limit_done": "⛔ نُفّذت <b>{done}</b> من <b>{total}</b> تحميلات — وصلت للحد اليومي",
+        "multiple_limit_zero": "⛔ وصلت للحد اليومي المجاني ({limit} تحميلات)",
+        "expired_session": "⚠️ انتهت الجلسة، أعد إرسال الرابط.",
+        "preparing": "⏳ جاري التحضير...",
+        "choose_platform": "🎬 <b>اختر المنصة التي تريد التحميل منها:</b>",
+        "platform_chosen": "👍 اخترت <b>{label}</b>\n\nأرسل الرابط الآن 👇",
+        "site_url_msg": "🌐 موقع VIP-DL:\n{site}",
+        "platforms_list": (
+            "📱 <b>المنصات المدعومة:</b>\n\n"
+            "🎵 TikTok\n📸 Instagram\n📘 Facebook\n"
+            "🐦 Twitter / X\n📌 Pinterest\n"
+            "➕ والمئات من المواقع الأخرى!\n\n"
+            "فقط أرسل الرابط وأنا أتولى الباقي 😉"
+        ),
+        "no_history": "📭 لا يوجد سجل تحميلات بعد.\n\nأرسل رابط فيديو لتحميله!",
+        "history_title": "📋 <b>آخر تحميلاتك ({count}):</b>",
+        "btn_clear_history": "🗑️ مسح السجل",
+        "history_cleared": "✅ تم مسح سجل التحميلات.",
+        "app_info": "📱 <b>تطبيق نزلها بلس</b>\n\nمتاح مجاناً على Google Play 👇",
+        "btn_dl_app": "⬇️ تحميل التطبيق",
+        "stats_error": "⚠️ تعذّر جلب الإحصائيات، حاول لاحقاً.",
+        "data_error": "⚠️ تعذّر جلب البيانات، حاول لاحقاً.",
+        "platform_other_label": "🌐 منصة أخرى",
+        "redeem_prompt": "💎 أرسل الكود هكذا:\n/redeem XXXX-XXXXXXXX",
+        "premium_activated": "🎉 <b>تم تفعيل البريميوم!</b>\n\n💎 مدة الاشتراك: <b>{days} يوم</b>\n📅 ينتهي في: <b>{expires}</b>\n\nاستمتع بتحميلات غير محدودة! 🚀",
+        "payment_success": "🎉 <b>تم الدفع بنجاح!</b>\n\n⭐ دفعت: <b>{stars} Stars</b>\n💎 الباقة: <b>{days} يوم</b>\n📅 تنتهي في: <b>{expires}</b>\n\nاستمتع بتحميلات غير محدودة! 🚀",
+        "status_admin": "👑 <b>أدمن</b> — وصول غير محدود",
+        "status_premium_lifetime": "💎 <b>بريميوم مدى الحياة</b> ✅",
+        "status_premium": "💎 <b>بريميوم نشط</b>\n📅 ينتهي: <b>{exp}</b>",
+        "status_free": "🆓 <b>حساب مجاني</b>\n\n⬇️ تحميلاتك اليوم: <b>{used}/{limit}</b>\n✅ متبقي: <b>{remaining}</b>\n\nللترقية: /redeem + كود البريميوم",
+        "remaining_text": "\n\n📊 تحميلاتك اليوم: <b>{used}/{limit}</b> | متبقي: <b>{remaining}</b>",
+        "premium_expiry_warning": "⚠️ <b>تنبيه: بريميومك ينتهي بعد {days} يوم!</b>\n\n📅 تاريخ الانتهاء: <b>{exp}</b>\n\nجدّد الآن للاستمرار في التحميل غير المحدود 👇",
+        "subscribe_menu": (
+            "💎 <b>ترقية للبريميوم</b>\n\n"
+            "اختر الباقة المناسبة:\n\n"
+            "⭐ الدفع عبر Telegram Stars (مدمج داخل التطبيق)\n"
+            "✅ تفعيل فوري بعد الدفع"
+        ),
+        "share_msg": (
+            "📣 <b>شارك بوت نزلها بلس مع أصدقائك!</b>\n\n"
+            "🔗 رابط البوت:\nhttps://t.me/nazzilhaplus_bot\n\n"
+            "انسخ الرسالة أدناه وأرسلها لأصدقائك 👇\n\n"
+            "┄┄┄┄┄┄┄┄┄┄┄┄\n"
+            "🎬 جرّب بوت <b>نزلها بلس</b>!\n"
+            "نزّل أي فيديو من تيك توك، إنستغرام، فيسبوك وأكثر — مجاناً وبدون تسجيل ✨\n"
+            "👉 https://t.me/nazzilhaplus_bot"
+        ),
+        "inline_help_title": "📥 الصق رابط الفيديو بعد اسم البوت",
+        "inline_help_desc": "مثال: @nazzilhaplus_bot https://vm.tiktok.com/xxx",
+        "inline_help_msg": "📥 لتحميل فيديو أرسل الرابط لـ @nazzilhaplus_bot",
+        "inline_open_bot": "📥 افتح البوت وأرسل الرابط",
+        "inline_cache_label": " — ⚡ متاح في الكاش",
+        "inline_dl_desc": "اضغط لإرسال رابط التحميل في المجموعة",
+        "inline_dl_btn": "📥 حمّل عبر البوت",
+        "inline_dl_msg": "📥 <b>تحميل فيديو من {platform}</b>\n\n🔗 {url}",
+        "download_from": "📥 تحميل من {platform}",
+        "top_empty": "لا يوجد بيانات بعد",
+        "top_downloads": "تحميل",
+        "btn_affiliate": "👥 الإحالة",
+        "btn_withdraw": "💸 سحب الأرباح",
+        "affiliate_info": (
+            "👥 <b>نظام الإحالة — نزلها بلس</b>\n\n"
+            "🔗 رابط الإحالة الخاص بك:\n"
+            "<code>https://t.me/nazzilhaplus_bot?start=ref_{uid}</code>\n\n"
+            "📊 إحصائياتك:\n"
+            "👤 عدد المُحالين: <b>{refs}</b>\n"
+            "💰 تحويلات (اشتركوا): <b>{convs}</b>\n"
+            "⭐ رصيدك الحالي: <b>{balance}</b> Stars\n"
+            "📈 إجمالي الأرباح: <b>{total}</b> Stars\n\n"
+            "💡 تكسب <b>{pct}%</b> من كل اشتراك يدفعه مَن تُحيله!\n"
+            "💸 الحد الأدنى للسحب: <b>{min_payout}</b> Stars"
+        ),
+        "withdraw_low": "❌ رصيدك الحالي (<b>{balance} Stars</b>) أقل من الحد الأدنى ({min} Stars).",
+        "withdraw_sent": "✅ <b>تم إرسال طلب السحب!</b>\n\nالمبلغ: <b>{amount} Stars</b>\n\nسيتم مراجعة طلبك خلال 48 ساعة.",
+        "commission_notif": "💰 <b>كسبت عمولة جديدة!</b>\n\n⭐ <b>+{amount} Stars</b> (باقة {plan})\n📊 رصيدك الآن: <b>{balance}</b> Stars",
+        "referred_welcome": "🎁 انضممت عبر دعوة صديق — نتمنى لك تجربة رائعة!",
+    },
+    "en": {
+        "help": (
+            "🤖 <b>Nazzilha Plus Download Bot</b>\n\n"
+            "Send me a video link and I'll download it for you!\n\n"
+            "<b>Supported Platforms:</b>\n"
+            "• TikTok  |  Instagram  |  Facebook\n"
+            "• Twitter/X  |  Pinterest  |  and more\n\n"
+            "<b>Commands:</b>\n"
+            "/start — Welcome message\n"
+            "/help — This menu\n"
+            "/platforms — Supported platforms\n"
+            "/stats — Site statistics\n"
+            "/site — Website link\n"
+            "/share — Share the bot with friends\n"
+            "/redeem — Activate a premium code\n"
+            "/status — Your subscription status\n"
+            "/history — Your recent downloads\n"
+            "/language — Change language\n"
+            "/affiliate — Affiliate program & earnings\n\n"
+            "📎 Just paste the link and I'll handle the rest!\n\n"
+            "🆓 Free: <b>5 downloads/day</b>\n"
+            "💎 Premium: <b>unlimited</b>"
+        ),
+        "welcome": "Hi {name} 🌟\n\nDownload any video with one tap!\nFrom TikTok, Instagram, Facebook & more 🎯\n\nSend the link now and try it yourself 👇",
+        "auto_dl_intro": "Hi {name}! 🎯\nDownloading the video automatically...",
+        "btn_open_website": "🚀 Open Website",
+        "btn_download": "📲 Download Video",
+        "btn_stats": "📊 Statistics",
+        "btn_top": "🔥 Most Downloaded",
+        "btn_share": "📣 Share Bot",
+        "btn_help": "ℹ️ Help",
+        "btn_premium": "💎 Premium",
+        "btn_site": "🌐 Website",
+        "btn_app": "📱 Download App",
+        "btn_panel": "🛠️ Admin Panel",
+        "blocked": "⛔ Sorry, your account has been suspended. Contact support.",
+        "already_downloading": "⏳ A download is already in progress, please wait.",
+        "daily_limit": "⛔ <b>You've reached the free daily limit ({limit} downloads)</b>\n\nChoose how to continue:",
+        "btn_watch_ad": "📺 Watch ad on website",
+        "btn_watch_ad_app": "📱 Watch ad via the app",
+        "btn_subscribe_now": "💎 Subscribe to Premium ⭐",
+        "adwatch_app_msg": "📱 <b>Watch an ad in the app to unlock a free download</b>\n\n1️⃣ Tap <b>Open App</b> below\n2️⃣ An ad will appear automatically — watch it fully\n3️⃣ Come back here and press ✅ Done",
+        "btn_app_ad_done": "✅ I watched the ad — Download now",
+        "choose_format": "🎬 <b>{platform}</b> — Choose format:{rem}",
+        "btn_video": "🎬 Video",
+        "btn_audio": "🎵 MP3",
+        "cache_hit": "⚡ Found in cache, sending instantly...",
+        "download_complete": "✅ Download complete! Send another link to download more 🚀",
+        "downloading_audio": "⬇️ Downloading 🎵 audio...",
+        "downloading_from": "⬇️ Downloading from <b>{platform}</b>...",
+        "dl_start_failed": "❌ Failed to start download.",
+        "no_file": "❌ File not found on the server.",
+        "send_failed": "⚠️ Could not send file directly.\n\n📥 Download from website:\n{site}",
+        "timeout": "⏰ Download timed out — please try again.",
+        "retry_site": "🔄 Try on Website",
+        "send_url_prompt": "❓ Send a video link to download it, or tap 📲 Download Video.",
+        "not_valid_url": "❗ That's not a valid link. Please send a direct video URL.",
+        "multiple_urls": "🔗 Found <b>{count}</b> links — downloading in order...",
+        "multiple_limit_done": "⛔ Downloaded <b>{done}</b> of <b>{total}</b> — daily limit reached",
+        "multiple_limit_zero": "⛔ You've reached the free daily limit ({limit} downloads)",
+        "expired_session": "⚠️ Session expired, please send the link again.",
+        "preparing": "⏳ Preparing...",
+        "choose_platform": "🎬 <b>Choose the platform to download from:</b>",
+        "platform_chosen": "👍 You chose <b>{label}</b>\n\nSend the link now 👇",
+        "site_url_msg": "🌐 VIP-DL Website:\n{site}",
+        "platforms_list": (
+            "📱 <b>Supported Platforms:</b>\n\n"
+            "🎵 TikTok\n📸 Instagram\n📘 Facebook\n"
+            "🐦 Twitter / X\n📌 Pinterest\n"
+            "➕ And hundreds more!\n\n"
+            "Just send the link and I'll handle the rest 😉"
+        ),
+        "no_history": "📭 No download history yet.\n\nSend a video link to download!",
+        "history_title": "📋 <b>Your recent downloads ({count}):</b>",
+        "btn_clear_history": "🗑️ Clear History",
+        "history_cleared": "✅ Download history cleared.",
+        "app_info": "📱 <b>Nazzilha Plus App</b>\n\nFree on Google Play 👇",
+        "btn_dl_app": "⬇️ Download App",
+        "stats_error": "⚠️ Could not fetch statistics, try again later.",
+        "data_error": "⚠️ Could not fetch data, try again later.",
+        "platform_other_label": "🌐 Other Platform",
+        "redeem_prompt": "💎 Send the code like this:\n/redeem XXXX-XXXXXXXX",
+        "premium_activated": "🎉 <b>Premium activated!</b>\n\n💎 Duration: <b>{days} days</b>\n📅 Expires: <b>{expires}</b>\n\nEnjoy unlimited downloads! 🚀",
+        "payment_success": "🎉 <b>Payment successful!</b>\n\n⭐ Paid: <b>{stars} Stars</b>\n💎 Plan: <b>{days} days</b>\n📅 Expires: <b>{expires}</b>\n\nEnjoy unlimited downloads! 🚀",
+        "status_admin": "👑 <b>Admin</b> — unlimited access",
+        "status_premium_lifetime": "💎 <b>Lifetime Premium</b> ✅",
+        "status_premium": "💎 <b>Active Premium</b>\n📅 Expires: <b>{exp}</b>",
+        "status_free": "🆓 <b>Free Account</b>\n\n⬇️ Downloads today: <b>{used}/{limit}</b>\n✅ Remaining: <b>{remaining}</b>\n\nUpgrade: /redeem + premium code",
+        "remaining_text": "\n\n📊 Downloads today: <b>{used}/{limit}</b> | Remaining: <b>{remaining}</b>",
+        "premium_expiry_warning": "⚠️ <b>Your premium expires in {days} day(s)!</b>\n\n📅 Expiry: <b>{exp}</b>\n\nRenew now to keep unlimited downloads 👇",
+        "subscribe_menu": (
+            "💎 <b>Upgrade to Premium</b>\n\n"
+            "Choose a plan:\n\n"
+            "⭐ Pay with Telegram Stars (built into the app)\n"
+            "✅ Instant activation after payment"
+        ),
+        "share_msg": (
+            "📣 <b>Share Nazzilha Plus Bot with your friends!</b>\n\n"
+            "🔗 Bot link:\nhttps://t.me/nazzilhaplus_bot\n\n"
+            "Copy the message below and send it to your friends 👇\n\n"
+            "┄┄┄┄┄┄┄┄┄┄┄┄\n"
+            "🎬 Try <b>Nazzilha Plus</b> bot!\n"
+            "Download any video from TikTok, Instagram, Facebook & more — free & no signup ✨\n"
+            "👉 https://t.me/nazzilhaplus_bot"
+        ),
+        "inline_help_title": "📥 Paste a video link after the bot name",
+        "inline_help_desc": "Example: @nazzilhaplus_bot https://vm.tiktok.com/xxx",
+        "inline_help_msg": "📥 To download a video send the link to @nazzilhaplus_bot",
+        "inline_open_bot": "📥 Open bot and send link",
+        "inline_cache_label": " — ⚡ In cache",
+        "inline_dl_desc": "Tap to share the download link in the group",
+        "inline_dl_btn": "📥 Download via Bot",
+        "inline_dl_msg": "📥 <b>Download video from {platform}</b>\n\n🔗 {url}",
+        "download_from": "📥 Download from {platform}",
+        "top_empty": "No data yet",
+        "top_downloads": "downloads",
+        "btn_affiliate": "👥 Affiliate",
+        "btn_withdraw": "💸 Withdraw",
+        "affiliate_info": (
+            "👥 <b>Affiliate Program — Nazzilha Plus</b>\n\n"
+            "🔗 Your referral link:\n"
+            "<code>https://t.me/nazzilhaplus_bot?start=ref_{uid}</code>\n\n"
+            "📊 Your stats:\n"
+            "👤 Referred users: <b>{refs}</b>\n"
+            "💰 Conversions (paid): <b>{convs}</b>\n"
+            "⭐ Current balance: <b>{balance}</b> Stars\n"
+            "📈 Total earned: <b>{total}</b> Stars\n\n"
+            "💡 Earn <b>{pct}%</b> of every subscription from your referrals!\n"
+            "💸 Minimum payout: <b>{min_payout}</b> Stars"
+        ),
+        "withdraw_low": "❌ Your balance (<b>{balance} Stars</b>) is below the minimum ({min} Stars).",
+        "withdraw_sent": "✅ <b>Withdrawal request submitted!</b>\n\nAmount: <b>{amount} Stars</b>\n\nWe'll review your request within 48 hours.",
+        "commission_notif": "💰 <b>You earned a commission!</b>\n\n⭐ <b>+{amount} Stars</b> (plan: {plan})\n📊 Your new balance: <b>{balance}</b> Stars",
+        "referred_welcome": "🎁 You joined via a friend's invite — enjoy!",
+    },
+}
+
+
+def t(user_id: int, key: str, **kwargs) -> str:
+    lang = _get_lang(user_id)
+    s = STRINGS.get(lang, {}).get(key) or STRINGS["ar"].get(key, key)
+    return s.format(**kwargs) if kwargs else s
+
+
+def _btn_any(key: str) -> set:
+    """Return all language variants of a button text for routing."""
+    return {d[key] for d in STRINGS.values() if key in d}
+
+
+def get_main_keyboard(user_id: int) -> dict:
+    return {
+        "keyboard": [
+            [{"text": t(user_id, "btn_open_website"), "web_app": {"url": "https://www.vip-dl.com"}}],
+            [{"text": t(user_id, "btn_download")}],
+            [{"text": t(user_id, "btn_stats")}, {"text": t(user_id, "btn_top")}],
+            [{"text": t(user_id, "btn_share")}, {"text": t(user_id, "btn_help")}],
+            [{"text": t(user_id, "btn_premium")}, {"text": t(user_id, "btn_site")}],
+            [{"text": t(user_id, "btn_app")}],
+        ],
+        "resize_keyboard": True,
+        "persistent": True,
+    }
+
+# ── Media cache: url+format → Telegram file_id ────────────────────────────────
+_media_cache: dict[str, dict] = {}
+
+def _cache_key(url: str, format_id: str) -> str:
+    return hashlib.md5(f"{url}|{format_id}".encode()).hexdigest()
+
+def _cache_get(url: str, format_id: str) -> dict | None:
+    key = _cache_key(url, format_id)
+    entry = _media_cache.get(key)
+    if entry:
+        return entry
+    entry = _redis_get(f"mc:{key}")
+    if entry:
+        _media_cache[key] = entry
+        return entry
+    return None
+
+def _cache_set(url: str, format_id: str, file_id: str, file_type: str, title: str) -> None:
+    key = _cache_key(url, format_id)
+    entry = {"file_id": file_id, "file_type": file_type, "title": title}
+    _media_cache[key] = entry
+    _redis_set(f"mc:{key}", entry)
+
+def _send_cached(chat_id: int, entry: dict) -> bool:
+    """Send a file by Telegram file_id (instant, no re-download)."""
+    file_id = entry["file_id"]
+    file_type = entry.get("file_type", "video")
+    title = entry.get("title", "فيديو")
+    caption = f"⚡ <b>{title[:80]}</b>\n\n🤖 @nazzilhaplus_bot | 🌐 {SITE_URL}"
+    try:
+        if file_type == "audio":
+            r = _post("sendAudio", json={"chat_id": chat_id, "audio": file_id, "caption": caption, "parse_mode": "HTML"})
+        elif file_type == "document":
+            r = _post("sendDocument", json={"chat_id": chat_id, "document": file_id, "caption": caption, "parse_mode": "HTML"})
+        else:
+            r = _post("sendVideo", json={"chat_id": chat_id, "video": file_id, "caption": caption, "parse_mode": "HTML"})
+        return bool(r.get("ok"))
+    except Exception:
+        return False
+
+def _session_add(chat_id: int) -> None:
+    _app_sessions_local.add(chat_id)
+    _redis_sadd("app_sessions", str(chat_id))
+
+def _session_has(chat_id: int) -> bool:
+    if _redis_sismember("app_sessions", str(chat_id)):
+        return True
+    return chat_id in _app_sessions_local
+
+def _session_remove(chat_id: int) -> None:
+    _app_sessions_local.discard(chat_id)
+    _redis_srem("app_sessions", str(chat_id))
+
+_premium_raw    = _load("premium_users", _PREMIUM_FILE, {})
+premium_users: dict[int, str]  = {int(k): v for k, v in _premium_raw.items()}
+
+_blocked_raw    = _load("blocked_users", _BLOCKED_FILE, [])
+blocked_users: set[int]        = set(_blocked_raw)
+
+_downloads_raw  = _load("user_downloads", _DOWNLOADS_FILE, {})
+user_downloads: dict[int, dict] = {int(k): v for k, v in _downloads_raw.items()}
+
+_welcome_raw    = _load("custom_welcome", _WELCOME_FILE, [])
+custom_welcome: list[str]      = _welcome_raw
+
+_history_raw    = _load("user_history", _HISTORY_FILE, {})
+user_history: dict[int, list]  = {int(k): v for k, v in _history_raw.items()}
+
+_config_raw     = _load("bot_config", _CONFIG_FILE, {})
+_daily_limit: list[int] = [int(_config_raw.get("daily_limit", 2))]
+
+
+def _save_premium():
+    _save("premium_users", _PREMIUM_FILE, {str(k): v for k, v in premium_users.items()})
+
+def _save_blocked():
+    _save("blocked_users", _BLOCKED_FILE, list(blocked_users))
+
+def _save_downloads():
+    _save("user_downloads", _DOWNLOADS_FILE, {str(k): v for k, v in user_downloads.items()})
+
+def _save_welcome():
+    _save("custom_welcome", _WELCOME_FILE, custom_welcome)
+
+def _save_history():
+    _save("user_history", _HISTORY_FILE, {str(k): v for k, v in user_history.items()})
+
+def _save_config():
+    _save("bot_config", _CONFIG_FILE, {"daily_limit": _daily_limit[0]})
+
+def _add_to_history(chat_id: int, url: str, title: str, platform: str):
+    hist = user_history.get(chat_id, [])
+    hist = [h for h in hist if h.get("url") != url]
+    hist.insert(0, {"url": url, "title": title, "platform": platform})
+    user_history[chat_id] = hist[:5]
+    _save_history()
+
+
+def is_premium(chat_id: int) -> bool:
+    exp = premium_users.get(chat_id)
+    if not exp:
+        return False
+    if exp == "lifetime":
+        return True
+    import datetime
+    try:
+        return datetime.datetime.now() < datetime.datetime.strptime(exp, "%Y-%m-%d %H:%M")
+    except Exception:
+        return False
+
+
+def check_download_limit(chat_id: int) -> bool:
+    """Returns True if allowed, False if daily limit exceeded."""
+    if is_premium(chat_id):
+        return True
+    import datetime
+    today = datetime.date.today().isoformat()
+    data = user_downloads.setdefault(chat_id, {"date": today, "count": 0})
+    if data.get("date") != today:
+        data["date"] = today
+        data["count"] = 0
+    if data["count"] >= _daily_limit[0]:
+        return False
+    data["count"] += 1
+    _save_downloads()
+    return True
+
+
+def redeem_code(chat_id: int, code: str) -> dict:
+    try:
+        r = requests.post(
+            f"{SITE_URL}/bot-admin/redeem-code",
+            headers={"X-Bot-Token": BOT_TOKEN},
+            json={"code": code.upper(), "chat_id": chat_id},
+            timeout=15,
+        )
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ── Message handlers ───────────────────────────────────────────────────────────
+
+MAIN_KEYBOARD = {
+    "keyboard": [
+        [{"text": "🚀 فتح الموقع", "web_app": {"url": "https://www.vip-dl.com"}}],
+        [{"text": "📲 حمّل فيديو"}],
+        [{"text": "📊 الإحصائيات"}, {"text": "🔥 الأكثر تحميلاً"}],
+        [{"text": "📣 شارك البوت"}, {"text": "ℹ️ المساعدة"}],
+        [{"text": "💎 بريميوم"}, {"text": "🌐 الموقع"}],
+        [{"text": "📱 حمّل التطبيق"}],
+    ],
+    "resize_keyboard": True,
+    "persistent": True,
+}
+
+PLATFORMS_KEYBOARD = {
+    "inline_keyboard": [
+        [
+            {"text": "🎵 TikTok", "callback_data": "platform:tiktok"},
+            {"text": "📸 Instagram", "callback_data": "platform:instagram"},
+        ],
+        [
+            {"text": "📘 Facebook", "callback_data": "platform:facebook"},
+            {"text": "🐦 Twitter / X", "callback_data": "platform:twitter"},
+        ],
+        [
+            {"text": "👻 Snapchat", "callback_data": "platform:snapchat"},
+            {"text": "📌 Pinterest", "callback_data": "platform:pinterest"},
+        ],
+        [
+            {"text": "🌐 أخرى", "callback_data": "platform:other"},
+        ],
+    ]
+}
+
+PLATFORM_LABELS = {
+    "tiktok": "🎵 TikTok",
+    "instagram": "📸 Instagram",
+    "facebook": "📘 Facebook",
+    "twitter": "🐦 Twitter / X",
+    "snapchat": "👻 Snapchat",
+    "pinterest": "📌 Pinterest",
+    "other": "🌐 منصة أخرى",
+}
+
+
+def handle_start(chat_id: int, first_name: str, param: str = "", uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+
+    if param:
+        # Referral link: ?start=ref_123456789
+        if param.startswith("ref_"):
+            try:
+                referrer_id = int(param[4:])
+                if _aff_record_referral(uid, referrer_id):
+                    send_message(chat_id, t(uid, "referred_welcome"))
+            except (ValueError, TypeError):
+                pass
+        else:
+            try:
+                r = requests.get(f"{SITE_URL}/api/url-token/{param}", timeout=10)
+                if r.status_code == 200:
+                    url = r.json().get("url", "")
+                    if url and URL_PATTERN.search(url):
+                        send_message(chat_id, t(uid, "auto_dl_intro", name=first_name))
+                        threading.Thread(target=handle_url, args=(chat_id, url, first_name, uid), daemon=True).start()
+                        return
+            except Exception:
+                pass
+
+    if custom_welcome:
+        text = custom_welcome[0].replace("{name}", first_name)
+    else:
+        text = t(uid, "welcome", name=first_name)
+    if chat_id in ADMIN_IDS:
+        admin_kb = {
+            "keyboard": [
+                [{"text": "📲 حمّل فيديو"}],
+                [{"text": "📊 الإحصائيات"}, {"text": "🔥 الأكثر تحميلاً"}],
+                [{"text": "📣 شارك البوت"}, {"text": "ℹ️ المساعدة"}],
+                [{"text": "🚀 فتح الموقع", "web_app": {"url": "https://www.vip-dl.com"}}],
+                [{"text": "💎 بريميوم"}, {"text": "🌐 الموقع"}],
+                [{"text": "📱 حمّل التطبيق"}],
+                [{"text": "🛠️ لوحة التحكم"}],
+            ],
+            "resize_keyboard": True,
+            "persistent": True,
+        }
+        send_message(chat_id, text, reply_markup=admin_kb)
+    else:
+        send_message(chat_id, text, reply_markup=get_main_keyboard(uid))
+
+
+def handle_help(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    send_message(chat_id, t(uid, "help"))
+
+
+def handle_stats(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    data = site_stats()
+    if "error" in data:
+        send_message(chat_id, t(uid, "stats_error"))
+        return
+
+    platforms = data.get("platform_counts", {})
+    platform_lines = "\n".join(
+        f"  • {k}: <b>{v:,}</b>" for k, v in platforms.items() if v > 0
+    ) or "  —"
+
+    text = (
+        "📊 <b>VIP-DL</b>\n\n"
+        f"⬇️ {data.get('total_downloads', 0):,}\n"
+        f"📅 {data.get('today_downloads', 0):,}\n"
+        f"❌ {data.get('failed_downloads', 0):,}\n\n"
+        f"📱\n{platform_lines}\n\n"
+        f"🌐 <a href='{SITE_URL}'>vip-dl.com</a>"
+    )
+    send_message(chat_id, text, disable_web_page_preview=True)
+
+
+def handle_site(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    send_message(chat_id, t(uid, "site_url_msg", site=SITE_URL))
+
+
+def handle_platforms(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    send_message(chat_id, t(uid, "platforms_list"))
+
+
+def handle_top(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    data = site_stats()
+    if "error" in data:
+        send_message(chat_id, t(uid, "data_error"))
+        return
+
+    platforms = data.get("platform_counts", {})
+    sorted_p = sorted(platforms.items(), key=lambda x: x[1], reverse=True)
+
+    lines = []
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    suffix = t(uid, "top_downloads")
+    for i, (name, count) in enumerate(sorted_p[:5]):
+        if count > 0:
+            lines.append(f"{medals[i]} {name}: <b>{count:,}</b> {suffix}")
+
+    text = (
+        "🔥 <b>" + ("الأكثر تحميلاً" if _get_lang(uid) == "ar" else "Most Downloaded") + "</b>\n\n"
+        + ("\n".join(lines) or t(uid, "top_empty"))
+        + f"\n\n📊 <b>{data.get('total_downloads', 0):,}</b>"
+    )
+    send_message(chat_id, text)
+
+
+ADMIN_KEYBOARD = {
+    "inline_keyboard": [
+        [{"text": "📊 الإحصائيات", "callback_data": "adm:stats"}, {"text": "👁️ الزوار", "callback_data": "adm:visitors"}],
+        [{"text": "⚡ حالة السيرفر", "callback_data": "adm:health"}, {"text": "🎟️ الأكواد", "callback_data": "adm:codes"}],
+        [{"text": "🎁 كود جديد 30 يوم", "callback_data": "adm:gencode:30"}, {"text": "🎁 كود 7 أيام", "callback_data": "adm:gencode:7"}],
+        [{"text": "🗑️ تنظيف الملفات", "callback_data": "adm:clear"}, {"text": "🔄 تحديث yt-dlp", "callback_data": "adm:update"}],
+        [{"text": "📢 رسالة جماعية", "callback_data": "adm:broadcast"}, {"text": "👥 المستخدمون", "callback_data": "adm:users"}],
+        [{"text": "🤝 إحصائيات الإحالة", "callback_data": "adm:affiliates"}],
+        [{"text": "🚫 حظر مستخدم", "callback_data": "adm:block"}, {"text": "✅ رفع حظر", "callback_data": "adm:unblock"}],
+        [{"text": "✏️ تعديل رسالة الترحيب", "callback_data": "adm:setwelcome"}],
+        [{"text": "💰 الإعلانات: مُوقف ⚫", "callback_data": "adm:toggleads"}],
+        [{"text": "⚙️ الحد اليومي: 3 تحميلات", "callback_data": "adm:setlimit"}],
+        [{"text": "❌ إغلاق", "callback_data": "adm:close"}],
+    ]
+}
+
+
+def _build_admin_keyboard() -> dict:
+    ads_label = "💰 الإعلانات: مُفعَّل 🟢" if ADS_ENABLED[0] else "💰 الإعلانات: مُوقف ⚫"
+    limit_label = f"⚙️ الحد اليومي: {_daily_limit[0]} تحميلات"
+    kb = [row[:] for row in ADMIN_KEYBOARD["inline_keyboard"]]
+    for i, row in enumerate(kb):
+        for j, btn in enumerate(row):
+            if btn.get("callback_data") == "adm:toggleads":
+                kb[i][j] = {"text": ads_label, "callback_data": "adm:toggleads"}
+            elif btn.get("callback_data") == "adm:setlimit":
+                kb[i][j] = {"text": limit_label, "callback_data": "adm:setlimit"}
+    return {"inline_keyboard": kb}
+
+
+def handle_admin_panel(chat_id: int):
+    send_message(chat_id, "🛠️ <b>لوحة تحكم الأدمن</b>\n\nاختر الإجراء:", reply_markup=_build_admin_keyboard())
+
+
+def handle_admin_callback(chat_id: int, cq_id: str, action: str):
+    answer_callback(cq_id)
+
+    if action == "close":
+        send_message(chat_id, "✅ تم إغلاق لوحة التحكم.")
+        return
+
+    if action == "stats":
+        data = admin_api("stats")
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+            return
+        platforms = data.get("platform_counts", {})
+        platform_lines = "\n".join(f"  • {k}: <b>{v:,}</b>" for k, v in platforms.items() if v > 0) or "  لا بيانات"
+        errors = data.get("recent_errors", [])
+        err_lines = "\n".join(f"  ⚠️ {e.get('platform','?')}: {str(e.get('error',''))[:50]}" for e in errors) or "  لا أخطاء"
+        text = (
+            "📊 <b>إحصائيات مفصّلة</b>\n\n"
+            f"⬇️ إجمالي: <b>{data.get('total_downloads',0):,}</b>\n"
+            f"📅 اليوم: <b>{data.get('today_downloads',0):,}</b>\n"
+            f"❌ فاشلة: <b>{data.get('failed_downloads',0):,}</b>\n"
+            f"⚡ نشطة الآن: <b>{data.get('active_tasks',0)}</b>\n\n"
+            f"💾 التخزين: <b>{data.get('storage_mb',0)} MB</b> ({data.get('temp_files',0)} ملف)\n"
+            f"🤖 yt-dlp: <b>{data.get('ytdlp_version','?')}</b>\n"
+            f"🕐 الوقت: {data.get('server_time','')}\n\n"
+            f"📱 المنصات:\n{platform_lines}\n\n"
+            f"🔴 آخر الأخطاء:\n{err_lines}"
+        )
+        send_message(chat_id, text, reply_markup=_build_admin_keyboard())
+        return
+
+    if action == "visitors":
+        data = admin_api("visitor-stats")
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+            return
+        text = (
+            "👁️ <b>إحصائيات الزوار</b>\n\n"
+            f"📅 اليوم: <b>{data.get('today',0):,}</b> زيارة\n"
+            f"📆 أمس: <b>{data.get('yesterday',0):,}</b> زيارة\n"
+            f"📊 الأسبوع: <b>{data.get('week',0):,}</b> زيارة"
+        )
+        send_message(chat_id, text, reply_markup=_build_admin_keyboard())
+        return
+
+    if action == "health":
+        data = admin_api("health")
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+            return
+        idle = data.get('idle_sec', 0)
+        idle_str = f"{idle // 60}د {idle % 60}ث"
+        text = (
+            "⚡ <b>حالة السيرفر</b>\n\n"
+            f"🟢 الحالة: <b>Online</b>\n"
+            f"⏱ وقت التشغيل: <b>{data.get('uptime','?')}</b>\n"
+            f"💤 غير نشط منذ: <b>{idle_str}</b>\n"
+            f"💾 التخزين: <b>{data.get('storage_mb',0)} MB</b>\n"
+            f"⚡ مهام نشطة: <b>{data.get('active_tasks',0)}</b>"
+        )
+        send_message(chat_id, text, reply_markup=_build_admin_keyboard())
+        return
+
+    if action == "codes":
+        data = admin_api("codes")
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+            return
+        recent_lines = "\n".join(
+            f"  🎟 <code>{c['code']}</code> — {'✅ مستخدم' if c['used'] else '🔓 متاح'} ({c.get('days',0)} يوم)"
+            for c in data.get("recent", [])
+        ) or "  لا أكواد"
+        text = (
+            "🎟️ <b>أكواد البريميوم</b>\n\n"
+            f"📦 الإجمالي: <b>{data.get('total',0)}</b>\n"
+            f"✅ نشطة: <b>{data.get('active',0)}</b>\n"
+            f"🔓 غير مستخدمة: <b>{data.get('unused',0)}</b>\n"
+            f"❌ منتهية: <b>{data.get('expired',0)}</b>\n\n"
+            f"آخر الأكواد:\n{recent_lines}"
+        )
+        send_message(chat_id, text, reply_markup=_build_admin_keyboard())
+        return
+
+    if action.startswith("gencode:"):
+        try:
+            days = max(1, min(int(action.split(":")[1]), 3650))
+        except (ValueError, IndexError):
+            days = 30
+        data = admin_api(f"generate-code", "POST")
+        # pass days via json
+        try:
+            import requests as req
+            r = req.post(f"{SITE_URL}/bot-admin/generate-code",
+                        headers={"X-Bot-Token": BOT_TOKEN},
+                        json={"days": days}, timeout=15)
+            data = r.json()
+        except Exception as e:
+            data = {"error": str(e)}
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+        else:
+            send_message(chat_id,
+                f"🎁 <b>كود جديد ({days} يوم)</b>\n\n"
+                f"<code>{data.get('code','')}</code>\n\n"
+                f"انسخ الكود وأعطه للمستخدم.",
+                reply_markup=_build_admin_keyboard())
+        return
+
+    if action == "clear":
+        data = admin_api("clear-files", "POST")
+        if "error" in data:
+            send_message(chat_id, f"❌ خطأ: {data['error']}")
+        else:
+            send_message(chat_id, f"✅ تم حذف <b>{data.get('removed',0)}</b> ملف مؤقت.", reply_markup=_build_admin_keyboard())
+        return
+
+    if action == "update":
+        send_message(chat_id, "⏳ جاري تحديث yt-dlp في الخلفية...")
+        admin_api("update-ytdlp", "POST")
+        send_message(chat_id, "✅ بدأ التحديث — قد يستغرق دقيقة.", reply_markup=_build_admin_keyboard())
+        return
+
+    if action == "users":
+        count = len(known_users)
+        blocked_count = len(blocked_users)
+        user_list = "\n".join(
+            f"  • {(info.get('name','?') if isinstance(info,dict) else info)}"
+            f"{(' (@'+info.get('username')+')' if isinstance(info,dict) and info.get('username') else '')}"
+            f" <code>{uid}</code>"
+            for uid, info in list(known_users.items())[-10:]
+        )
+        text = (
+            f"👥 <b>المستخدمون</b>\n\n"
+            f"إجمالي: <b>{count}</b> | محظور: <b>{blocked_count}</b>\n\n"
+            f"آخر 10:\n{user_list or 'لا يوجد بعد'}"
+        )
+        send_message(chat_id, text, reply_markup=_build_admin_keyboard())
+        return
+
+    if action == "block":
+        pending[chat_id] = {"waiting_block": True}
+        send_message(chat_id, "🚫 أرسل Chat ID المستخدم الذي تريد حظره:")
+        return
+
+    if action == "unblock":
+        pending[chat_id] = {"waiting_unblock": True}
+        send_message(chat_id, "✅ أرسل Chat ID المستخدم الذي تريد رفع حظره:")
+        return
+
+    if action == "setwelcome":
+        pending[chat_id] = {"waiting_welcome": True}
+        send_message(chat_id, "✏️ أرسل نص رسالة الترحيب الجديدة:\n\n(أرسل /reset لإعادتها للافتراضي)")
+        return
+
+    if action == "toggleads":
+        ADS_ENABLED[0] = not ADS_ENABLED[0]
+        status = "مُفعَّل 🟢" if ADS_ENABLED[0] else "مُوقف ⚫"
+        send_message(chat_id, f"💰 <b>وضع الإعلانات: {status}</b>", reply_markup=_build_admin_keyboard())
+        return
+
+    if action == "affiliates":
+        # Scan Redis for top earners — limited to known_users for efficiency
+        lines = []
+        for uid in list(known_users.keys())[:200]:
+            total = int(_redis_get(f"aff_total_earned:{uid}") or 0)
+            if total > 0:
+                balance = int(_redis_get(f"aff_balance:{uid}") or 0)
+                refs = _redis_scard(f"aff_refs:{uid}")
+                convs = int(_redis_get(f"aff_conv_count:{uid}") or 0)
+                info = known_users.get(uid, {})
+                name = info.get("name", "?") if isinstance(info, dict) else str(info)
+                lines.append((total, f"  • {name} <code>{uid}</code> | refs:{refs} conv:{convs} total:{total}⭐ bal:{balance}⭐"))
+        lines.sort(key=lambda x: x[0], reverse=True)
+        body = "\n".join(l for _, l in lines[:15]) or "  لا بيانات بعد"
+        send_message(chat_id,
+            f"🤝 <b>إحصائيات الإحالة</b>\n\n{body}\n\n"
+            f"💡 نسبة العمولة: <b>{AFF_COMMISSION_PCT}%</b> | الحد الأدنى: <b>{AFF_MIN_PAYOUT} Stars</b>",
+            reply_markup=_build_admin_keyboard())
+        return
+
+    if action == "broadcast":
+        pending[chat_id] = {"waiting_broadcast": True}
+        send_message(chat_id, "📢 أرسل الرسالة التي تريد إرسالها لجميع المستخدمين:")
+        return
+
+    if action == "setlimit":
+        pending[chat_id] = {"waiting_setlimit": True}
+        send_message(chat_id, f"⚙️ الحد اليومي الحالي: <b>{_daily_limit[0]}</b> تحميلات\n\nأرسل الرقم الجديد (1-50):")
+        return
+
+
+def handle_download_menu(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    _post("sendMessage", json={
+        "chat_id": chat_id,
+        "text": t(uid, "choose_platform"),
+        "parse_mode": "HTML",
+        "reply_markup": PLATFORMS_KEYBOARD,
+    })
+
+
+def handle_platform_selected(chat_id: int, callback_query_id: str, platform: str, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    answer_callback(callback_query_id, "✅")
+    label = PLATFORM_LABELS.get(platform, t(uid, "platform_other_label"))
+    pending[chat_id] = {"waiting_url": True, "platform": platform}
+    send_message(chat_id, t(uid, "platform_chosen", label=label))
+
+
+def handle_share(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    send_message(chat_id, t(uid, "share_msg"), disable_web_page_preview=True)
+
+
+SUBSCRIBE_PLANS = [
+    {"days": 30,  "stars": 30,  "label": "شهر"},
+    {"days": 90,  "stars": 70,  "label": "3 أشهر"},
+    {"days": 365, "stars": 220, "label": "سنة"},
+]
+
+SUBSCRIBE_KEYBOARD = {
+    "inline_keyboard": [
+        [{"text": f"⭐ {p['stars']} Stars — {p['label']}", "callback_data": f"sub:{p['days']}"}]
+        for p in SUBSCRIBE_PLANS
+    ] + [[{"text": "🔑 عندي كود — /redeem", "callback_data": "sub:code"}]]
+}
+
+
+def send_invoice(chat_id: int, days: int, stars: int, label: str):
+    return _post("sendInvoice", json={
+        "chat_id": chat_id,
+        "title": f"💎 بريميوم نزلها بلس — {label}",
+        "description": f"تحميلات غير محدودة لمدة {label} 🚀",
+        "payload": f"premium_{days}_{chat_id}",
+        "currency": "XTR",
+        "prices": [{"label": label, "amount": stars}],
+    })
+
+
+def handle_subscribe_menu(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    send_message(chat_id, t(uid, "subscribe_menu"), reply_markup=SUBSCRIBE_KEYBOARD)
+
+
+def handle_subscribe_callback(chat_id: int, cq_id: str, plan: str):
+    answer_callback(cq_id)
+    if plan == "menu":
+        handle_subscribe_menu(chat_id)
+        return
+    if plan == "code":
+        send_message(chat_id, "🔑 أرسل كودك:\n/redeem XXXX-XXXXXXXX")
+        return
+    try:
+        days = int(plan)
+    except ValueError:
+        return
+    p = next((x for x in SUBSCRIBE_PLANS if x["days"] == days), None)
+    if not p:
+        return
+    send_invoice(chat_id, p["days"], p["stars"], p["label"])
+
+
+def handle_affiliate(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    stats = _aff_stats(uid)
+    text = t(uid, "affiliate_info",
+        uid=uid,
+        refs=stats["refs"],
+        convs=stats["convs"],
+        balance=stats["balance"],
+        total=stats["total"],
+        pct=AFF_COMMISSION_PCT,
+        min_payout=AFF_MIN_PAYOUT,
+    )
+    kb = {"inline_keyboard": [[
+        {"text": t(uid, "btn_withdraw"), "callback_data": "aff:withdraw"},
+    ]]}
+    send_message(chat_id, text, reply_markup=kb, disable_web_page_preview=True)
+
+
+def handle_affiliate_withdraw(chat_id: int, cq_id: str):
+    answer_callback(cq_id)
+    balance = int(_redis_get(f"aff_balance:{chat_id}") or 0)
+    if balance < AFF_MIN_PAYOUT:
+        send_message(chat_id, t(chat_id, "withdraw_low", balance=balance, min=AFF_MIN_PAYOUT))
+        return
+    # deduct balance and notify admin
+    _redis_set(f"aff_balance:{chat_id}", 0)
+    user_info = known_users.get(chat_id, {})
+    user_name = user_info.get("name", "?") if isinstance(user_info, dict) else str(user_info)
+    username = user_info.get("username") if isinstance(user_info, dict) else None
+    uname_line = f"🔖 @{username}\n" if username else ""
+    notify_admins(
+        f"💸 <b>طلب سحب أرباح إحالة</b>\n\n"
+        f"👤 {user_name}\n{uname_line}"
+        f"🆔 <code>{chat_id}</code>\n"
+        f"⭐ المبلغ: <b>{balance} Stars</b>"
+    )
+    send_message(chat_id, t(chat_id, "withdraw_sent", amount=balance))
+
+
+def handle_adwatch_start(chat_id: int, cq_id: str):
+    answer_callback(cq_id)
+    data = pending.get(chat_id, {})
+    url = data.get("ad_pending_url", "")
+    if not url:
+        send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
+        return
+    token = secrets.token_urlsafe(20)
+    pending[chat_id]["ad_token"] = token
+    pending[chat_id]["ad_verified"] = False
+    ad_verif_tokens[token] = chat_id
+    watch_url = f"{SITE_URL}/watch-ad/{token}"
+    send_message(
+        chat_id,
+        "📺 <b>شاهد إعلاناً قصيراً واحصل على تحميل مجاني</b>\n\n"
+        f'👉 <a href="{watch_url}">افتح صفحة الإعلان</a>\n\n'
+        "1️⃣ افتح الرابط\n"
+        "2️⃣ اضغط <b>📺 شاهد الإعلان</b>\n"
+        "3️⃣ انتظر 15 ثانية حتى ينتهي العداد\n"
+        "4️⃣ ارجع هنا واضغط الزر 👇",
+        reply_markup={"inline_keyboard": [[
+            {"text": "✅ شاهدت الإعلان — حمّل الآن", "callback_data": "adwatch:done"}
+        ]]},
+        disable_web_page_preview=True,
+    )
+
+
+def handle_adwatch_app(chat_id: int, cq_id: str):
+    answer_callback(cq_id)
+    data = pending.get(chat_id, {})
+    if not data.get("ad_pending_url"):
+        send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
+        return
+    token = secrets.token_urlsafe(20)
+    entry = {"chat_id": chat_id, "created_at": time.time(), "redeemed": False}
+    app_reward_tokens[token] = entry
+    _redis_set(f"art:{token}", entry, ex=600)  # persist across server restarts
+    pending[chat_id]["app_reward_token"] = token
+    pending[chat_id]["ad_verified"] = False
+    watch_url = f"{SITE_URL}/watch-ad/{token}"
+    send_message(
+        chat_id,
+        t(chat_id, "adwatch_app_msg"),
+        reply_markup={"inline_keyboard": [[
+            {"text": "📲 فتح التطبيق", "url": watch_url},
+        ], [
+            {"text": t(chat_id, "btn_app_ad_done"), "callback_data": "adwatch:app_done"},
+        ]]},
+        disable_web_page_preview=True,
+    )
+
+
+def handle_adwatch_app_done(chat_id: int, cq_id: str):
+    data = pending.get(chat_id, {})
+    url = data.get("ad_pending_url", "")
+    if not url:
+        answer_callback(cq_id, "⚠️ انتهت الجلسة")
+        send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
+        return
+    if not data.get("ad_verified"):
+        # grace period: reward callback may still be in-flight — poll for up to 5s
+        for _ in range(10):
+            time.sleep(0.5)
+            data = pending.get(chat_id, {})
+            if data.get("ad_verified"):
+                break
+    if not data.get("ad_verified"):
+        answer_callback(cq_id, "❌ لم يتم التحقق من مشاهدة الإعلان!")
+        send_message(
+            chat_id,
+            "⚠️ <b>لم نتلقَّ تأكيد مشاهدة الإعلان</b>\n\n"
+            "تأكد أنك:\n"
+            "1️⃣ ضغطت <b>فتح التطبيق</b>\n"
+            "2️⃣ شاهدت الإعلان <b>كاملاً</b> حتى نهايته\n\n"
+            "ثم ارجع هنا واضغط الزر مجدداً 👇"
+        )
+        return
+    pending.pop(chat_id, None)
+    answer_callback(cq_id, "✅ جاري التحميل...")
+    threading.Thread(target=_do_download, args=(chat_id, url), daemon=True).start()
+
+
+def handle_adwatch_done(chat_id: int, cq_id: str):
+    data = pending.get(chat_id, {})
+    url = data.get("ad_pending_url", "")
+    if not url:
+        answer_callback(cq_id, "⚠️ انتهت الجلسة")
+        send_message(chat_id, "⚠️ انتهت الجلسة، أرسل الرابط مجدداً.")
+        return
+    if not data.get("ad_verified"):
+        answer_callback(cq_id, "❌ افتح رابط الإعلان أولاً!")
+        send_message(
+            chat_id,
+            "⚠️ <b>لم يتم التحقق من مشاهدة الإعلان</b>\n\n"
+            "تأكد أنك اتبعت الخطوات:\n"
+            "1️⃣ افتح الرابط الذي أرسلناه\n"
+            "2️⃣ اضغط زر <b>📺 شاهد الإعلان</b>\n"
+            "3️⃣ انتظر حتى ينتهي العداد\n\n"
+            "ثم ارجع هنا واضغط الزر مجدداً 👇"
+        )
+        return
+    pending.pop(chat_id, {})
+    answer_callback(cq_id, "✅ جاري التحميل...")
+    threading.Thread(target=_do_download, args=(chat_id, url), daemon=True).start()
+
+
+def handle_pre_checkout(query: dict):
+    _post("answerPreCheckoutQuery", json={
+        "pre_checkout_query_id": query.get("id"),
+        "ok": True,
+    })
+
+
+def handle_successful_payment(chat_id: int, payment: dict):
+    payload = payment.get("invoice_payload", "")
+    parts = payload.split("_")
+    if len(parts) < 2:
+        return
+    try:
+        days = int(parts[1])
+    except ValueError:
+        return
+    import datetime
+    expires = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+    premium_users[chat_id] = expires
+    _save_premium()
+    stars = payment.get("total_amount", 0)
+    plan_label = next((p["label"] for p in SUBSCRIBE_PLANS if p["days"] == days), f"{days} يوم")
+    send_message(chat_id, t(chat_id, "payment_success", stars=stars, days=days, expires=expires))
+    notify_admins(
+        f"💰 <b>اشتراك جديد!</b>\n"
+        f"👤 Chat ID: <code>{chat_id}</code>\n"
+        f"⭐ {stars} Stars — {days} يوم"
+    )
+    # Credit affiliate commission if this user was referred
+    referrer_id = _aff_get_referrer(chat_id)
+    if referrer_id and stars > 0:
+        threading.Thread(
+            target=_aff_credit_commission,
+            args=(referrer_id, stars, plan_label),
+            daemon=True,
+        ).start()
+
+
+def handle_redeem(chat_id: int, code: str, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    if not code:
+        send_message(chat_id, t(uid, "redeem_prompt"))
+        return
+    result = redeem_code(chat_id, code)
+    if "error" in result:
+        send_message(chat_id, _friendly_error(result['error']))
+        return
+    days = result.get("days", 30)
+    expires = result.get("expires_at", "")
+    premium_users[chat_id] = expires
+    _save_premium()
+    send_message(chat_id, t(uid, "premium_activated", days=days, expires=expires))
+
+
+def handle_status(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    import datetime
+    if is_premium(chat_id):
+        exp = premium_users.get(chat_id, "")
+        if exp == "lifetime":
+            send_message(chat_id, t(uid, "status_premium_lifetime"))
+        else:
+            send_message(chat_id, t(uid, "status_premium", exp=exp))
+    else:
+        today = datetime.date.today().isoformat()
+        data = user_downloads.get(chat_id, {})
+        used = data.get("count", 0) if data.get("date") == today else 0
+        remaining = max(0, _daily_limit[0] - used)
+        send_message(chat_id, t(uid, "status_free", used=used, limit=_daily_limit[0], remaining=remaining))
+
+
+def _progress_bar(percent: int) -> str:
+    filled = int(percent / 10)
+    bar = "▓" * filled + "░" * (10 - filled)
+    return f"[{bar}] {percent}%"
+
+
+def _remaining_text(user_id: int) -> str:
+    """Returns daily counter line for free users, empty for premium/admin."""
+    if is_premium(user_id):
+        return ""
+    import datetime
+    today = datetime.date.today().isoformat()
+    data = user_downloads.get(user_id, {})
+    used = data.get("count", 0) if data.get("date") == today else 0
+    remaining = max(0, _daily_limit[0] - used)
+    return t(user_id, "remaining_text", used=used, limit=_daily_limit[0], remaining=remaining)
+
+
+def _do_download(chat_id: int, url: str, format_id: str = "best[ext=mp4]/best[height<=720]/best", title: str = "video", uid: int = 0):
+    """Start download without checking the daily limit."""
+    if uid == 0:
+        uid = chat_id
+    if chat_id in active_downloads:
+        send_message(chat_id, t(uid, "already_downloading"))
+        return
+
+    # Check cache first — instant delivery
+    cached = _cache_get(url, format_id)
+    if cached:
+        send_message(chat_id, t(uid, "cache_hit"))
+        if _send_cached(chat_id, cached):
+            send_message(chat_id, t(uid, "download_complete"))
+            _add_to_history(chat_id, url, cached.get("title", "video"), detect_platform(url))
+            return
+
+    active_downloads.add(chat_id)
+    try:
+        platform = detect_platform(url)
+        is_audio = "bestaudio" in format_id
+        if is_audio:
+            send_message(chat_id, t(uid, "downloading_audio"))
+        else:
+            send_message(chat_id, t(uid, "downloading_from", platform=platform))
+        result = site_download(url, format_id)
+        if "error" in result:
+            send_message(chat_id, _friendly_error(result['error']))
+            return
+        task_id = result.get("task_id", "")
+        if not task_id:
+            send_message(chat_id, t(uid, "dl_start_failed"))
+            return
+        _finish_download(chat_id, task_id, url, title, format_id, uid)
+    finally:
+        active_downloads.discard(chat_id)
+
+
+def _handle_multiple_urls(chat_id: int, urls: list, first_name: str, uid: int = 0):
+    """Download multiple URLs sequentially."""
+    if uid == 0:
+        uid = chat_id
+    for i, url in enumerate(urls[:3]):
+        if not check_download_limit(chat_id):
+            if i > 0:
+                send_message(chat_id, t(uid, "multiple_limit_done", done=i, total=len(urls)))
+            else:
+                send_message(chat_id, t(uid, "multiple_limit_zero", limit=_daily_limit[0]))
+            return
+        while chat_id in active_downloads:
+            time.sleep(1)
+        _do_download(chat_id, url, uid=uid)
+        while chat_id in active_downloads:
+            time.sleep(1)
+
+
+def _fmt_duration(seconds) -> str:
+    if not seconds:
+        return ""
+    s = int(seconds)
+    h, remainder = divmod(s, 3600)
+    m, sec = divmod(remainder, 60)
+    if h:
+        return f"⏱️ {h}:{m:02d}:{sec:02d}"
+    return f"⏱️ {m}:{sec:02d}"
+
+
+def handle_url(chat_id: int, url: str, first_name: str, user_id: int = 0):
+    """chat_id = where to send replies (private or group). user_id = the actual user (for permission checks)."""
+    if user_id == 0:
+        user_id = chat_id  # private chat fallback
+
+    if user_id in active_downloads:
+        send_message(chat_id, t(user_id, "already_downloading"))
+        return
+
+    # YouTube not supported
+    if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+        send_message(chat_id, "❌ تحميل يوتيوب غير متاح حالياً\n\nيمكنك التحميل من:\n🎵 TikTok\n📸 Instagram\n📘 Facebook\n📌 Pinterest\n👻 Snapchat")
+        return
+
+    # Check daily limit for free users and premium users (admins included)
+    if not is_premium(user_id) and not check_download_limit(user_id):
+        pending[user_id] = {"ad_pending_url": url}
+        send_message(
+            chat_id,
+            t(user_id, "daily_limit", limit=_daily_limit[0]),
+            reply_markup={"inline_keyboard": [
+                [{"text": t(user_id, "btn_subscribe_now"), "callback_data": "sub:menu"}],
+                [{"text": t(user_id, "btn_watch_ad_app"), "callback_data": "adwatch:app"}],
+            ]}
+        )
+        return
+
+    platform = detect_platform(url)
+    pending[user_id] = {"fmt_url": url, "title": "video", "reply_chat": chat_id}
+    rem = _remaining_text(user_id)
+    send_message(
+        chat_id,
+        t(user_id, "choose_format", platform=platform, rem=rem),
+        reply_markup={"inline_keyboard": [[
+            {"text": t(user_id, "btn_video"), "callback_data": f"fmt:video:{user_id}"},
+            {"text": t(user_id, "btn_audio"), "callback_data": f"fmt:audio:{user_id}"},
+        ]]}
+    )
+
+
+def _finish_download(chat_id: int, task_id: str, url: str, title: str, format_id: str = "", uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    deadline = time.time() + 300
+    last_percent = -1
+    progress_msg_id = None
+    dl_label = "⬇️ Downloading..." if _get_lang(uid) == "en" else "⬇️ جاري التحميل..."
+
+    while time.time() < deadline:
+        prog = site_progress(task_id)
+        status = prog.get("status", "")
+        percent = prog.get("percent", 0)
+
+        if status == "downloading" and abs(percent - last_percent) >= 15:
+            last_percent = percent
+            bar_text = f"{dl_label}\n{_progress_bar(percent)}"
+            if progress_msg_id:
+                _post("editMessageText", json={"chat_id": chat_id, "message_id": progress_msg_id, "text": bar_text})
+            else:
+                res = send_message(chat_id, bar_text)
+                progress_msg_id = (res.get("result") or {}).get("message_id")
+
+        if status == "done":
+            file_name = prog.get("file", "")
+            display_name = prog.get("filename", title)
+            file_path = DOWNLOAD_DIR / file_name
+
+            if not file_path.exists():
+                send_message(chat_id, t(uid, "no_file"))
+                return
+
+            ext = file_path.suffix.lower()
+            caption_text = f"✅ <b>{display_name[:80]}</b>\n\n🤖 @nazzilhaplus_bot | 🌐 {SITE_URL}"
+
+            file_size_mb = file_path.stat().st_size / (1024 * 1024)
+
+            sent_ok = False
+            try:
+                if ext in (".mp3", ".m4a", ".ogg", ".wav"):
+                    res = send_audio(chat_id, str(file_path), caption_text)
+                    sent_ok = res.get("ok", False)
+                    if sent_ok and format_id:
+                        fid = (res.get("result") or {}).get("audio", {}).get("file_id", "")
+                        if fid:
+                            _cache_set(url, format_id, fid, "audio", display_name)
+                elif file_size_mb <= 50:
+                    res = send_video(chat_id, str(file_path), caption_text)
+                    sent_ok = res.get("ok", False)
+                    if not sent_ok:
+                        # fallback: try sending as document
+                        res = send_document(chat_id, str(file_path), caption_text)
+                        sent_ok = res.get("ok", False)
+                    if sent_ok and format_id:
+                        fid = (res.get("result") or {}).get("video", {}).get("file_id", "") or \
+                              (res.get("result") or {}).get("document", {}).get("file_id", "")
+                        if fid:
+                            _cache_set(url, format_id, fid, "video", display_name)
+                else:
+                    res = send_document(chat_id, str(file_path), caption_text)
+                    sent_ok = res.get("ok", False)
+                    if sent_ok and format_id:
+                        fid = (res.get("result") or {}).get("document", {}).get("file_id", "")
+                        if fid:
+                            _cache_set(url, format_id, fid, "document", display_name)
+            except Exception as e:
+                log.error("Failed to send file: %s", e)
+                send_message(chat_id, t(uid, "send_failed", site=SITE_URL))
+                return
+
+            if sent_ok:
+                send_message(chat_id, t(uid, "download_complete"))
+                threading.Thread(
+                    target=send_fcm_push,
+                    args=(chat_id, "✅ تحميلك اكتمل!", display_name[:60]),
+                    daemon=True,
+                ).start()
+            else:
+                err_detail = (res.get("description") or "")[:100] if 'res' in dir() else ""
+                send_message(chat_id, f"❌ فشل إرسال الملف: {err_detail}\n\nحاول من الموقع: {SITE_URL}")
+
+            _add_to_history(chat_id, url, display_name, detect_platform(url))
+            notify_admin_download(url, display_name, chat_id)
+            return
+
+        elif status == "error":
+            err = prog.get("error", "Error")
+            retry_btn = {"inline_keyboard": [[
+                {"text": t(uid, "retry_site"), "url": SITE_URL},
+            ]]}
+            send_message(chat_id, _friendly_error(err), reply_markup=retry_btn)
+            return
+
+        time.sleep(2)
+
+    retry_btn = {"inline_keyboard": [[{"text": t(uid, "retry_site"), "url": SITE_URL}]]}
+    send_message(chat_id, t(uid, "timeout"), reply_markup=retry_btn)
+
+
+def handle_format_choice(chat_id: int, callback_query_id: str, format_id: str, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    answer_callback(callback_query_id, "⏳")
+
+    data = pending.get(chat_id)
+    if not data:
+        send_message(chat_id, t(uid, "expired_session"))
+        return
+
+    url = data["fmt_url"]
+    cache_id = data.get("cache_id", "")
+    title = data.get("title", "video")
+    pending.pop(chat_id, None)
+
+    msg_res = send_message(chat_id, t(uid, "preparing"))
+    status_msg_id = (msg_res.get("result") or {}).get("message_id")
+
+    result = site_download(url, format_id, cache_id)
+    if status_msg_id:
+        _post("deleteMessage", json={"chat_id": chat_id, "message_id": status_msg_id})
+    if "error" in result:
+        send_message(chat_id, _friendly_error(result['error']))
+        return
+
+    task_id = result.get("task_id", "")
+    if not task_id:
+        send_message(chat_id, t(uid, "dl_start_failed"))
+        return
+
+    _finish_download(chat_id, task_id, url, title, format_id, uid)
+
+
+def handle_history(chat_id: int, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    hist = user_history.get(chat_id, [])
+    if not hist:
+        send_message(chat_id, t(uid, "no_history"))
+        return
+    keyboard = [
+        [{"text": f"🔁 {item['title'][:35]}", "callback_data": f"hist:{i}"}]
+        for i, item in enumerate(hist)
+    ]
+    keyboard.append([{"text": t(uid, "btn_clear_history"), "callback_data": "hist:clear"}])
+    send_message(
+        chat_id,
+        t(uid, "history_title", count=len(hist)),
+        reply_markup={"inline_keyboard": keyboard},
+    )
+
+
+# ── Admin notifications ────────────────────────────────────────────────────────
+
+def _notify(text: str) -> None:
+    """Send to admin channel if configured, else fall back to each admin ID."""
+    if ADMIN_CHANNEL_ID:
+        send_message(ADMIN_CHANNEL_ID, text)
+    else:
+        for admin_id in ADMIN_IDS:
+            send_message(admin_id, text)
+
+
+def notify_admin_download(url: str, title: str, user_chat_id: int):
+    if not ADMIN_CHANNEL_ID and not ADMIN_IDS:
+        return
+    platform = detect_platform(url)
+    user_info = known_users.get(user_chat_id, {})
+    user_name = user_info.get("name", "مجهول") if isinstance(user_info, dict) else str(user_info)
+    user_username = user_info.get("username") if isinstance(user_info, dict) else None
+    username_line = f"🔖 المعرف: @{user_username}\n" if user_username else ""
+    text = (
+        "📥 <b>تحميل جديد عبر البوت</b>\n\n"
+        f"👤 الاسم: <b>{user_name}</b>\n"
+        f"{username_line}"
+        f"🆔 Chat ID: <code>{user_chat_id}</code>\n"
+        f"📱 المنصة: {platform}\n"
+        f"🎬 العنوان: {title[:80]}\n"
+        f"🔗 الرابط: {url[:100]}"
+    )
+    _notify(text)
+
+
+def notify_admins(text: str):
+    _notify(text)
+
+
+def _token_cleanup():
+    """Purge expired ad tokens every 10 minutes to prevent unbounded memory growth."""
+    while True:
+        time.sleep(600)
+        cutoff = time.time() - 600
+        for tok in list(app_reward_tokens.keys()):
+            if app_reward_tokens.get(tok, {}).get("created_at", 0) < cutoff:
+                app_reward_tokens.pop(tok, None)
+        for tok in list(ad_verif_tokens.keys()):
+            ad_verif_tokens.pop(tok, None)
+
+
+def _daily_report():
+    import datetime
+    while True:
+        now = datetime.datetime.now()
+        next_midnight = (now + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        time.sleep((next_midnight - now).total_seconds())
+        try:
+            now = datetime.datetime.now()
+            data = site_stats()
+            users_count = len(known_users)
+            blocked_count = len(blocked_users)
+            if "error" not in data:
+                platforms = data.get("platform_counts", {})
+                platform_lines = "\n".join(f"  • {k}: {v:,}" for k, v in platforms.items() if v > 0) or "  لا بيانات"
+                report_text = (
+                    "📅 <b>التقرير اليومي</b>\n\n"
+                    f"📆 {now.strftime('%Y-%m-%d')}\n"
+                    f"⬇️ إجمالي التحميلات: <b>{data.get('total_downloads', 0):,}</b>\n"
+                    f"📅 تحميلات اليوم: <b>{data.get('today_downloads', 0):,}</b>\n"
+                    f"❌ فاشلة: <b>{data.get('failed_downloads', 0):,}</b>\n"
+                    f"👥 مستخدمو البوت: <b>{users_count}</b> | محظور: <b>{blocked_count}</b>\n\n"
+                    f"📱 المنصات:\n{platform_lines}"
+                )
+            else:
+                report_text = "📅 <b>التقرير اليومي</b>\n\n⚠️ تعذّر جلب البيانات."
+            notify_admins(report_text)
+        except Exception as e:
+            log.error("Daily report error: %s", e)
+
+
+# ── Routing ────────────────────────────────────────────────────────────────────
+
+def handle_language(chat_id: int, lang_arg: str, uid: int = 0):
+    if uid == 0:
+        uid = chat_id
+    if lang_arg in ("ar", "en"):
+        _set_lang_pref(uid, lang_arg)
+        if lang_arg == "ar":
+            send_message(chat_id, "✅ تم تغيير اللغة إلى <b>العربية 🇸🇦</b>", reply_markup=get_main_keyboard(uid))
+        else:
+            send_message(chat_id, "✅ Language changed to <b>English 🇬🇧</b>", reply_markup=get_main_keyboard(uid))
+    else:
+        current = _get_lang(uid)
+        if current == "ar":
+            text = "🌐 اللغة الحالية: <b>العربية 🇸🇦</b>\n\nاختر لغة:"
+        else:
+            text = "🌐 Current language: <b>English 🇬🇧</b>\n\nChoose a language:"
+        send_message(chat_id, text, reply_markup={"inline_keyboard": [[
+            {"text": "🇸🇦 العربية", "callback_data": "lang:ar"},
+            {"text": "🇬🇧 English", "callback_data": "lang:en"},
+        ]]})
+
+
+def handle_message(msg: dict):
+    chat = msg.get("chat", {})
+    chat_id: int = chat.get("id", 0)
+    text: str = (msg.get("text") or "").strip()
+    from_info = msg.get("from", {})
+    first_name: str = from_info.get("first_name", "User")
+    uid: int = from_info.get("id", chat_id)
+
+    if not text:
+        return
+
+    # Detect and store language on every message
+    lang_code = from_info.get("language_code", "")
+    user_lang[uid] = _detect_lang(lang_code)
+
+    username: str | None = from_info.get("username")
+    known_users[uid] = {"name": first_name, "username": username}
+
+    if uid in blocked_users:
+        send_message(chat_id, t(uid, "blocked"))
+        return
+
+    # admin waiting-state handlers
+    if chat_id in ADMIN_IDS:
+        state = pending.get(chat_id, {})
+
+        if state.get("waiting_block"):
+            pending.pop(chat_id, None)
+            if text.lstrip("-").isdigit():
+                target_id = int(text)
+                blocked_users.add(target_id)
+                _save_blocked()
+                send_message(chat_id, f"✅ تم حظر المستخدم <code>{target_id}</code>.", reply_markup=_build_admin_keyboard())
+            else:
+                send_message(chat_id, "❌ أرسل Chat ID رقمياً فقط.")
+            return
+
+        if state.get("waiting_unblock"):
+            pending.pop(chat_id, None)
+            if text.lstrip("-").isdigit():
+                target_id = int(text)
+                blocked_users.discard(target_id)
+                _save_blocked()
+                send_message(chat_id, f"✅ تم رفع الحظر عن <code>{target_id}</code>.", reply_markup=_build_admin_keyboard())
+            else:
+                send_message(chat_id, "❌ أرسل Chat ID رقمياً فقط.")
+            return
+
+        if state.get("waiting_welcome"):
+            pending.pop(chat_id, None)
+            if text.strip() == "/reset":
+                custom_welcome.clear()
+                _save_welcome()
+                send_message(chat_id, "✅ أُعيدت رسالة الترحيب إلى الافتراضية.", reply_markup=_build_admin_keyboard())
+            else:
+                custom_welcome.clear()
+                custom_welcome.append(text)
+                _save_welcome()
+                send_message(chat_id, "✅ تم حفظ رسالة الترحيب الجديدة!", reply_markup=_build_admin_keyboard())
+            return
+
+        if state.get("waiting_setlimit"):
+            pending.pop(chat_id, None)
+            if text.isdigit() and 1 <= int(text) <= 50:
+                _daily_limit[0] = int(text)
+                _save_config()
+                send_message(chat_id, f"✅ تم تغيير الحد اليومي إلى <b>{_daily_limit[0]}</b> تحميلات.", reply_markup=_build_admin_keyboard())
+            else:
+                send_message(chat_id, "❌ أرسل رقماً بين 1 و 50.")
+            return
+
+    # broadcast handler
+    if pending.get(chat_id, {}).get("waiting_broadcast") and chat_id in ADMIN_IDS:
+        pending.pop(chat_id, None)
+        import html as _html
+        total_users = len([u for u in known_users if u != chat_id])
+        send_message(chat_id, f"⏳ جاري الإرسال لـ <b>{total_users}</b> مستخدم...")
+        sent = 0
+        failed = 0
+        btn = {"inline_keyboard": [[
+            {"text": "🚀 حمّل فيديو الآن", "url": f"https://t.me/nazzilhaplus_bot"},
+            {"text": "🌐 الموقع", "url": SITE_URL},
+        ]]}
+        for u in list(known_users.keys()):
+            if u == chat_id:
+                continue
+            res = send_message(u, f"📢 <b>نزلها بلس:</b>\n\n{_html.escape(text)}", reply_markup=btn)
+            if res.get("ok"):
+                sent += 1
+            else:
+                failed += 1
+        send_message(chat_id, f"✅ أُرسلت لـ <b>{sent}</b> مستخدم\n❌ فشلت: <b>{failed}</b>", reply_markup=_build_admin_keyboard())
+        return
+
+    if text.startswith("/start"):
+        parts = text.split(maxsplit=1)
+        param = parts[1].strip() if len(parts) > 1 else ""
+        handle_start(chat_id, first_name, param, uid)
+    elif text.startswith("/help") or text in _btn_any("btn_help"):
+        handle_help(chat_id, uid)
+    elif text.startswith("/stats") or text in _btn_any("btn_stats"):
+        handle_stats(chat_id, uid)
+    elif text.startswith("/site") or text in _btn_any("btn_site"):
+        handle_site(chat_id, uid)
+    elif text.startswith("/platforms"):
+        handle_platforms(chat_id, uid)
+    elif text.startswith("/share") or text in _btn_any("btn_share"):
+        handle_share(chat_id, uid)
+    elif text.startswith("/redeem"):
+        parts = text.split(maxsplit=1)
+        handle_redeem(chat_id, parts[1].strip() if len(parts) > 1 else "", uid)
+    elif text.startswith("/status"):
+        handle_status(chat_id, uid)
+    elif text.startswith("/history"):
+        handle_history(chat_id, uid)
+    elif text.startswith("/language"):
+        parts = text.split(maxsplit=1)
+        handle_language(chat_id, parts[1].strip().lower() if len(parts) > 1 else "", uid)
+    elif text.startswith("/affiliate") or text.startswith("/ref") or text in _btn_any("btn_affiliate"):
+        handle_affiliate(chat_id, uid)
+    elif text.startswith("/subscribe") or text in _btn_any("btn_premium"):
+        handle_subscribe_menu(chat_id, uid)
+    elif text in _btn_any("btn_app"):
+        send_message(chat_id,
+            t(uid, "app_info"),
+            reply_markup={"inline_keyboard": [[
+                {"text": t(uid, "btn_dl_app"), "url": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"}
+            ]]}
+        )
+    elif text in _btn_any("btn_top"):
+        handle_top(chat_id, uid)
+    elif text in _btn_any("btn_download"):
+        handle_download_menu(chat_id, uid)
+    elif (text.startswith("/admin") or text in _btn_any("btn_panel")) and chat_id in ADMIN_IDS:
+        handle_admin_panel(chat_id)
+    else:
+        waiting = pending.get(chat_id, {}).get("waiting_url")
+        urls = URL_PATTERN.findall(text)
+        if urls:
+            pending.pop(chat_id, None)
+            if len(urls) == 1:
+                threading.Thread(target=handle_url, args=(chat_id, urls[0], first_name, uid), daemon=True).start()
+            else:
+                send_message(chat_id, t(uid, "multiple_urls", count=len(urls[:3])))
+                threading.Thread(target=_handle_multiple_urls, args=(chat_id, urls, first_name, uid), daemon=True).start()
+        elif waiting:
+            send_message(chat_id, t(uid, "not_valid_url"))
+        else:
+            send_message(chat_id, t(uid, "send_url_prompt"))
+
+
+def handle_callback_query(cq: dict):
+    cq_id: str = cq.get("id", "")
+    chat_id: int = cq.get("message", {}).get("chat", {}).get("id", 0)
+    data: str = cq.get("data", "")
+
+    if data.startswith("lang:"):
+        lang = data[5:]
+        user_id = cq.get("from", {}).get("id", chat_id)
+        if lang in ("ar", "en"):
+            _set_lang_pref(user_id, lang)
+            answer_callback(cq_id, "✅")
+            if lang == "ar":
+                send_message(chat_id, "✅ تم تغيير اللغة إلى <b>العربية 🇸🇦</b>", reply_markup=get_main_keyboard(user_id))
+            else:
+                send_message(chat_id, "✅ Language changed to <b>English 🇬🇧</b>", reply_markup=get_main_keyboard(user_id))
+        else:
+            answer_callback(cq_id)
+    elif data.startswith("dl:"):
+        format_id = data[3:]
+        threading.Thread(
+            target=handle_format_choice,
+            args=(chat_id, cq_id, format_id),
+            daemon=True,
+        ).start()
+    elif data.startswith("platform:"):
+        platform = data[9:]
+        handle_platform_selected(chat_id, cq_id, platform)
+    elif data.startswith("adm:") and chat_id in ADMIN_IDS:
+        action = data[4:]
+        threading.Thread(target=handle_admin_callback, args=(chat_id, cq_id, action), daemon=True).start()
+    elif data.startswith("sub:"):
+        plan = data[4:]
+        threading.Thread(target=handle_subscribe_callback, args=(chat_id, cq_id, plan), daemon=True).start()
+    elif data == "aff:withdraw":
+        threading.Thread(target=handle_affiliate_withdraw, args=(chat_id, cq_id), daemon=True).start()
+    elif data == "adwatch:start":
+        threading.Thread(target=handle_adwatch_start, args=(chat_id, cq_id), daemon=True).start()
+    elif data == "adwatch:done":
+        threading.Thread(target=handle_adwatch_done, args=(chat_id, cq_id), daemon=True).start()
+    elif data == "adwatch:app":
+        threading.Thread(target=handle_adwatch_app, args=(chat_id, cq_id), daemon=True).start()
+    elif data == "adwatch:app_done":
+        threading.Thread(target=handle_adwatch_app_done, args=(chat_id, cq_id), daemon=True).start()
+    elif data.startswith("fmt:"):
+        parts = data.split(":")
+        fmt = parts[1] if len(parts) > 1 else "video"
+        # user_id may be embedded: fmt:video:12345 (for group support)
+        try:
+            owner_id = int(parts[2]) if len(parts) > 2 else chat_id
+        except ValueError:
+            owner_id = chat_id
+        pdata = pending.get(owner_id, {})
+        url = pdata.get("fmt_url", "")
+        title = pdata.get("title", "video")
+        reply_chat = pdata.get("reply_chat", chat_id)
+        if not url:
+            answer_callback(cq_id, t(owner_id, "expired_session"))
+            return
+        pending.pop(owner_id, None)
+        answer_callback(cq_id, "⏳")
+        format_id = "bestaudio/best" if fmt == "audio" else "best[ext=mp4]/best[height<=720]/best"
+        threading.Thread(target=_do_download, args=(reply_chat, url, format_id, title, owner_id), daemon=True).start()
+    elif data.startswith("hist:"):
+        val = data[5:]
+        if val == "clear":
+            answer_callback(cq_id, "✅")
+            user_history.pop(chat_id, None)
+            _save_history()
+            send_message(chat_id, t(chat_id, "history_cleared"))
+        else:
+            try:
+                idx = int(val)
+                hist = user_history.get(chat_id, [])
+                item = hist[idx]
+                answer_callback(cq_id, "⏳")
+                if not check_download_limit(chat_id):
+                    pending[chat_id] = {"ad_pending_url": item["url"]}
+                    send_message(chat_id,
+                        t(chat_id, "daily_limit", limit=_daily_limit[0]),
+                        reply_markup={"inline_keyboard": [
+                            [{"text": t(chat_id, "btn_subscribe_now"), "callback_data": "sub:menu"}],
+                            [{"text": t(chat_id, "btn_watch_ad_app"), "callback_data": "adwatch:app"}],
+                        ]})
+                else:
+                    pending[chat_id] = {"fmt_url": item["url"], "title": item["title"]}
+                    rem = _remaining_text(chat_id)
+                    send_message(chat_id,
+                        t(chat_id, "choose_format", platform=item["title"][:80], rem=rem),
+                        reply_markup={"inline_keyboard": [[
+                            {"text": t(chat_id, "btn_video"), "callback_data": "fmt:video"},
+                            {"text": t(chat_id, "btn_audio"), "callback_data": "fmt:audio"},
+                        ]]})
+            except (ValueError, IndexError):
+                answer_callback(cq_id, "⚠️")
+    else:
+        answer_callback(cq_id)
+
+
+def handle_inline_query(query: dict):
+    query_id = query.get("id", "")
+    text = (query.get("query") or "").strip()
+    from_info = query.get("from", {})
+    uid = from_info.get("id", 0)
+    lang_code = from_info.get("language_code", "")
+    if uid:
+        user_lang[uid] = _detect_lang(lang_code)
+    urls = URL_PATTERN.findall(text)
+
+    if not urls:
+        _post("answerInlineQuery", json={
+            "inline_query_id": query_id,
+            "results": [{
+                "type": "article",
+                "id": "help",
+                "title": t(uid, "inline_help_title"),
+                "description": t(uid, "inline_help_desc"),
+                "input_message_content": {
+                    "message_text": t(uid, "inline_help_msg"),
+                    "parse_mode": "HTML",
+                },
+            }],
+            "cache_time": 0,
+            "switch_pm_text": t(uid, "inline_open_bot"),
+            "switch_pm_parameter": "inline",
+        })
+        return
+
+    url = urls[0]
+    platform = detect_platform(url)
+    results = []
+
+    # Check cache — if found, send directly as video/audio
+    vid_cached = _cache_get(url, "best[ext=mp4]/best[height<=720]/best")
+    aud_cached = _cache_get(url, "bestaudio/best")
+
+    if vid_cached and vid_cached.get("file_id"):
+        title_text = vid_cached.get("title", "video")[:80]
+        results.append({
+            "type": "video",
+            "id": "cached_video",
+            "video_file_id": vid_cached["file_id"],
+            "title": f"🎬 {title_text}",
+        })
+
+    if aud_cached and aud_cached.get("file_id"):
+        results.append({
+            "type": "audio",
+            "id": "cached_audio",
+            "audio_file_id": aud_cached["file_id"],
+            "title": f"🎵 {aud_cached.get('title', 'audio')[:60]}",
+        })
+
+    # Always add redirect option for downloading via bot
+    cache_label = t(uid, "inline_cache_label") if vid_cached else ""
+    results.append({
+        "type": "article",
+        "id": "dl_redirect",
+        "title": t(uid, "download_from", platform=platform) + cache_label,
+        "description": t(uid, "inline_dl_desc"),
+        "input_message_content": {
+            "message_text": t(uid, "inline_dl_msg", platform=platform, url=url),
+            "parse_mode": "HTML",
+        },
+        "reply_markup": {"inline_keyboard": [[
+            {"text": t(uid, "inline_dl_btn"), "url": "https://t.me/nazzilhaplus_bot"}
+        ]]},
+    })
+
+    _post("answerInlineQuery", json={
+        "inline_query_id": query_id,
+        "results": results,
+        "cache_time": 30,
+    })
+
+
+def _premium_expiry_notifier():
+    import datetime
+    while True:
+        time.sleep(3600)
+        try:
+            now = datetime.datetime.now()
+            for uid, exp in list(premium_users.items()):
+                if exp == "lifetime":
+                    continue
+                try:
+                    exp_dt = datetime.datetime.strptime(exp, "%Y-%m-%d %H:%M")
+                    diff = exp_dt - now
+                    if 0 <= diff.days <= 2 and diff.seconds < 3600:
+                        send_message(int(uid),
+                            t(int(uid), "premium_expiry_warning", days=diff.days, exp=exp),
+                            reply_markup=SUBSCRIBE_KEYBOARD)
+                except Exception:
+                    pass
+        except Exception as e:
+            log.error("Premium expiry notifier: %s", e)
+
+
+def process_update(update: dict):
+    try:
+        if "message" in update:
+            msg = update["message"]
+            if "successful_payment" in msg:
+                chat_id = msg.get("chat", {}).get("id", 0)
+                handle_successful_payment(chat_id, msg["successful_payment"])
+            else:
+                handle_message(msg)
+        elif "callback_query" in update:
+            handle_callback_query(update["callback_query"])
+        elif "pre_checkout_query" in update:
+            handle_pre_checkout(update["pre_checkout_query"])
+        elif "inline_query" in update:
+            handle_inline_query(update["inline_query"])
+    except Exception as e:
+        log.exception("Error in process_update: %s", e)
+
+
+# ── Webhook setup ──────────────────────────────────────────────────────────────
+
+def setup_webhook():
+    if not BOT_TOKEN:
+        log.warning("TELEGRAM_BOT_TOKEN غير مضبوط")
+        return
+    webhook_url = f"{SITE_URL}/webhook/telegram/{BOT_TOKEN}"
+    set_webhook(webhook_url)
+    threading.Thread(target=_daily_report, daemon=True, name="daily-report").start()
+    threading.Thread(target=_premium_expiry_notifier, daemon=True, name="premium-notifier").start()
+    threading.Thread(target=_token_cleanup, daemon=True, name="token-cleanup").start()
+    if ADMIN_CHANNEL_ID or ADMIN_IDS:
+        notify_admins("🟢 <b>البوت شغّال!</b>\nVIP-DL Bot انطلق بنجاح.")

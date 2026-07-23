@@ -54,13 +54,31 @@
   }
   </script>
 
+  <!-- ===== Telegram Mini App SDK ===== -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script>
+    (function() {
+      var tg = window.Telegram && window.Telegram.WebApp;
+      if (!tg) return;
+      tg.ready();
+      tg.expand();
+      // Apply Telegram theme colors if available
+      var p = tg.themeParams;
+      if (p && p.bg_color) {
+        document.documentElement.style.setProperty('--tg-bg', p.bg_color);
+      }
+      // Show back button when inside Telegram
+      if (tg.platform !== 'unknown') {
+        tg.BackButton.onClick(function() { history.back(); });
+      }
+    })();
+  </script>
+
   <!-- ===== PWA & Icons ===== -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preconnect" href="https://pagead2.googlesyndication.com" />
   <link rel="stylesheet" href="/static/css/style.css" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet" />
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9098461798177099" crossorigin="anonymous"></script>
   <link rel="manifest" href="/static/manifest.json" />
   <meta name="theme-color" content="#7c3aed" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -85,6 +103,9 @@
     const AD_WAIT_SECONDS = {{ settings.ad_wait_seconds | default(10) }};
     const RATINGS_ENABLED = {{ 'true' if settings.ratings_enabled else 'false' }};
   </script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18168434532"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','AW-18168434532');</script>
+  <script>gtag('event','conversion',{'send_to':'AW-18168434532/qdn5CPLVlcYcEOSesddD'});</script>
 </head>
 <body>
   <div class="bg-particles" id="particles"></div>
@@ -141,22 +162,10 @@
     <nav class="nav-links">
       <a href="/how-to-use">كيف تستخدمه</a>
       <a href="/blog">المدونة</a>
-      <a href="#pricing" class="nav-cta">⭐ المميز</a>
     </nav>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="تبديل الوضع">🌙</button>
   </header>
 
-  <!-- ===== Ad Banner Top ===== -->
-  <div class="ad-banner top-ad">
-    <span class="ad-label">إعلان</span>
-    <ins class="adsbygoogle"
-         style="display:block"
-         data-ad-client="ca-pub-9098461798177099"
-         data-ad-slot="auto"
-         data-ad-format="auto"
-         data-full-width-responsive="true"></ins>
-    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-  </div>
 
   <main>
     <!-- ===== Hero ===== -->
@@ -179,6 +188,9 @@
         <div class="platform-chip pinterest">
           <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 0 1 .083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.632-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>
           Pinterest
+        </div>
+        <div class="platform-chip" style="background:rgba(255,252,0,.15);color:#fffc00;border-color:rgba(255,252,0,.3)">
+          👻 Snapchat
         </div>
       </div>
 
@@ -211,6 +223,12 @@
           <span class="btn-text">جلب معلومات الفيديو</span>
           <span class="btn-icon">→</span>
         </button>
+        <div class="long-video-note">
+          <span class="long-video-note-icon">💡</span>
+          <span>لتحميل مقاطع الفيديو الطويلة، يرجى فتح الموقع عبر المتصفح:
+            <a href="https://www.vip-dl.com" target="_blank" rel="noopener">www.vip-dl.com</a>
+          </span>
+        </div>
       </div>
 
       <div id="errorBox" class="error-box hidden">
@@ -219,17 +237,6 @@
       </div>
     </section>
 
-    <!-- ===== Ad Middle ===== -->
-    <div class="ad-banner mid-ad">
-      <span class="ad-label">إعلان</span>
-      <ins class="adsbygoogle"
-           style="display:block"
-           data-ad-client="ca-pub-9098461798177099"
-           data-ad-slot="auto"
-           data-ad-format="rectangle"
-           data-full-width-responsive="true"></ins>
-      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-    </div>
 
     <!-- ===== Video Info ===== -->
     <section id="infoSection" class="hidden">
@@ -301,6 +308,7 @@
           <span id="progressSpeed"></span>
           <span id="progressEta"></span>
         </div>
+        <p id="progressMsg" style="text-align:center;color:var(--muted);font-size:.82rem;margin-top:.6rem;min-height:1.2rem"></p>
       </div>
     </section>
 
@@ -369,11 +377,14 @@
         <div style="font-size:3rem;flex-shrink:0">📱</div>
         <div style="flex:1;min-width:180px">
           <h3 style="font-size:1.05rem;font-weight:900;margin-bottom:.3rem">تطبيق نزلها بلس</h3>
-          <p style="color:var(--muted);font-size:.82rem;line-height:1.6">تجربة أسرع وأسهل على هاتفك — قريباً على Google Play</p>
+          <p style="color:var(--muted);font-size:.82rem;line-height:1.6">تجربة أسرع وأسهل على هاتفك — متاح الآن على Google Play</p>
         </div>
-        <span style="display:inline-flex;align-items:center;gap:.5rem;background:rgba(124,58,237,.2);color:#a855f7;border:1px solid rgba(124,58,237,.4);border-radius:12px;padding:.65rem 1.3rem;font-weight:700;font-size:.9rem;white-space:nowrap;flex-shrink:0">
-          🔔 قريباً
-        </span>
+        <a href="https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"
+           target="_blank"
+           style="display:inline-flex;align-items:center;gap:.5rem;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border-radius:12px;padding:.65rem 1.3rem;font-weight:700;font-size:.9rem;white-space:nowrap;flex-shrink:0;text-decoration:none">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" style="height:1.1rem;filter:brightness(0) invert(1)">
+          حمّل التطبيق
+        </a>
       </div>
     </section>
 
@@ -397,6 +408,11 @@
         <div class="platform-card featured">
           <div class="p-icon pt">P</div>
           <span>Pinterest</span>
+        </div>
+        <div class="platform-card featured" style="grid-column:span 2">
+          <div class="p-icon" style="background:linear-gradient(135deg,#fffc00,#ff9500);color:#000">👻</div>
+          <span>Snapchat</span>
+          <small style="font-size:.7rem;color:var(--muted);margin-top:.2rem">Spotlight • قصص عامة</small>
         </div>
       </div>
     </section>
@@ -611,17 +627,6 @@
 
   </main>
 
-  <!-- ===== Footer Ad ===== -->
-  <div class="ad-banner footer-ad">
-    <span class="ad-label">إعلان</span>
-    <ins class="adsbygoogle"
-         style="display:block"
-         data-ad-client="ca-pub-9098461798177099"
-         data-ad-slot="auto"
-         data-ad-format="auto"
-         data-full-width-responsive="true"></ins>
-    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-  </div>
 
   <footer class="footer">
     <div class="footer-grid">
@@ -634,7 +639,6 @@
         <h4 class="footer-col-title">روابط سريعة</h4>
         <a href="/how-to-use">كيف تستخدمه</a>
         <a href="/blog">المدونة</a>
-        <a href="#pricing">الاشتراك المميز</a>
       </div>
       <div class="footer-col">
         <h4 class="footer-col-title">الشركة</h4>
@@ -711,35 +715,40 @@
     <button onclick="dismissInstall()" class="install-dismiss">✕</button>
   </div>
 
-  <!-- ===== Ad Interstitial Modal ===== -->
+  <!-- ===== Bot Redirect Modal ===== -->
   <div id="adModal" class="ad-modal hidden">
-    <div class="ad-modal-box">
+    <div class="ad-modal-box" style="max-width:420px;text-align:center">
       <div class="ad-modal-header">
-        <span class="ad-modal-title">📢 إعلان قصير</span>
-        <span class="ad-skip-info">يمكنك التخطي بعد <strong id="adCountdown">10</strong> ثواني</span>
+        <span class="ad-modal-title">📲 تحميل عبر البوت</span>
       </div>
 
-      <div class="ad-modal-content" style="padding:.8rem;min-height:200px;display:flex;align-items:center;justify-content:center">
-        <ins class="adsbygoogle"
-             style="display:block;width:100%;min-height:200px"
-             data-ad-client="ca-pub-9098461798177099"
-             data-ad-slot="auto"
-             data-ad-format="rectangle"
-             data-full-width-responsive="true"></ins>
-        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      <div class="ad-modal-content" style="padding:1.4rem 1rem">
+        <div style="font-size:3rem;margin-bottom:.6rem">🤖</div>
+        <p style="font-size:1rem;font-weight:600;margin-bottom:.4rem">نزّل الفيديو مجاناً عبر بوت نزلها بلس!</p>
+        <p style="font-size:.85rem;color:var(--muted);margin-bottom:1rem">
+          افتح البوت، الصق الرابط، واستلم الفيديو مباشرةً في تيليغرام ⚡
+        </p>
+        <div id="botRedirectUrl" style="
+          background:var(--card);border:1px solid var(--border);border-radius:8px;
+          padding:.5rem .8rem;font-size:.78rem;word-break:break-all;
+          color:var(--muted);margin-bottom:1rem;direction:ltr;text-align:left"></div>
+        <button onclick="copyBotUrl()" class="ad-skip-btn" style="margin-bottom:.6rem;width:100%;background:var(--border)">
+          📋 نسخ الرابط
+        </button>
+        <a id="openBotBtn" href="https://t.me/nazzilhaplus_bot" target="_blank"
+           class="ad-skip-btn" style="display:block;width:100%;text-decoration:none;box-sizing:border-box">
+          📲 فتح البوت الآن
+        </a>
       </div>
 
-      <div class="ad-modal-footer">
-        <div class="ad-progress-bar">
-          <div id="adProgressFill" class="ad-progress-fill"></div>
-        </div>
-        <button id="adSkipBtn" class="ad-skip-btn" disabled onclick="onAdFinished()">
-          تخطي والتحميل ⬇️
+      <div class="ad-modal-footer" style="padding-top:0">
+        <button onclick="closeAdModal()" style="background:none;border:none;color:var(--muted);font-size:.8rem;cursor:pointer;padding:.4rem">
+          إغلاق ✕
         </button>
       </div>
     </div>
   </div>
-  <div id="adOverlay" class="ad-overlay hidden" onclick="return false;"></div>
+  <div id="adOverlay" class="ad-overlay hidden" onclick="closeAdModal()"></div>
 
 
   <!-- ===== Video Player Modal ===== -->
