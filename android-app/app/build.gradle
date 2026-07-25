@@ -7,12 +7,12 @@ def gitCommitCount = Integer.parseInt('git rev-list --count HEAD'.execute([], pr
 
 android {
     namespace 'com.nazzilhaplus.app'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.nazzilhaplus.app"
         minSdk 23
-        targetSdk 35
+        targetSdk 36
         versionCode gitCommitCount
         versionName "2.${gitCommitCount}"
     }
