@@ -72,7 +72,6 @@ public class MainActivity extends AppCompatActivity {
         "facebook.com", "fb.watch",
         "pinterest.com", "pin.it",
         "twitter.com", "x.com",
-        "youtube.com", "youtu.be",
         "snapchat.com"
     );
 
