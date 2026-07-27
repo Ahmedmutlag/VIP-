@@ -442,28 +442,39 @@ def record_download(platform, success, error_msg="", duration=0):
     save_daily_stats(daily)
 
 
+_INSTAGRAM_COOKIE_FILE = None
+_YOUTUBE_COOKIE_FILE   = None
+
 def get_cookies_file():
-    """Write INSTAGRAM_COOKIES env var to a temp file for yt-dlp."""
+    """Write INSTAGRAM_COOKIES env var to a single shared temp file (created once)."""
+    global _INSTAGRAM_COOKIE_FILE
     if not INSTAGRAM_COOKIES:
         return None
+    if _INSTAGRAM_COOKIE_FILE and os.path.exists(_INSTAGRAM_COOKIE_FILE):
+        return _INSTAGRAM_COOKIE_FILE
     import tempfile
     try:
         tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
         tmp.write(INSTAGRAM_COOKIES)
         tmp.close()
+        _INSTAGRAM_COOKIE_FILE = tmp.name
         return tmp.name
     except Exception:
         return None
 
 def get_youtube_cookies_file():
-    """Write YOUTUBE_COOKIES env var to a temp file for yt-dlp."""
+    """Write YOUTUBE_COOKIES env var to a single shared temp file (created once)."""
+    global _YOUTUBE_COOKIE_FILE
     if not YOUTUBE_COOKIES:
         return None
+    if _YOUTUBE_COOKIE_FILE and os.path.exists(_YOUTUBE_COOKIE_FILE):
+        return _YOUTUBE_COOKIE_FILE
     import tempfile
     try:
         tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
         tmp.write(YOUTUBE_COOKIES)
         tmp.close()
+        _YOUTUBE_COOKIE_FILE = tmp.name
         return tmp.name
     except Exception:
         return None
@@ -534,7 +545,7 @@ def clean_old_files():
     while True:
         ts = time.time()
         for f in DOWNLOAD_DIR.iterdir():
-            if f.is_file() and (ts - f.stat().st_mtime) > 10800:  # 3 hours
+            if f.is_file() and (ts - f.stat().st_mtime) > 1800:  # 30 minutes
                 try:
                     f.unlink()
                 except Exception:
@@ -1926,7 +1937,7 @@ def start_download():
             "noplaylist": True,
             "nocheckcertificate": True,
             "prefer_ffmpeg": True,
-            "concurrent_fragment_downloads": 4,
+            "concurrent_fragment_downloads": 1,
             "progress_hooks": [make_progress_hook(task_id)],
             "postprocessors": [],
         }
