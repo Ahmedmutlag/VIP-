@@ -783,7 +783,7 @@ def get_main_keyboard(user_id: int) -> dict:
             [{"text": t(user_id, "btn_stats")}, {"text": t(user_id, "btn_top")}],
             [{"text": t(user_id, "btn_share")}, {"text": t(user_id, "btn_help")}],
             [{"text": t(user_id, "btn_premium")}, {"text": t(user_id, "btn_site")}],
-            [{"text": t(user_id, "btn_app")}],
+            [{"text": t(user_id, "btn_affiliate")}, {"text": t(user_id, "btn_app")}],
         ],
         "resize_keyboard": True,
         "persistent": True,
