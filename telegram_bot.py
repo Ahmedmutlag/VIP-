@@ -1013,7 +1013,7 @@ def handle_start(chat_id: int, first_name: str, param: str = "", uid: int = 0):
                 [{"text": "📣 شارك البوت"}, {"text": "ℹ️ المساعدة"}],
                 [{"text": "🚀 فتح الموقع", "web_app": {"url": "https://www.vip-dl.com"}}],
                 [{"text": "💎 بريميوم"}, {"text": "🌐 الموقع"}],
-                [{"text": "📱 حمّل التطبيق"}],
+                [{"text": "👥 الإحالة"}, {"text": "📱 حمّل التطبيق"}],
                 [{"text": "🛠️ لوحة التحكم"}],
             ],
             "resize_keyboard": True,
