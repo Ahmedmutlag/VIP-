@@ -30,6 +30,7 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import com.google.android.gms.ads.AdError;
 import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdView;
 import com.google.android.gms.ads.FullScreenContentCallback;
 import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
@@ -54,6 +55,9 @@ public class MainActivity extends AppCompatActivity {
     // ─── WebView ───────────────────────────────────────────────────────────────
     private WebView webView;
     private boolean pageLoaded = false;
+
+    // ─── Banner Ad ────────────────────────────────────────────────────────────
+    private AdView bannerAdView;
 
     // ─── Rewarded Interstitial Ad ──────────────────────────────────────────────
     private RewardedInterstitialAd rewardedAd;
@@ -84,7 +88,10 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        MobileAds.initialize(this, initStatus -> {});
+        MobileAds.initialize(this, initStatus -> {
+            bannerAdView = findViewById(R.id.bannerAd);
+            bannerAdView.loadAd(new AdRequest.Builder().build());
+        });
 
         // Fetch and store FCM token for download-complete push notifications
         FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
