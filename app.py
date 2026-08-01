@@ -2427,10 +2427,21 @@ def api_ad_reward(token):
         if fcm_token and _UPSTASH_URL:
             _redis("SET", f"fcm:{chat_id}", fcm_token)
 
+        # Mark token as redeemed so the browser page can detect completion
+        _redis("SET", f"art_done:{token}", "1", "EX", 300)
+
         return jsonify({"ok": True}), 200
     except Exception as e:
         app.logger.error("api_ad_reward error: %s", e)
         return jsonify({"ok": False}), 500
+
+
+@app.route("/api/ad-status/<token>")
+@limiter.limit("30 per minute")
+def api_ad_status(token):
+    """Polling endpoint: returns whether the ad reward was redeemed."""
+    done = _redis("GET", f"art_done:{token}")
+    return jsonify({"done": bool(done)}), 200
 
 
 _AADS_UNIT = os.environ.get("AADS_UNIT_ID", "2444681")
@@ -2536,9 +2547,24 @@ function triggerAd() {
 
 function retryAd() {
   retries++;
-  if (retries > 5) { show('s-browser'); return; }
+  if (retries > 5) { show('s-browser'); startPolling(); return; }
   show('s-loading');
   setTimeout(triggerAd, 800);
+}
+
+var pollInterval = null;
+function startPolling() {
+  if (pollInterval) return;
+  pollInterval = setInterval(function() {
+    fetch('/api/ad-status/' + TOKEN)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.done) {
+          clearInterval(pollInterval);
+          show('s-success');
+        }
+      }).catch(function(){});
+  }, 2000);
 }
 
 if (window.AndroidClipboard && typeof window.AndroidClipboard.watchAd === 'function') {
@@ -2551,7 +2577,7 @@ if (window.AndroidClipboard && typeof window.AndroidClipboard.watchAd === 'funct
       '#Intent;scheme=https;package=com.nazzilhaplus.app;' +
       'S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.nazzilhaplus.app;end';
     window.location = intentUrl;
-    setTimeout(function() { show('s-browser'); }, 2500);
+    setTimeout(function() { show('s-browser'); startPolling(); }, 2500);
   }, 300);
 }
 </script>
