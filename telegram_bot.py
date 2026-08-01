@@ -379,6 +379,23 @@ def _redis_scard(key: str) -> int:
         log.warning("Redis SCARD %s: %s", key, e)
         return 0
 
+def _redis_smembers(key: str) -> list[str]:
+    """Return all members of a Redis set."""
+    if not _UPSTASH_URL:
+        return []
+    try:
+        r = requests.post(
+            _UPSTASH_URL,
+            headers={"Authorization": f"Bearer {_UPSTASH_TOKEN}", "Content-Type": "application/json"},
+            json=["SMEMBERS", key],
+            timeout=30,
+        )
+        result = r.json().get("result") or []
+        return list(result)
+    except Exception as e:
+        log.warning("Redis SMEMBERS %s: %s", key, e)
+        return []
+
 
 # ── Affiliate helpers ──────────────────────────────────────────────────────────
 
@@ -1249,7 +1266,8 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
         return
 
     if action == "users":
-        count = len(known_users)
+        redis_count = _redis_scard("all_users")
+        count = max(redis_count, len(known_users))
         blocked_count = len(blocked_users)
         user_list = "\n".join(
             f"  • {(info.get('name','?') if isinstance(info,dict) else info)}"
@@ -1260,7 +1278,7 @@ def handle_admin_callback(chat_id: int, cq_id: str, action: str):
         text = (
             f"👥 <b>المستخدمون</b>\n\n"
             f"إجمالي: <b>{count}</b> | محظور: <b>{blocked_count}</b>\n\n"
-            f"آخر 10:\n{user_list or 'لا يوجد بعد'}"
+            f"آخر 10 (منذ آخر تشغيل):\n{user_list or 'لا يوجد بعد'}"
         )
         send_message(chat_id, text, reply_markup=_build_admin_keyboard())
         return
@@ -2003,6 +2021,8 @@ def handle_message(msg: dict):
 
     username: str | None = from_info.get("username")
     known_users[uid] = {"name": first_name, "username": username}
+    # Persist user to Redis so broadcast survives restarts
+    _redis_sadd("all_users", str(uid))
 
     if uid in blocked_users:
         send_message(chat_id, t(uid, "blocked"))
@@ -2061,7 +2081,10 @@ def handle_message(msg: dict):
     if pending.get(chat_id, {}).get("waiting_broadcast") and chat_id in ADMIN_IDS:
         pending.pop(chat_id, None)
         import html as _html
-        total_users = len([u for u in known_users if u != chat_id])
+        # Load all users from Redis (survives restarts), fall back to in-memory
+        redis_uids = [int(x) for x in _redis_smembers("all_users") if x.isdigit()]
+        all_broadcast_uids = list(set(redis_uids) | set(known_users.keys()))
+        total_users = len([u for u in all_broadcast_uids if u != chat_id])
         send_message(chat_id, f"⏳ جاري الإرسال لـ <b>{total_users}</b> مستخدم...")
         sent = 0
         failed = 0
@@ -2069,7 +2092,7 @@ def handle_message(msg: dict):
             {"text": "🚀 حمّل فيديو الآن", "url": f"https://t.me/nazzilhaplus_bot"},
             {"text": "🌐 الموقع", "url": SITE_URL},
         ]]}
-        for u in list(known_users.keys()):
+        for u in all_broadcast_uids:
             if u == chat_id:
                 continue
             res = send_message(u, f"📢 <b>نزلها بلس:</b>\n\n{_html.escape(text)}", reply_markup=btn)
