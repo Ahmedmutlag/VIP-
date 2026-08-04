@@ -95,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
         webView = findViewById(R.id.webview);
         setupWebView();
 
-        showDisclaimerIfNeeded();
+        showDisclaimerIfNeeded(getIntent());
         webView.loadUrl("https://www.vip-dl.com");
 
         NotificationReceiver.createChannel(this);
@@ -147,7 +147,12 @@ public class MainActivity extends AppCompatActivity {
     //  Disclaimer (first launch)
     // ══════════════════════════════════════════════════════════════════════════
 
-    private void showDisclaimerIfNeeded() {
+    private void showDisclaimerIfNeeded(Intent launchIntent) {
+        // Skip disclaimer if app opened via watch-ad deep link
+        if (launchIntent != null && launchIntent.getData() != null) {
+            String path = launchIntent.getData().getPath();
+            if (path != null && path.startsWith("/watch-ad/")) return;
+        }
         SharedPreferences prefs = getSharedPreferences("app_prefs", MODE_PRIVATE);
         if (prefs.getBoolean("disclaimer_accepted", false)) return;
 
