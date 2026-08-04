@@ -6,6 +6,7 @@ import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
@@ -30,6 +31,7 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import com.google.android.gms.ads.AdError;
 import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdView;
 import com.google.android.gms.ads.FullScreenContentCallback;
 import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
@@ -53,6 +55,9 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private boolean pageLoaded = false;
 
+    // ─── Banner Ad ────────────────────────────────────────────────────────────
+    private AdView bannerAdView;
+
     // ─── Rewarded Interstitial Ad ──────────────────────────────────────────────
     private RewardedInterstitialAd rewardedAd;
     private boolean rewardedAdLoading = false;
@@ -70,7 +75,6 @@ public class MainActivity extends AppCompatActivity {
         "facebook.com", "fb.watch",
         "pinterest.com", "pin.it",
         "twitter.com", "x.com",
-        "youtube.com", "youtu.be",
         "snapchat.com"
     );
 
@@ -83,10 +87,15 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        MobileAds.initialize(this, initStatus -> {});
+        MobileAds.initialize(this, initStatus -> {
+            bannerAdView = findViewById(R.id.bannerAd);
+            bannerAdView.loadAd(new AdRequest.Builder().build());
+        });
 
         webView = findViewById(R.id.webview);
         setupWebView();
+
+        showDisclaimerIfNeeded();
         webView.loadUrl("https://www.vip-dl.com");
 
         NotificationReceiver.createChannel(this);
@@ -132,6 +141,31 @@ public class MainActivity extends AppCompatActivity {
                 webView.post(() -> webView.loadUrl(url));
             }
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Disclaimer (first launch)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void showDisclaimerIfNeeded() {
+        SharedPreferences prefs = getSharedPreferences("app_prefs", MODE_PRIVATE);
+        if (prefs.getBoolean("disclaimer_accepted", false)) return;
+
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("سياسة الاستخدام")
+            .setMessage(
+                "هذا التطبيق مخصص للاستخدام الشخصي فقط.\n\n" +
+                "يتحمل المستخدم المسؤولية الكاملة عن المحتوى الذي يقوم بتحميله، " +
+                "ويجب التأكد من امتلاك الحقوق اللازمة لتحميل أي محتوى.\n\n" +
+                "باستخدامك هذا التطبيق، فأنت توافق على عدم انتهاك حقوق الملكية " +
+                "الفكرية أو شروط استخدام أي منصة."
+            )
+            .setPositiveButton("أوافق", (dialog, which) ->
+                prefs.edit().putBoolean("disclaimer_accepted", true).apply()
+            )
+            .setNegativeButton("رفض", (dialog, which) -> finishAffinity())
+            .setCancelable(false)
+            .show();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
