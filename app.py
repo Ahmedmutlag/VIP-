@@ -156,6 +156,8 @@ DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 progress_store = {}
+_active_downloads = 0
+_active_downloads_lock = threading.Lock()
 _codes_lock = threading.Lock()
 
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
@@ -519,7 +521,7 @@ def clean_old_files():
     while True:
         ts = time.time()
         for f in DOWNLOAD_DIR.iterdir():
-            if f.is_file() and (ts - f.stat().st_mtime) > 10800:  # 3 hours
+            if f.is_file() and (ts - f.stat().st_mtime) > 1800:  # 30 minutes
                 try:
                     f.unlink()
                 except Exception:
@@ -1831,6 +1833,19 @@ def start_download():
     progress_store[task_id] = {"status": "starting", "percent": 0, "_ts": time.time()}
 
     def do_download():
+        global _active_downloads
+        with _active_downloads_lock:
+            if _active_downloads >= 2:
+                progress_store[task_id] = {"status": "error", "error": "السيرفر مشغول، حاول بعد قليل"}
+                return
+            _active_downloads += 1
+        try:
+            _run_download()
+        finally:
+            with _active_downloads_lock:
+                _active_downloads -= 1
+
+    def _run_download():
         import requests as _req
         _start = time.time()
 
@@ -1893,7 +1908,9 @@ def start_download():
             "noplaylist": True,
             "nocheckcertificate": True,
             "prefer_ffmpeg": True,
-            "concurrent_fragment_downloads": 4,
+            "concurrent_fragment_downloads": 1,
+            "buffersize": 16384,
+            "http_chunk_size": 10485760,
             "progress_hooks": [make_progress_hook(task_id)],
             "postprocessors": [],
         }
