@@ -22,6 +22,8 @@ log = logging.getLogger("vip-bot")
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ADMIN_CHAT_IDS_RAW = os.environ.get("TELEGRAM_ADMIN_IDS", "")
 SITE_URL = os.environ.get("SITE_URL", "https://vip-dl.com").rstrip("/")
+WAYL_API_KEY  = os.environ.get("WAYL_API_KEY", "")
+WAYL_BASE_URL = "https://api.thewayl.com/api/v1"
 ADMIN_IDS: set[int] = set()
 if ADMIN_CHAT_IDS_RAW:
     for part in ADMIN_CHAT_IDS_RAW.split(","):
@@ -469,9 +471,23 @@ STRINGS: dict[str, dict] = {
         "subscribe_menu": (
             "💎 <b>ترقية للبريميوم</b>\n\n"
             "اختر الباقة المناسبة:\n\n"
-            "⭐ الدفع عبر Telegram Stars (مدمج داخل التطبيق)\n"
+            "⭐ <b>Telegram Stars</b> — الدفع داخل التطبيق مباشرة\n"
+            "💳 <b>دينار عراقي (IQD)</b> — عبر ZainCash / بطاقة\n"
             "✅ تفعيل فوري بعد الدفع"
         ),
+        "wayl_payment_link": (
+            "💳 <b>ادفع بالدينار العراقي</b>\n\n"
+            "📦 الباقة: <b>{label} — {iqd:,} IQD</b>\n\n"
+            "اضغط الزر أدناه لإتمام الدفع عبر ZainCash أو بطاقة:\n\n"
+            "⚠️ بعد اكتمال الدفع سيتم تفعيل الاشتراك تلقائياً."
+        ),
+        "wayl_payment_success": (
+            "🎉 <b>تم تأكيد الدفع!</b>\n\n"
+            "💎 الباقة: <b>{days} يوم</b>\n"
+            "📅 تنتهي في: <b>{expires}</b>\n\n"
+            "استمتع بتحميلات غير محدودة! 🚀"
+        ),
+        "wayl_error": "❌ تعذّر إنشاء رابط الدفع، حاول لاحقاً أو تواصل مع الدعم.",
         "share_msg": (
             "📣 <b>شارك بوت نزلها بلس مع أصدقائك!</b>\n\n"
             "🔗 رابط البوت:\nhttps://t.me/nazzilhaplus_bot\n\n"
@@ -585,9 +601,23 @@ STRINGS: dict[str, dict] = {
         "subscribe_menu": (
             "💎 <b>Upgrade to Premium</b>\n\n"
             "Choose a plan:\n\n"
-            "⭐ Pay with Telegram Stars (built into the app)\n"
+            "⭐ <b>Telegram Stars</b> — pay inside the app\n"
+            "💳 <b>Iraqi Dinar (IQD)</b> — via ZainCash / card\n"
             "✅ Instant activation after payment"
         ),
+        "wayl_payment_link": (
+            "💳 <b>Pay in Iraqi Dinar</b>\n\n"
+            "📦 Plan: <b>{label} — {iqd:,} IQD</b>\n\n"
+            "Tap the button below to pay via ZainCash or card:\n\n"
+            "⚠️ Your subscription will be activated automatically after payment."
+        ),
+        "wayl_payment_success": (
+            "🎉 <b>Payment confirmed!</b>\n\n"
+            "💎 Plan: <b>{days} days</b>\n"
+            "📅 Expires: <b>{expires}</b>\n\n"
+            "Enjoy unlimited downloads! 🚀"
+        ),
+        "wayl_error": "❌ Could not create payment link, try again or contact support.",
         "share_msg": (
             "📣 <b>Share Nazzilha Plus Bot with your friends!</b>\n\n"
             "🔗 Bot link:\nhttps://t.me/nazzilhaplus_bot\n\n"
@@ -1166,11 +1196,20 @@ SUBSCRIBE_PLANS = [
     {"days": 90, "stars": 500, "label": "90 يوم"},
 ]
 
+WAYL_PLANS = [
+    {"days": 7,  "iqd": 2000,  "label_ar": "7 أيام",  "label_en": "7 Days"},
+    {"days": 30, "iqd": 5000,  "label_ar": "30 يوم",  "label_en": "30 Days"},
+    {"days": 90, "iqd": 12000, "label_ar": "90 يوم",  "label_en": "90 Days"},
+]
+
 SUBSCRIBE_KEYBOARD = {
-    "inline_keyboard": [
-        [{"text": f"⭐ {p['stars']} Stars — {p['label']}", "callback_data": f"sub:{p['days']}"}]
-        for p in SUBSCRIBE_PLANS
-    ] + [[{"text": "🔑 عندي كود — /redeem", "callback_data": "sub:code"}]]
+    "inline_keyboard": (
+        [[{"text": f"⭐ {p['stars']} Stars — {p['label']}", "callback_data": f"sub:{p['days']}"}]
+         for p in SUBSCRIBE_PLANS]
+        + [[{"text": f"💳 {p['iqd']:,} IQD — {p['label_ar']}", "callback_data": f"wayl:{p['days']}"}]
+           for p in WAYL_PLANS]
+        + [[{"text": "🔑 عندي كود — /redeem", "callback_data": "sub:code"}]]
+    )
 }
 
 
@@ -1183,6 +1222,42 @@ def send_invoice(chat_id: int, days: int, stars: int, label: str):
         "currency": "XTR",
         "prices": [{"label": label, "amount": stars}],
     })
+
+
+def create_wayl_link(chat_id: int, days: int, iqd: int, label: str) -> str:
+    if not WAYL_API_KEY:
+        return ""
+    ref = f"wayl_{chat_id}_{days}_{int(time.time())}"
+    try:
+        r = requests.post(
+            f"{WAYL_BASE_URL}/links",
+            headers={"X-WAYL-AUTHENTICATION": WAYL_API_KEY, "Content-Type": "application/json"},
+            json={
+                "amount": iqd,
+                "currency": "IQD",
+                "referenceId": ref,
+                "description": f"بريميوم نزلها بلس — {label}",
+            },
+            timeout=15,
+        )
+        data = r.json()
+        return data.get("paymentUrl") or data.get("url") or data.get("link") or ""
+    except Exception as e:
+        log.error("Wayl create link error: %s", e)
+        return ""
+
+
+def activate_wayl_premium(chat_id: int, days: int):
+    import datetime
+    expires = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+    premium_users[chat_id] = expires
+    _save_premium()
+    send_message(chat_id, t(chat_id, "wayl_payment_success", days=days, expires=expires))
+    notify_admins(
+        f"💰 <b>دفع Wayl جديد!</b>\n"
+        f"👤 Chat ID: <code>{chat_id}</code>\n"
+        f"💳 IQD — {days} يوم | ينتهي: {expires}"
+    )
 
 
 def handle_subscribe_menu(chat_id: int, uid: int = 0):
@@ -1207,6 +1282,29 @@ def handle_subscribe_callback(chat_id: int, cq_id: str, plan: str):
     if not p:
         return
     send_invoice(chat_id, p["days"], p["stars"], p["label"])
+
+
+def handle_wayl_callback(chat_id: int, cq_id: str, plan: str):
+    answer_callback(cq_id)
+    try:
+        days = int(plan)
+    except ValueError:
+        return
+    wp = next((x for x in WAYL_PLANS if x["days"] == days), None)
+    if not wp:
+        return
+    label = wp["label_ar"]
+    pay_url = create_wayl_link(chat_id, days, wp["iqd"], label)
+    if not pay_url:
+        send_message(chat_id, t(chat_id, "wayl_error"))
+        return
+    send_message(
+        chat_id,
+        t(chat_id, "wayl_payment_link", label=label, iqd=wp["iqd"]),
+        reply_markup={"inline_keyboard": [[
+            {"text": "💳 ادفع الآن", "url": pay_url}
+        ]]},
+    )
 
 
 def handle_adwatch_start(chat_id: int, cq_id: str):
@@ -1908,6 +2006,9 @@ def handle_callback_query(cq: dict):
     elif data.startswith("sub:"):
         plan = data[4:]
         threading.Thread(target=handle_subscribe_callback, args=(chat_id, cq_id, plan), daemon=True).start()
+    elif data.startswith("wayl:"):
+        plan = data[5:]
+        threading.Thread(target=handle_wayl_callback, args=(chat_id, cq_id, plan), daemon=True).start()
     elif data == "adwatch:start":
         threading.Thread(target=handle_adwatch_start, args=(chat_id, cq_id), daemon=True).start()
     elif data == "adwatch:done":

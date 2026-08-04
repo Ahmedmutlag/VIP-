@@ -2518,6 +2518,55 @@ def bot_download_file(task_id):
     return send_file(str(file_path), as_attachment=True, download_name=file_name)
 
 
+@app.route("/wayl/webhook", methods=["POST"])
+def wayl_webhook():
+    """Wayl.io payment notification endpoint."""
+    import hmac
+    import hashlib
+    wayl_key = os.environ.get("WAYL_API_KEY", "")
+    if not wayl_key:
+        return jsonify({"ok": False}), 503
+
+    raw_body = request.get_data()
+    sig_header = request.headers.get("x-wayl-signature-256", "")
+    expected = hmac.new(wayl_key.encode(), raw_body, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig_header, expected):
+        app.logger.warning("Wayl webhook signature mismatch")
+        return jsonify({"ok": False}), 403
+
+    try:
+        payload = request.get_json(force=True) or {}
+    except Exception:
+        return jsonify({"ok": False}), 400
+
+    status = payload.get("status", "")
+    ref = payload.get("referenceId", "") or payload.get("reference_id", "")
+
+    if status not in ("paid", "completed", "success"):
+        return jsonify({"ok": True}), 200
+
+    # referenceId format: wayl_{chat_id}_{days}_{timestamp}
+    parts = ref.split("_")
+    if len(parts) < 3 or parts[0] != "wayl":
+        app.logger.warning("Wayl webhook unexpected referenceId: %s", ref)
+        return jsonify({"ok": False}), 400
+
+    try:
+        chat_id = int(parts[1])
+        days = int(parts[2])
+    except (ValueError, IndexError):
+        return jsonify({"ok": False}), 400
+
+    try:
+        from telegram_bot import activate_wayl_premium
+        threading.Thread(target=activate_wayl_premium, args=(chat_id, days), daemon=True).start()
+    except Exception as e:
+        app.logger.error("Wayl activate premium error: %s", e)
+        return jsonify({"ok": False}), 500
+
+    return jsonify({"ok": True}), 200
+
+
 def _setup_telegram_webhook():
     if not os.environ.get("TELEGRAM_BOT_TOKEN"):
         return
