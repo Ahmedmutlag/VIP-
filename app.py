@@ -1779,7 +1779,6 @@ _ALLOWED_THUMB_HOSTS = {
     "p16-sign.tiktokcdn.com", "p19-sign.tiktokcdn.com", "p16-sign-va.tiktokcdn.com",
     "p16-sign-sg.tiktokcdn.com", "v19-webapp.tiktok.com",
     "pbs.twimg.com", "ton.twimg.com",
-    "i.ytimg.com", "img.youtube.com",
     "external.fmss3-1.fna.fbcdn.net", "scontent.fmss3-1.fna.fbcdn.net",
     "pinimg.com", "i.pinimg.com",
 }
