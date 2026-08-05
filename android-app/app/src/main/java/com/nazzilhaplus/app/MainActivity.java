@@ -245,10 +245,23 @@ public class MainActivity extends AppCompatActivity {
 
                 int code = conn.getResponseCode();
                 if (code != 200) {
-                    runOnUiThread(() -> {
-                        setLoading(false);
-                        showError("فشل تحليل الرابط (خطأ " + code + ")");
-                    });
+                    String errBody = "";
+                    try {
+                        java.io.InputStream errStream = conn.getErrorStream();
+                        if (errStream != null) {
+                            java.io.BufferedReader eb = new java.io.BufferedReader(
+                                new java.io.InputStreamReader(errStream, "UTF-8"));
+                            StringBuilder es = new StringBuilder();
+                            String el;
+                            while ((el = eb.readLine()) != null) es.append(el);
+                            JSONObject errJson = new JSONObject(es.toString());
+                            errBody = errJson.optString("error", "");
+                        }
+                    } catch (Exception ignored) {}
+                    String finalErr = errBody.isEmpty()
+                        ? "الرابط غير مدعوم أو الخادم غير متاح"
+                        : errBody;
+                    runOnUiThread(() -> { setLoading(false); showError(finalErr); });
                     conn.disconnect();
                     return;
                 }
