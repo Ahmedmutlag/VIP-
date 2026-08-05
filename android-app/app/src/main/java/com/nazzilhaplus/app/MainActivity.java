@@ -518,7 +518,7 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) { return false; }
     }
 
-    private String getDeviceId() {
+    private String getAppDeviceId() {
         SharedPreferences p = getPrefs();
         String id = p.getString("device_id", "");
         if (id.isEmpty()) {
@@ -551,7 +551,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startWaylPayment() {
-        String deviceId = getDeviceId();
+        String deviceId = getAppDeviceId();
         new Thread(() -> {
             try {
                 org.json.JSONObject body = new org.json.JSONObject();
@@ -615,7 +615,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void verifyWaylPayment(String paymentId) {
         Toast.makeText(this, "جاري التحقق...", Toast.LENGTH_SHORT).show();
-        String deviceId = getDeviceId();
+        String deviceId = getAppDeviceId();
         new Thread(() -> {
             try {
                 org.json.JSONObject body = new org.json.JSONObject();
