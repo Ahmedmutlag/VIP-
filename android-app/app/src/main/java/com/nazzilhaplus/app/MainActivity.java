@@ -16,11 +16,15 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -49,7 +53,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -57,19 +60,25 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "NazzilhaPlus";
     private static final String API_BASE = "https://www.vip-dl.com";
+    private static final String SITE_URL = "https://www.vip-dl.com";
     private static final int FREE_DAILY_LIMIT = 2;
     private static final int STORAGE_PERM_CODE = 100;
+    private static final int MAX_HISTORY = 10;
 
     // ── Views ────────────────────────────────────────────────────────────────
     private EditText urlInput;
     private Button pasteBtn, fetchBtn;
+    private ImageButton menuBtn;
     private ProgressBar loadingSpinner;
     private TextView errorBox;
     private LinearLayout resultCard, formatsContainer, progressSection, hintCard;
+    private LinearLayout historySection, historyList;
     private ImageView thumbnail;
-    private TextView platformBadge, videoTitle, progressPercent;
+    private TextView platformBadge, videoTitle, progressPercent, downloadFilename;
     private ProgressBar downloadProgress;
     private AdView bannerAdView;
+    private TextView footerHowTo, footerPrivacy, footerAbout;
+    private Button clearHistoryBtn;
 
     // ── Ads ──────────────────────────────────────────────────────────────────
     private RewardedInterstitialAd rewardedAd;
@@ -88,7 +97,8 @@ public class MainActivity extends AppCompatActivity {
         "pinterest.com", "pin.it",
         "twitter.com", "x.com",
         "snapchat.com", "youtube.com", "youtu.be",
-        "dailymotion.com", "vimeo.com"
+        "dailymotion.com", "vimeo.com", "bilibili.com",
+        "twitch.tv", "reddit.com"
     );
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -107,15 +117,16 @@ public class MainActivity extends AppCompatActivity {
         requestNotificationPermission();
         NotificationReceiver.schedule(this);
 
-        MobileAds.initialize(this, status -> {
-            bannerAdView.loadAd(new AdRequest.Builder().build());
-        });
+        MobileAds.initialize(this, status ->
+            bannerAdView.loadAd(new AdRequest.Builder().build()));
         loadRewardedAd();
 
         FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
             if (token != null)
                 getPrefs().edit().putString("fcm_token", token).apply();
         });
+
+        refreshHistory();
     }
 
     @Override
@@ -125,26 +136,38 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  View binding & listeners
+    //  View binding
     // ══════════════════════════════════════════════════════════════════════════
 
     private void bindViews() {
-        urlInput        = findViewById(R.id.urlInput);
-        pasteBtn        = findViewById(R.id.pasteBtn);
-        fetchBtn        = findViewById(R.id.fetchBtn);
-        loadingSpinner  = findViewById(R.id.loadingSpinner);
-        errorBox        = findViewById(R.id.errorBox);
-        resultCard      = findViewById(R.id.resultCard);
-        formatsContainer= findViewById(R.id.formatsContainer);
-        progressSection = findViewById(R.id.progressSection);
-        hintCard        = findViewById(R.id.hintCard);
-        thumbnail       = findViewById(R.id.thumbnail);
-        platformBadge   = findViewById(R.id.platformBadge);
-        videoTitle      = findViewById(R.id.videoTitle);
-        progressPercent = findViewById(R.id.progressPercent);
-        downloadProgress= findViewById(R.id.downloadProgress);
-        bannerAdView    = findViewById(R.id.bannerAd);
+        urlInput         = findViewById(R.id.urlInput);
+        pasteBtn         = findViewById(R.id.pasteBtn);
+        fetchBtn         = findViewById(R.id.fetchBtn);
+        menuBtn          = findViewById(R.id.menuBtn);
+        loadingSpinner   = findViewById(R.id.loadingSpinner);
+        errorBox         = findViewById(R.id.errorBox);
+        resultCard       = findViewById(R.id.resultCard);
+        formatsContainer = findViewById(R.id.formatsContainer);
+        progressSection  = findViewById(R.id.progressSection);
+        hintCard         = findViewById(R.id.hintCard);
+        historySection   = findViewById(R.id.historySection);
+        historyList      = findViewById(R.id.historyList);
+        clearHistoryBtn  = findViewById(R.id.clearHistoryBtn);
+        thumbnail        = findViewById(R.id.thumbnail);
+        platformBadge    = findViewById(R.id.platformBadge);
+        videoTitle       = findViewById(R.id.videoTitle);
+        progressPercent  = findViewById(R.id.progressPercent);
+        downloadFilename = findViewById(R.id.downloadFilename);
+        downloadProgress = findViewById(R.id.downloadProgress);
+        bannerAdView     = findViewById(R.id.bannerAd);
+        footerHowTo      = findViewById(R.id.footerHowTo);
+        footerPrivacy    = findViewById(R.id.footerPrivacy);
+        footerAbout      = findViewById(R.id.footerAbout);
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Listeners
+    // ══════════════════════════════════════════════════════════════════════════
 
     private void setupListeners() {
         pasteBtn.setOnClickListener(v -> {
@@ -158,6 +181,39 @@ public class MainActivity extends AppCompatActivity {
         });
 
         fetchBtn.setOnClickListener(v -> fetchInfo());
+
+        menuBtn.setOnClickListener(v -> showPopupMenu(v));
+
+        clearHistoryBtn.setOnClickListener(v -> {
+            getPrefs().edit().remove("dl_history").apply();
+            refreshHistory();
+        });
+
+        footerHowTo.setOnClickListener(v -> openUrl(SITE_URL + "/how-to-use"));
+        footerPrivacy.setOnClickListener(v -> openUrl(SITE_URL + "/privacy"));
+        footerAbout.setOnClickListener(v -> openUrl(SITE_URL + "/about"));
+    }
+
+    private void showPopupMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        MenuInflater inflater = popup.getMenuInflater();
+        inflater.inflate(R.menu.main_menu, popup.getMenu());
+        popup.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.menu_how_to)   { openUrl(SITE_URL + "/how-to-use"); return true; }
+            if (id == R.id.menu_privacy)  { openUrl(SITE_URL + "/privacy");    return true; }
+            if (id == R.id.menu_about)    { openUrl(SITE_URL + "/about");      return true; }
+            if (id == R.id.menu_blog)     { openUrl(SITE_URL + "/blog");       return true; }
+            if (id == R.id.menu_telegram) { openUrl("https://t.me/NazzilhaPlusBot"); return true; }
+            return false;
+        });
+        popup.show();
+    }
+
+    private void openUrl(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (Exception ignored) {}
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -208,10 +264,11 @@ public class MainActivity extends AppCompatActivity {
                 "هذا التطبيق مخصص للاستخدام الشخصي فقط.\n\n" +
                 "يتحمل المستخدم المسؤولية الكاملة عن المحتوى الذي يحفظه، " +
                 "ويجب التأكد من امتلاك الحقوق اللازمة.\n\n" +
-                "باستخدامك هذا التطبيق فأنت توافق على ذلك."
+                "باستخدامك هذا التطبيق فأنت توافق على سياسة الخصوصية وشروط الاستخدام."
             )
             .setPositiveButton("أوافق", (d, w) ->
                 p.edit().putBoolean("disclaimer_accepted", true).apply())
+            .setNeutralButton("سياسة الخصوصية", (d, w) -> openUrl(SITE_URL + "/privacy"))
             .setNegativeButton("رفض", (d, w) -> finishAffinity())
             .setCancelable(false)
             .show();
@@ -237,6 +294,7 @@ public class MainActivity extends AppCompatActivity {
                     new URL(API_BASE + "/api/resolve").openConnection();
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Accept", "application/json");
                 conn.setDoOutput(true);
                 conn.setConnectTimeout(30_000);
                 conn.setReadTimeout(60_000);
@@ -245,53 +303,53 @@ public class MainActivity extends AppCompatActivity {
 
                 int code = conn.getResponseCode();
                 if (code != 200) {
-                    String errBody = "";
-                    try {
-                        java.io.InputStream errStream = conn.getErrorStream();
-                        if (errStream != null) {
-                            java.io.BufferedReader eb = new java.io.BufferedReader(
-                                new java.io.InputStreamReader(errStream, "UTF-8"));
-                            StringBuilder es = new StringBuilder();
-                            String el;
-                            while ((el = eb.readLine()) != null) es.append(el);
-                            JSONObject errJson = new JSONObject(es.toString());
-                            errBody = errJson.optString("error", "");
-                        }
-                    } catch (Exception ignored) {}
-                    String finalErr = errBody.isEmpty()
-                        ? "الرابط غير مدعوم أو الخادم غير متاح"
-                        : errBody;
-                    runOnUiThread(() -> { setLoading(false); showError(finalErr); });
+                    String errMsg = readErrorBody(conn);
+                    runOnUiThread(() -> { setLoading(false); showError(errMsg); });
                     conn.disconnect();
                     return;
                 }
 
-                java.io.BufferedReader br = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(conn.getInputStream(), "UTF-8"));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) sb.append(line);
+                String respStr = readBody(conn.getInputStream());
                 conn.disconnect();
+                JSONObject resp = new JSONObject(respStr);
 
-                JSONObject resp = new JSONObject(sb.toString());
                 if (resp.has("error")) {
                     String msg = resp.optString("error", "رابط غير مدعوم");
                     runOnUiThread(() -> { setLoading(false); showError(msg); });
                     return;
                 }
 
-                runOnUiThread(() -> {
-                    setLoading(false);
-                    displayResult(resp);
-                });
+                runOnUiThread(() -> { setLoading(false); displayResult(resp); });
+
             } catch (Exception e) {
                 Log.e(TAG, "fetchInfo: " + e.getMessage());
                 runOnUiThread(() -> {
                     setLoading(false);
-                    showError("فشل الاتصال بالخادم. تأكد من الإنترنت.");
+                    showError("فشل الاتصال بالخادم — تأكد من الإنترنت");
                 });
             }
         }).start();
+    }
+
+    private String readBody(InputStream is) throws Exception {
+        java.io.BufferedReader br = new java.io.BufferedReader(
+            new java.io.InputStreamReader(is, "UTF-8"));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) sb.append(line);
+        return sb.toString();
+    }
+
+    private String readErrorBody(HttpURLConnection conn) {
+        try {
+            InputStream es = conn.getErrorStream();
+            if (es != null) {
+                JSONObject j = new JSONObject(readBody(es));
+                String err = j.optString("error", "");
+                if (!err.isEmpty()) return err;
+            }
+        } catch (Exception ignored) {}
+        return "الرابط غير مدعوم أو الخادم غير متاح حالياً";
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -306,17 +364,16 @@ public class MainActivity extends AppCompatActivity {
         String thumbUrl = data.optString("thumbnail", "");
         JSONArray fmts  = data.optJSONArray("formats");
 
-        videoTitle.setText(title);
+        videoTitle.setText(title.isEmpty() ? "بدون عنوان" : title);
         platformBadge.setText(platform.isEmpty() ? "فيديو" : platform.toUpperCase());
-
         resultCard.setVisibility(View.VISIBLE);
 
-        // Load thumbnail in background
+        // Load thumbnail asynchronously
         if (!thumbUrl.isEmpty()) {
-            String finalThumbUrl = thumbUrl;
+            final String tu = thumbUrl;
             new Thread(() -> {
                 try {
-                    HttpURLConnection c = (HttpURLConnection) new URL(finalThumbUrl).openConnection();
+                    HttpURLConnection c = (HttpURLConnection) new URL(tu).openConnection();
                     c.setConnectTimeout(10_000);
                     c.setReadTimeout(10_000);
                     c.connect();
@@ -337,34 +394,58 @@ public class MainActivity extends AppCompatActivity {
 
         for (int i = 0; i < fmts.length(); i++) {
             try {
-                JSONObject fmt = fmts.getJSONObject(i);
-                String label   = fmt.optString("label", "تحميل");
-                String dlUrl   = fmt.optString("url", "");
-                String ext     = fmt.optString("ext", "mp4");
-                String type    = fmt.optString("type", "video");
+                JSONObject fmt  = fmts.getJSONObject(i);
+                String label    = fmt.optString("label", "تحميل");
+                String dlUrl    = fmt.optString("url", "");
+                String ext      = fmt.optString("ext", "mp4");
+                String type     = fmt.optString("type", "video");
                 if (dlUrl.isEmpty()) continue;
 
-                String emoji   = "audio".equals(type) ? "🎵" : "🎬";
-                String btnText = emoji + " " + label;
-                String filename= sanitizeFilename(title) + "." + ext;
+                String emoji    = "audio".equals(type) ? "🎵" : "🎬";
+                String filename = sanitizeFilename(title) + "." + ext;
 
-                Button btn = new Button(this);
-                btn.setText(btnText);
-                btn.setTextColor(0xFF1F1F2E);
-                btn.setBackgroundColor(0xFFF5F3FF);
-                btn.setTextSize(14f);
-                btn.setPadding(24, 16, 24, 16);
-
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setBackground(getDrawable(R.drawable.format_btn_bg));
+                row.setPadding(dp(16), dp(12), dp(16), dp(12));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT);
-                lp.setMargins(0, 0, 0, 10);
-                btn.setLayoutParams(lp);
+                lp.setMargins(0, 0, 0, dp(8));
+                row.setLayoutParams(lp);
+                row.setClickable(true);
+                row.setFocusable(true);
 
-                final String finalDlUrl  = dlUrl;
-                final String finalName   = filename;
-                btn.setOnClickListener(v -> onFormatPicked(finalDlUrl, finalName));
-                formatsContainer.addView(btn);
+                TextView emojiTv = new TextView(this);
+                emojiTv.setText(emoji);
+                emojiTv.setTextSize(18);
+                emojiTv.setPadding(0, 0, dp(10), 0);
+
+                TextView labelTv = new TextView(this);
+                labelTv.setText(label);
+                labelTv.setTextSize(14);
+                labelTv.setTextColor(0xFF1F1F2E);
+                labelTv.setTypeface(labelTv.getTypeface(), android.graphics.Typeface.BOLD);
+                LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                labelTv.setLayoutParams(tlp);
+
+                TextView extTv = new TextView(this);
+                extTv.setText(ext.toUpperCase());
+                extTv.setTextSize(11);
+                extTv.setTextColor(0xFF9CA3AF);
+
+                row.addView(emojiTv);
+                row.addView(labelTv);
+                row.addView(extTv);
+
+                final String finalUrl  = dlUrl;
+                final String finalName = filename;
+                final String finalTitle = title;
+                final String finalPlatform = platform;
+                row.setOnClickListener(v -> onFormatPicked(finalUrl, finalName, finalTitle, finalPlatform));
+
+                formatsContainer.addView(row);
             } catch (Exception ignored) {}
         }
     }
@@ -373,20 +454,23 @@ public class MainActivity extends AppCompatActivity {
     //  Format picked → quota check → ad → download
     // ══════════════════════════════════════════════════════════════════════════
 
-    private void onFormatPicked(String dlUrl, String filename) {
+    private void onFormatPicked(String dlUrl, String filename, String title, String platform) {
         pendingDlUrl      = dlUrl;
         pendingDlFilename = filename;
         downloadPending   = true;
 
         if (canDownloadFree()) {
             incrementDownloadCount();
+            saveHistory(title, platform);
             beginDownload();
         } else {
-            // Free limit reached — must watch ad
             new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("تجاوزت الحد اليومي")
                 .setMessage("استنفذت " + FREE_DAILY_LIMIT + " تحميلات مجانية اليوم.\nشاهد إعلاناً قصيراً للمتابعة.")
-                .setPositiveButton("شاهد الإعلان", (d, w) -> showRewardedAd())
+                .setPositiveButton("شاهد الإعلان", (d, w) -> {
+                    saveHistory(title, platform);
+                    showRewardedAd();
+                })
                 .setNegativeButton("إلغاء", null)
                 .show();
         }
@@ -404,13 +488,102 @@ public class MainActivity extends AppCompatActivity {
     private void incrementDownloadCount() {
         String today = todayKey();
         SharedPreferences p = getPrefs();
-        String saved = p.getString("dl_date", "");
-        int count = today.equals(saved) ? p.getInt("dl_count", 0) : 0;
+        int count = today.equals(p.getString("dl_date", "")) ? p.getInt("dl_count", 0) : 0;
         p.edit().putString("dl_date", today).putInt("dl_count", count + 1).apply();
     }
 
     private String todayKey() {
         return new SimpleDateFormat("yyyyMMdd", Locale.US).format(new Date());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Download history
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void saveHistory(String title, String platform) {
+        try {
+            SharedPreferences p = getPrefs();
+            JSONArray arr = new JSONArray(p.getString("dl_history", "[]"));
+            JSONObject entry = new JSONObject();
+            entry.put("title", title);
+            entry.put("platform", platform);
+            entry.put("time", System.currentTimeMillis());
+            // Prepend new entry
+            JSONArray updated = new JSONArray();
+            updated.put(entry);
+            for (int i = 0; i < arr.length() && i < MAX_HISTORY - 1; i++) {
+                updated.put(arr.getJSONObject(i));
+            }
+            p.edit().putString("dl_history", updated.toString()).apply();
+            runOnUiThread(this::refreshHistory);
+        } catch (Exception ignored) {}
+    }
+
+    private void refreshHistory() {
+        try {
+            SharedPreferences p = getPrefs();
+            JSONArray arr = new JSONArray(p.getString("dl_history", "[]"));
+            if (arr.length() == 0) {
+                historySection.setVisibility(View.GONE);
+                return;
+            }
+
+            historyList.removeAllViews();
+            historySection.setVisibility(View.VISIBLE);
+
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject e = arr.getJSONObject(i);
+                String title    = e.optString("title", "");
+                String platform = e.optString("platform", "");
+
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setPadding(0, dp(8), 0, dp(8));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+                row.setLayoutParams(lp);
+
+                TextView dot = new TextView(this);
+                dot.setText("📥");
+                dot.setTextSize(14);
+                dot.setPadding(0, 0, dp(10), 0);
+
+                LinearLayout info = new LinearLayout(this);
+                info.setOrientation(LinearLayout.VERTICAL);
+                LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                info.setLayoutParams(ilp);
+
+                TextView tv = new TextView(this);
+                tv.setText(title.isEmpty() ? "فيديو" : title);
+                tv.setTextSize(13);
+                tv.setTextColor(0xFF1F1F2E);
+                tv.setMaxLines(1);
+                tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+
+                TextView plat = new TextView(this);
+                plat.setText(platform);
+                plat.setTextSize(11);
+                plat.setTextColor(0xFF9CA3AF);
+
+                info.addView(tv);
+                info.addView(plat);
+                row.addView(dot);
+                row.addView(info);
+                historyList.addView(row);
+
+                // Divider (not on last item)
+                if (i < arr.length() - 1) {
+                    View div = new View(this);
+                    LinearLayout.LayoutParams dp1 = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, 1);
+                    div.setLayoutParams(dp1);
+                    div.setBackgroundColor(0xFFF3F4F6);
+                    historyList.addView(div);
+                }
+            }
+        } catch (Exception ignored) {}
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -424,15 +597,11 @@ public class MainActivity extends AppCompatActivity {
             getString(R.string.admob_rewarded_interstitial_id),
             new AdRequest.Builder().build(),
             new RewardedInterstitialAdLoadCallback() {
-                @Override
-                public void onAdLoaded(@NonNull RewardedInterstitialAd ad) {
-                    rewardedAd        = ad;
-                    rewardedAdLoading = false;
+                @Override public void onAdLoaded(@NonNull RewardedInterstitialAd ad) {
+                    rewardedAd = ad; rewardedAdLoading = false;
                 }
-                @Override
-                public void onAdFailedToLoad(@NonNull LoadAdError e) {
-                    rewardedAd        = null;
-                    rewardedAdLoading = false;
+                @Override public void onAdFailedToLoad(@NonNull LoadAdError e) {
+                    rewardedAd = null; rewardedAdLoading = false;
                     Log.w(TAG, "Rewarded ad failed: " + e.getMessage());
                 }
             });
@@ -440,29 +609,20 @@ public class MainActivity extends AppCompatActivity {
 
     private void showRewardedAd() {
         if (rewardedAd == null || isShowingAd) {
-            Toast.makeText(this, "الإعلان غير جاهز، جرّب مجدداً", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "الإعلان لم يتحمل بعد، جرّب مجدداً", Toast.LENGTH_SHORT).show();
             if (!rewardedAdLoading) loadRewardedAd();
             return;
         }
         isShowingAd = true;
         rewardedAd.setFullScreenContentCallback(new FullScreenContentCallback() {
-            @Override
-            public void onAdDismissedFullScreenContent() {
-                rewardedAd  = null;
-                isShowingAd = false;
-                loadRewardedAd();
+            @Override public void onAdDismissedFullScreenContent() {
+                rewardedAd = null; isShowingAd = false; loadRewardedAd();
             }
-            @Override
-            public void onAdFailedToShowFullScreenContent(@NonNull AdError e) {
-                rewardedAd  = null;
-                isShowingAd = false;
-                loadRewardedAd();
+            @Override public void onAdFailedToShowFullScreenContent(@NonNull AdError e) {
+                rewardedAd = null; isShowingAd = false; loadRewardedAd();
             }
         });
-        rewardedAd.show(this, reward -> {
-            // User earned reward → start download
-            runOnUiThread(this::beginDownload);
-        });
+        rewardedAd.show(this, reward -> runOnUiThread(this::beginDownload));
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -481,7 +641,7 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERM_CODE);
             return;
         }
-        showProgressSection(true);
+        showProgressSection(true, name);
         new Thread(() -> doDownload(url, name)).start();
     }
 
@@ -505,15 +665,9 @@ public class MainActivity extends AppCompatActivity {
         nm.cancel(notifId);
         if (ok) {
             Uri fu = resultUri[0];
-            runOnUiThread(() -> {
-                showProgressSection(false);
-                showSuccessDialog(fu);
-            });
+            runOnUiThread(() -> { showProgressSection(false, null); showSuccessDialog(fu); });
         } else {
-            runOnUiThread(() -> {
-                showProgressSection(false);
-                showError("فشل التحميل، حاول مجدداً");
-            });
+            runOnUiThread(() -> { showProgressSection(false, null); showError("فشل التحميل، حاول مجدداً"); });
         }
     }
 
@@ -555,7 +709,7 @@ public class MainActivity extends AppCompatActivity {
                             int pct = (int)(done * 100L / total);
                             runOnUiThread(() -> updateProgress(pct));
                             nb.setProgress(100, pct, false).setContentText(pct + "%");
-                            try { nm.notify(notifId, nb.build()); } catch (Exception ignored) {}
+                            try { nm.notify(notifId, nb.build()); } catch (Exception ig) {}
                         }
                     }
                 }
@@ -565,7 +719,7 @@ public class MainActivity extends AppCompatActivity {
                 out[0] = dlUri;
                 return true;
             } catch (Exception e) {
-                Log.e(TAG, "downloadMediaStore attempt " + attempt + ": " + e.getMessage());
+                Log.e(TAG, "dl attempt " + attempt + ": " + e.getMessage());
                 if (attempt < 4) try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ig) {}
             }
         }
@@ -604,14 +758,13 @@ public class MainActivity extends AppCompatActivity {
                 Uri[] scanned = {null};
                 Object lock = new Object();
                 MediaScannerConnection.scanFile(this, new String[]{file.getAbsolutePath()}, null, (p, u) -> {
-                    scanned[0] = u;
-                    synchronized (lock) { lock.notifyAll(); }
+                    scanned[0] = u; synchronized (lock) { lock.notifyAll(); }
                 });
                 synchronized (lock) { try { lock.wait(3000); } catch (InterruptedException ig) {} }
                 out[0] = scanned[0] != null ? scanned[0] : Uri.fromFile(file);
                 return true;
             } catch (Exception e) {
-                Log.e(TAG, "downloadFileSystem attempt " + attempt + ": " + e.getMessage());
+                Log.e(TAG, "dl attempt " + attempt + ": " + e.getMessage());
                 if (attempt < 4) try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ig) {}
             }
         }
@@ -660,17 +813,22 @@ public class MainActivity extends AppCompatActivity {
         hintCard.setVisibility(View.VISIBLE);
     }
 
-    private void showProgressSection(boolean on) {
+    private void showProgressSection(boolean on, String filename) {
         progressSection.setVisibility(on ? View.VISIBLE : View.GONE);
         if (on) {
             downloadProgress.setProgress(0);
             progressPercent.setText("0%");
+            if (filename != null) downloadFilename.setText(filename);
         }
     }
 
     private void updateProgress(int pct) {
         downloadProgress.setProgress(pct);
         progressPercent.setText(pct + "%");
+    }
+
+    private int dp(int dp) {
+        return (int)(dp * getResources().getDisplayMetrics().density);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -710,6 +868,7 @@ public class MainActivity extends AppCompatActivity {
     private String mimeFor(String filename) {
         if (filename.endsWith(".mp3")) return "audio/mpeg";
         if (filename.endsWith(".m4a")) return "audio/mp4";
+        if (filename.endsWith(".aac")) return "audio/aac";
         return "video/mp4";
     }
 }
