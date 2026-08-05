@@ -257,7 +257,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="⭐ ترقية للبريميوم"
+                    android:text="⭐ بريميوم — قريباً"
                     android:textSize="15sp"
                     android:textColor="#1F1F2E"
                     android:textStyle="bold" />
