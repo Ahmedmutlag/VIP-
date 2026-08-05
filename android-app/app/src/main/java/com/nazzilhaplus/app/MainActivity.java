@@ -1,13 +1,14 @@
 package com.nazzilhaplus.app;
 
 import android.Manifest;
-import android.content.ActivityNotFoundException;
 import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
@@ -15,17 +16,16 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Log;
-import android.webkit.CookieManager;
-import android.webkit.JavascriptInterface;
-import android.webkit.URLUtil;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
@@ -44,40 +44,51 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "NazzilhaPlus";
+    private static final String API_BASE = "https://www.vip-dl.com";
+    private static final int FREE_DAILY_LIMIT = 2;
+    private static final int STORAGE_PERM_CODE = 100;
 
-    // ─── WebView ───────────────────────────────────────────────────────────────
-    private WebView webView;
-    private boolean pageLoaded = false;
-
-    // ─── Banner Ad ────────────────────────────────────────────────────────────
+    // ── Views ────────────────────────────────────────────────────────────────
+    private EditText urlInput;
+    private Button pasteBtn, fetchBtn;
+    private ProgressBar loadingSpinner;
+    private TextView errorBox;
+    private LinearLayout resultCard, formatsContainer, progressSection, hintCard;
+    private ImageView thumbnail;
+    private TextView platformBadge, videoTitle, progressPercent;
+    private ProgressBar downloadProgress;
     private AdView bannerAdView;
 
-    // ─── Rewarded Interstitial Ad ──────────────────────────────────────────────
+    // ── Ads ──────────────────────────────────────────────────────────────────
     private RewardedInterstitialAd rewardedAd;
     private boolean rewardedAdLoading = false;
     private boolean isShowingAd = false;
-    private final AtomicReference<String> pendingAdToken = new AtomicReference<>(null);
 
-    // ─── Download ──────────────────────────────────────────────────────────────
-    private static final int STORAGE_PERMISSION_CODE = 100;
-    private String pendingUrl, pendingUserAgent, pendingContentDisposition, pendingMimeType;
+    // ── Download state ───────────────────────────────────────────────────────
+    private String pendingDlUrl;
+    private String pendingDlFilename;
+    private boolean downloadPending = false;
 
-    // ─── Clipboard domains ─────────────────────────────────────────────────────
     private static final List<String> VIDEO_DOMAINS = Arrays.asList(
         "tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
         "instagram.com", "instagr.am",
         "facebook.com", "fb.watch",
         "pinterest.com", "pin.it",
         "twitter.com", "x.com",
-        "snapchat.com"
+        "snapchat.com", "youtube.com", "youtu.be",
+        "dailymotion.com", "vimeo.com"
     );
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -89,180 +100,64 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        MobileAds.initialize(this, initStatus -> {
-            bannerAdView = findViewById(R.id.bannerAd);
-            bannerAdView.loadAd(new AdRequest.Builder().build());
-        });
-
-        // Fetch and store FCM token for download-complete push notifications
-        FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
-            if (!task.isSuccessful()) return;
-            String fcmToken = task.getResult();
-            if (fcmToken != null) {
-                getSharedPreferences("nazzilha_prefs", MODE_PRIVATE)
-                    .edit().putString("fcm_token", fcmToken).apply();
-            }
-        });
-
-        webView = findViewById(R.id.webview);
-        setupWebView();
-
-        showDisclaimerIfNeeded(getIntent());
-        webView.loadUrl("https://www.vip-dl.com");
-
+        bindViews();
+        setupListeners();
+        showDisclaimerIfNeeded();
         NotificationReceiver.createChannel(this);
         requestNotificationPermission();
         NotificationReceiver.schedule(this);
 
-        loadRewardedInterstitialAd();
+        MobileAds.initialize(this, status -> {
+            bannerAdView.loadAd(new AdRequest.Builder().build());
+        });
+        loadRewardedAd();
 
-        // Handle App Link or deep link that launched the app
-        handleAdIntent(getIntent());
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        handleAdIntent(intent);
+        FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
+            if (token != null)
+                getPrefs().edit().putString("fcm_token", token).apply();
+        });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (pageLoaded) injectClipboardUrl();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
+        autoFillClipboard();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  App Link / Deep Link handling
+    //  View binding & listeners
     // ══════════════════════════════════════════════════════════════════════════
 
-    private void handleAdIntent(Intent intent) {
-        if (intent == null) return;
-        Uri data = intent.getData();
-        if (data == null) return;
-        String host = data.getHost();
-        if (!"www.vip-dl.com".equals(host) && !"vip-dl.com".equals(host)) return;
-        String path = data.getPath();
-        if (path != null && path.startsWith("/watch-ad/")) {
-            String url = data.toString();
-            if (webView != null) {
-                webView.post(() -> webView.loadUrl(url));
-            }
-        }
+    private void bindViews() {
+        urlInput        = findViewById(R.id.urlInput);
+        pasteBtn        = findViewById(R.id.pasteBtn);
+        fetchBtn        = findViewById(R.id.fetchBtn);
+        loadingSpinner  = findViewById(R.id.loadingSpinner);
+        errorBox        = findViewById(R.id.errorBox);
+        resultCard      = findViewById(R.id.resultCard);
+        formatsContainer= findViewById(R.id.formatsContainer);
+        progressSection = findViewById(R.id.progressSection);
+        hintCard        = findViewById(R.id.hintCard);
+        thumbnail       = findViewById(R.id.thumbnail);
+        platformBadge   = findViewById(R.id.platformBadge);
+        videoTitle      = findViewById(R.id.videoTitle);
+        progressPercent = findViewById(R.id.progressPercent);
+        downloadProgress= findViewById(R.id.downloadProgress);
+        bannerAdView    = findViewById(R.id.bannerAd);
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    //  Disclaimer (first launch)
-    // ══════════════════════════════════════════════════════════════════════════
-
-    private void showDisclaimerIfNeeded(Intent launchIntent) {
-        // Skip disclaimer if app opened via watch-ad deep link
-        if (launchIntent != null && launchIntent.getData() != null) {
-            String path = launchIntent.getData().getPath();
-            if (path != null && path.startsWith("/watch-ad/")) return;
-        }
-        SharedPreferences prefs = getSharedPreferences("app_prefs", MODE_PRIVATE);
-        if (prefs.getBoolean("disclaimer_accepted", false)) return;
-
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("سياسة الاستخدام")
-            .setMessage(
-                "هذا التطبيق مخصص للاستخدام الشخصي فقط.\n\n" +
-                "يتحمل المستخدم المسؤولية الكاملة عن المحتوى الذي يقوم بتحميله، " +
-                "ويجب التأكد من امتلاك الحقوق اللازمة لتحميل أي محتوى.\n\n" +
-                "باستخدامك هذا التطبيق، فأنت توافق على عدم انتهاك حقوق الملكية " +
-                "الفكرية أو شروط استخدام أي منصة."
-            )
-            .setPositiveButton("أوافق", (dialog, which) ->
-                prefs.edit().putBoolean("disclaimer_accepted", true).apply()
-            )
-            .setNegativeButton("رفض", (dialog, which) -> finishAffinity())
-            .setCancelable(false)
-            .show();
-    }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    //  WebView setup
-    // ══════════════════════════════════════════════════════════════════════════
-
-    private void setupWebView() {
-        WebSettings s = webView.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setLoadWithOverviewMode(true);
-        s.setUseWideViewPort(true);
-        s.setBuiltInZoomControls(false);
-        s.setDisplayZoomControls(false);
-        s.setMediaPlaybackRequiresUserGesture(false);
-        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
-
-        CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
-
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String url    = request.getUrl().toString();
-                String scheme = request.getUrl().getScheme();
-
-                if (url.contains("t.me/") || url.contains("telegram.me/")) {
-                    openExternal(url);
-                    return true;
-                }
-
-                if (url.contains("play.google.com") || url.startsWith("market://")
-                        || "whatsapp".equals(scheme) || "tg".equals(scheme)
-                        || "instagram".equals(scheme) || "fb".equals(scheme)
-                        || "twitter".equals(scheme) || "snapchat".equals(scheme)
-                        || "intent".equals(scheme)) {
-                    try {
-                        openExternal(url);
-                    } catch (Exception e) {
-                        view.loadUrl(url);
-                    }
-                    return true;
-                }
-                return false;
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                pageLoaded = true;
-                injectClipboardUrl();
-            }
-        });
-
-        webView.addJavascriptInterface(new AppBridge(), "AndroidClipboard");
-
-        webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                            != PackageManager.PERMISSION_GRANTED) {
-                pendingUrl                = url;
-                pendingUserAgent          = userAgent;
-                pendingContentDisposition = contentDisposition;
-                pendingMimeType           = mimeType;
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_CODE);
+    private void setupListeners() {
+        pasteBtn.setOnClickListener(v -> {
+            String clip = getClipboardText();
+            if (!clip.isEmpty()) {
+                urlInput.setText(clip);
+                urlInput.setSelection(clip.length());
             } else {
-                startDownload(url, userAgent, contentDisposition, mimeType);
+                Toast.makeText(this, "الحافظة فارغة", Toast.LENGTH_SHORT).show();
             }
         });
-    }
 
-    private void openExternal(String url) {
-        try {
-            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(i);
-        } catch (Exception ignored) {}
+        fetchBtn.setOnClickListener(v -> fetchInfo());
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -274,45 +169,242 @@ public class MainActivity extends AppCompatActivity {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip() != null
                     && cm.getPrimaryClip().getItemCount() > 0) {
-                CharSequence text = cm.getPrimaryClip().getItemAt(0).getText();
-                return text != null ? text.toString().trim() : "";
+                CharSequence t = cm.getPrimaryClip().getItemAt(0).getText();
+                return t != null ? t.toString().trim() : "";
             }
         } catch (Exception ignored) {}
         return "";
     }
 
     private boolean isVideoUrl(String url) {
-        if (url == null || url.isEmpty()) return false;
+        if (url == null || url.length() < 10) return false;
         if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
         String lower = url.toLowerCase();
-        for (String domain : VIDEO_DOMAINS) {
-            if (lower.contains("://" + domain) || lower.contains("." + domain)) return true;
+        for (String d : VIDEO_DOMAINS) {
+            if (lower.contains(d)) return true;
         }
         return false;
     }
 
-    private void injectClipboardUrl() {
+    private void autoFillClipboard() {
         String clip = getClipboardText();
-        if (!isVideoUrl(clip)) return;
-        String safeUrl = JSONObject.quote(clip);
-        webView.evaluateJavascript(
-            "(function(){" +
-            "  var url=" + safeUrl + ";" +
-            "  var inp=document.getElementById('urlInput');" +
-            "  if(inp && inp.value!==url){" +
-            "    inp.value=url;" +
-            "    inp.dispatchEvent(new Event('input',{bubbles:true}));" +
-            "  }" +
-            "})();",
-            null
-        );
+        String current = urlInput.getText().toString().trim();
+        if (isVideoUrl(clip) && !clip.equals(current)) {
+            urlInput.setText(clip);
+            urlInput.setSelection(clip.length());
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  AdMob — Rewarded Interstitial Ad
+    //  Disclaimer
     // ══════════════════════════════════════════════════════════════════════════
 
-    private void loadRewardedInterstitialAd() {
+    private void showDisclaimerIfNeeded() {
+        SharedPreferences p = getSharedPreferences("app_prefs", MODE_PRIVATE);
+        if (p.getBoolean("disclaimer_accepted", false)) return;
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("سياسة الاستخدام")
+            .setMessage(
+                "هذا التطبيق مخصص للاستخدام الشخصي فقط.\n\n" +
+                "يتحمل المستخدم المسؤولية الكاملة عن المحتوى الذي يحفظه، " +
+                "ويجب التأكد من امتلاك الحقوق اللازمة.\n\n" +
+                "باستخدامك هذا التطبيق فأنت توافق على ذلك."
+            )
+            .setPositiveButton("أوافق", (d, w) ->
+                p.edit().putBoolean("disclaimer_accepted", true).apply())
+            .setNegativeButton("رفض", (d, w) -> finishAffinity())
+            .setCancelable(false)
+            .show();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Fetch video info
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void fetchInfo() {
+        String url = urlInput.getText().toString().trim();
+        if (url.isEmpty()) {
+            showError("أدخل رابطاً صحيحاً");
+            return;
+        }
+        hideError();
+        hideResult();
+        setLoading(true);
+
+        new Thread(() -> {
+            try {
+                HttpURLConnection conn = (HttpURLConnection)
+                    new URL(API_BASE + "/api/resolve").openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(30_000);
+                conn.setReadTimeout(60_000);
+                String body = "{\"url\":" + JSONObject.quote(url) + "}";
+                conn.getOutputStream().write(body.getBytes("UTF-8"));
+
+                int code = conn.getResponseCode();
+                if (code != 200) {
+                    runOnUiThread(() -> {
+                        setLoading(false);
+                        showError("فشل تحليل الرابط (خطأ " + code + ")");
+                    });
+                    conn.disconnect();
+                    return;
+                }
+
+                java.io.BufferedReader br = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(conn.getInputStream(), "UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) sb.append(line);
+                conn.disconnect();
+
+                JSONObject resp = new JSONObject(sb.toString());
+                if (resp.has("error")) {
+                    String msg = resp.optString("error", "رابط غير مدعوم");
+                    runOnUiThread(() -> { setLoading(false); showError(msg); });
+                    return;
+                }
+
+                runOnUiThread(() -> {
+                    setLoading(false);
+                    displayResult(resp);
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "fetchInfo: " + e.getMessage());
+                runOnUiThread(() -> {
+                    setLoading(false);
+                    showError("فشل الاتصال بالخادم. تأكد من الإنترنت.");
+                });
+            }
+        }).start();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Display result
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void displayResult(JSONObject data) {
+        hintCard.setVisibility(View.GONE);
+
+        String title    = data.optString("title", "بدون عنوان");
+        String platform = data.optString("platform", "");
+        String thumbUrl = data.optString("thumbnail", "");
+        JSONArray fmts  = data.optJSONArray("formats");
+
+        videoTitle.setText(title);
+        platformBadge.setText(platform.isEmpty() ? "فيديو" : platform.toUpperCase());
+
+        resultCard.setVisibility(View.VISIBLE);
+
+        // Load thumbnail in background
+        if (!thumbUrl.isEmpty()) {
+            String finalThumbUrl = thumbUrl;
+            new Thread(() -> {
+                try {
+                    HttpURLConnection c = (HttpURLConnection) new URL(finalThumbUrl).openConnection();
+                    c.setConnectTimeout(10_000);
+                    c.setReadTimeout(10_000);
+                    c.connect();
+                    Bitmap bm = BitmapFactory.decodeStream(c.getInputStream());
+                    c.disconnect();
+                    if (bm != null) runOnUiThread(() -> thumbnail.setImageBitmap(bm));
+                } catch (Exception ignored) {}
+            }).start();
+        }
+
+        // Build format buttons
+        formatsContainer.removeAllViews();
+        if (fmts == null || fmts.length() == 0) {
+            showError("لا توجد صيغ متاحة لهذا الرابط");
+            resultCard.setVisibility(View.GONE);
+            return;
+        }
+
+        for (int i = 0; i < fmts.length(); i++) {
+            try {
+                JSONObject fmt = fmts.getJSONObject(i);
+                String label   = fmt.optString("label", "تحميل");
+                String dlUrl   = fmt.optString("url", "");
+                String ext     = fmt.optString("ext", "mp4");
+                String type    = fmt.optString("type", "video");
+                if (dlUrl.isEmpty()) continue;
+
+                String emoji   = "audio".equals(type) ? "🎵" : "🎬";
+                String btnText = emoji + " " + label;
+                String filename= sanitizeFilename(title) + "." + ext;
+
+                Button btn = new Button(this);
+                btn.setText(btnText);
+                btn.setTextColor(0xFF1F1F2E);
+                btn.setBackgroundColor(0xFFF5F3FF);
+                btn.setTextSize(14f);
+                btn.setPadding(24, 16, 24, 16);
+
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+                lp.setMargins(0, 0, 0, 10);
+                btn.setLayoutParams(lp);
+
+                final String finalDlUrl  = dlUrl;
+                final String finalName   = filename;
+                btn.setOnClickListener(v -> onFormatPicked(finalDlUrl, finalName));
+                formatsContainer.addView(btn);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Format picked → quota check → ad → download
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void onFormatPicked(String dlUrl, String filename) {
+        pendingDlUrl      = dlUrl;
+        pendingDlFilename = filename;
+        downloadPending   = true;
+
+        if (canDownloadFree()) {
+            incrementDownloadCount();
+            beginDownload();
+        } else {
+            // Free limit reached — must watch ad
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("تجاوزت الحد اليومي")
+                .setMessage("استنفذت " + FREE_DAILY_LIMIT + " تحميلات مجانية اليوم.\nشاهد إعلاناً قصيراً للمتابعة.")
+                .setPositiveButton("شاهد الإعلان", (d, w) -> showRewardedAd())
+                .setNegativeButton("إلغاء", null)
+                .show();
+        }
+    }
+
+    // ── daily quota ──────────────────────────────────────────────────────────
+
+    private boolean canDownloadFree() {
+        String today = todayKey();
+        SharedPreferences p = getPrefs();
+        if (!today.equals(p.getString("dl_date", ""))) return true;
+        return p.getInt("dl_count", 0) < FREE_DAILY_LIMIT;
+    }
+
+    private void incrementDownloadCount() {
+        String today = todayKey();
+        SharedPreferences p = getPrefs();
+        String saved = p.getString("dl_date", "");
+        int count = today.equals(saved) ? p.getInt("dl_count", 0) : 0;
+        p.edit().putString("dl_date", today).putInt("dl_count", count + 1).apply();
+    }
+
+    private String todayKey() {
+        return new SimpleDateFormat("yyyyMMdd", Locale.US).format(new Date());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  AdMob rewarded interstitial
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void loadRewardedAd() {
         if (rewardedAdLoading) return;
         rewardedAdLoading = true;
         RewardedInterstitialAd.load(this,
@@ -321,217 +413,193 @@ public class MainActivity extends AppCompatActivity {
             new RewardedInterstitialAdLoadCallback() {
                 @Override
                 public void onAdLoaded(@NonNull RewardedInterstitialAd ad) {
-                    rewardedAd = ad;
+                    rewardedAd        = ad;
                     rewardedAdLoading = false;
-                    // Show immediately if watchAd was called while the ad was loading
-                    if (pendingAdToken.get() != null && !isShowingAd) {
-                        runOnUiThread(() -> showRewardedInterstitialAd());
-                    }
                 }
                 @Override
-                public void onAdFailedToLoad(@NonNull LoadAdError error) {
-                    rewardedAd = null;
+                public void onAdFailedToLoad(@NonNull LoadAdError e) {
+                    rewardedAd        = null;
                     rewardedAdLoading = false;
-                    Log.w(TAG, "Rewarded interstitial failed to load: " + error.getMessage());
+                    Log.w(TAG, "Rewarded ad failed: " + e.getMessage());
                 }
             });
     }
 
-    private void showRewardedInterstitialAd() {
+    private void showRewardedAd() {
         if (rewardedAd == null || isShowingAd) {
-            // Ad not ready yet — notify the page
-            webView.evaluateJavascript("window.adNotReady && window.adNotReady()", null);
-            if (!rewardedAdLoading) loadRewardedInterstitialAd();
+            Toast.makeText(this, "الإعلان غير جاهز، جرّب مجدداً", Toast.LENGTH_SHORT).show();
+            if (!rewardedAdLoading) loadRewardedAd();
             return;
         }
         isShowingAd = true;
         rewardedAd.setFullScreenContentCallback(new FullScreenContentCallback() {
             @Override
             public void onAdDismissedFullScreenContent() {
-                rewardedAd = null;
+                rewardedAd  = null;
                 isShowingAd = false;
-                loadRewardedInterstitialAd();
+                loadRewardedAd();
             }
             @Override
             public void onAdFailedToShowFullScreenContent(@NonNull AdError e) {
-                rewardedAd = null;
+                rewardedAd  = null;
                 isShowingAd = false;
-                loadRewardedInterstitialAd();
-                webView.post(() ->
-                    webView.evaluateJavascript("window.adNotReady && window.adNotReady()", null));
+                loadRewardedAd();
             }
         });
-        rewardedAd.show(this, rewardItem -> {
-            // Atomically claim the token so concurrent calls can't double-redeem
-            String token = pendingAdToken.getAndSet(null);
-            new Thread(() -> callAdRewardApi(token)).start();
+        rewardedAd.show(this, reward -> {
+            // User earned reward → start download
+            runOnUiThread(this::beginDownload);
         });
-    }
-
-    private void callAdRewardApi(String token) {
-        if (token == null || token.isEmpty()) return;
-        // Show success immediately — user already earned the reward from AdMob
-        runOnUiThread(() ->
-            webView.evaluateJavascript("window.adWatchedSuccess && window.adWatchedSuccess()", null));
-        // Include FCM token so backend can send a push when download completes
-        String fcmToken = getSharedPreferences("nazzilha_prefs", MODE_PRIVATE)
-                .getString("fcm_token", "");
-        // Notify backend with retries (server may be waking up from sleep)
-        for (int attempt = 0; attempt < 3; attempt++) {
-            try {
-                URL url = new URL("https://vip-dl.com/api/ad-reward/" + token);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(30_000);
-                conn.setReadTimeout(30_000);
-                byte[] body = ("{\"fcm_token\":\"" + fcmToken.replace("\"", "") + "\"}").getBytes("UTF-8");
-                conn.setRequestProperty("Content-Length", String.valueOf(body.length));
-                conn.getOutputStream().write(body);
-                int code = conn.getResponseCode();
-                conn.disconnect();
-                if (code == 200) return;
-                Log.w(TAG, "ad-reward attempt " + attempt + " returned " + code);
-            } catch (Exception e) {
-                Log.e(TAG, "callAdRewardApi attempt " + attempt + " failed: " + e.getMessage());
-                try { Thread.sleep(3000L * (attempt + 1)); } catch (InterruptedException ignored) {}
-            }
-        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
     //  Download
     // ══════════════════════════════════════════════════════════════════════════
 
-    private void startDownload(String url, String userAgent, String contentDisposition, String mimeType) {
-        String filename = URLUtil.guessFileName(url, contentDisposition, mimeType);
-        Toast.makeText(this, "⬇️ جاري التحميل...", Toast.LENGTH_SHORT).show();
-        new Thread(() -> downloadWithRetry(url, userAgent, filename)).start();
+    private void beginDownload() {
+        if (!downloadPending || pendingDlUrl == null) return;
+        downloadPending = false;
+        String url  = pendingDlUrl;
+        String name = pendingDlFilename != null ? pendingDlFilename : "video.mp4";
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERM_CODE);
+            return;
+        }
+        showProgressSection(true);
+        new Thread(() -> doDownload(url, name)).start();
     }
 
-    private void downloadWithRetry(String url, String userAgent, String filename) {
+    private void doDownload(String url, String filename) {
         int notifId = filename.hashCode();
         NotificationManagerCompat nm = NotificationManagerCompat.from(this);
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, NotificationReceiver.DOWNLOAD_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentTitle(filename)
-                .setContentText("جاري التحميل...")
-                .setProgress(100, 0, true)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true);
-        try { nm.notify(notifId, builder.build()); } catch (Exception ignored) {}
+        NotificationCompat.Builder nb = new NotificationCompat.Builder(this, NotificationReceiver.DOWNLOAD_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle(filename)
+            .setContentText("جاري التحميل...")
+            .setProgress(100, 0, true)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true);
+        try { nm.notify(notifId, nb.build()); } catch (Exception ignored) {}
 
-        Uri[] resultUri = new Uri[]{null};
-        boolean success = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-                ? downloadViaMediaStore(url, userAgent, filename, notifId, builder, nm, resultUri)
-                : downloadViaFileSystem(url, userAgent, filename, notifId, builder, nm, resultUri);
+        Uri[] resultUri = {null};
+        boolean ok = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+            ? downloadMediaStore(url, filename, notifId, nb, nm, resultUri)
+            : downloadFileSystem(url, filename, notifId, nb, nm, resultUri);
 
         nm.cancel(notifId);
-        if (success) {
-            final Uri fu = resultUri[0];
-            runOnUiThread(() -> showSuccessDialog(fu));
+        if (ok) {
+            Uri fu = resultUri[0];
+            runOnUiThread(() -> {
+                showProgressSection(false);
+                showSuccessDialog(fu);
+            });
         } else {
-            runOnUiThread(() -> Toast.makeText(this, "❌ فشل التحميل، يرجى المحاولة مجددًا", Toast.LENGTH_LONG).show());
+            runOnUiThread(() -> {
+                showProgressSection(false);
+                showError("فشل التحميل، حاول مجدداً");
+            });
         }
     }
 
     @android.annotation.TargetApi(Build.VERSION_CODES.Q)
-    private boolean downloadViaMediaStore(String url, String userAgent, String filename,
-            int notifId, NotificationCompat.Builder builder, NotificationManagerCompat nm, Uri[] resultUri) {
-        Uri downloadUri = null;
+    private boolean downloadMediaStore(String url, String filename, int notifId,
+            NotificationCompat.Builder nb, NotificationManagerCompat nm, Uri[] out) {
+        Uri dlUri = null;
         for (int attempt = 0; attempt < 5; attempt++) {
             try {
-                long existingSize = 0;
-                if (downloadUri == null) {
-                    ContentValues v = new ContentValues();
-                    v.put(MediaStore.Downloads.DISPLAY_NAME, filename);
-                    v.put(MediaStore.Downloads.MIME_TYPE, "video/mp4");
-                    v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/NazzilhaPlus");
-                    v.put(MediaStore.Downloads.IS_PENDING, 1);
-                    downloadUri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
-                    if (downloadUri == null) return false;
+                long existing = 0;
+                if (dlUri == null) {
+                    ContentValues cv = new ContentValues();
+                    cv.put(MediaStore.Downloads.DISPLAY_NAME, filename);
+                    cv.put(MediaStore.Downloads.MIME_TYPE, mimeFor(filename));
+                    cv.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/NazzilhaPlus");
+                    cv.put(MediaStore.Downloads.IS_PENDING, 1);
+                    dlUri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                    if (dlUri == null) return false;
                 } else {
                     android.database.Cursor c = getContentResolver().query(
-                            downloadUri, new String[]{MediaStore.Downloads.SIZE}, null, null, null);
-                    if (c != null) { if (c.moveToFirst()) existingSize = c.getLong(0); c.close(); }
+                        dlUri, new String[]{MediaStore.Downloads.SIZE}, null, null, null);
+                    if (c != null) { if (c.moveToFirst()) existing = c.getLong(0); c.close(); }
                 }
                 HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.setRequestProperty("User-Agent", userAgent);
-                String cookie = CookieManager.getInstance().getCookie(url);
-                if (cookie != null) conn.setRequestProperty("Cookie", cookie);
-                if (existingSize > 0) conn.setRequestProperty("Range", "bytes=" + existingSize + "-");
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                if (existing > 0) conn.setRequestProperty("Range", "bytes=" + existing + "-");
                 conn.setConnectTimeout(30_000); conn.setReadTimeout(60_000); conn.connect();
                 int code = conn.getResponseCode();
                 if (code != 200 && code != 206) break;
-                long totalSize = existingSize + conn.getContentLengthLong();
-                String mode = (code == 206 && existingSize > 0) ? "wa" : "w";
+                long total = existing + conn.getContentLengthLong();
+                String mode = (code == 206 && existing > 0) ? "wa" : "w";
                 try (InputStream in = conn.getInputStream();
-                     OutputStream out = getContentResolver().openOutputStream(downloadUri, mode)) {
-                    if (out == null) break;
-                    byte[] buf = new byte[8192]; int read; long dl = existingSize;
+                     OutputStream os = getContentResolver().openOutputStream(dlUri, mode)) {
+                    if (os == null) break;
+                    byte[] buf = new byte[8192]; int read; long done = existing;
                     while ((read = in.read(buf)) != -1) {
-                        out.write(buf, 0, read); dl += read;
-                        if (totalSize > 0) {
-                            int pct = (int)(dl * 100L / totalSize);
-                            builder.setProgress(100, pct, false).setContentText(pct + "%");
-                            try { nm.notify(notifId, builder.build()); } catch (Exception ignored) {}
+                        os.write(buf, 0, read); done += read;
+                        if (total > 0) {
+                            int pct = (int)(done * 100L / total);
+                            runOnUiThread(() -> updateProgress(pct));
+                            nb.setProgress(100, pct, false).setContentText(pct + "%");
+                            try { nm.notify(notifId, nb.build()); } catch (Exception ignored) {}
                         }
                     }
                 }
-                ContentValues done = new ContentValues();
-                done.put(MediaStore.Downloads.IS_PENDING, 0);
-                getContentResolver().update(downloadUri, done, null, null);
-                resultUri[0] = downloadUri;
+                ContentValues cv2 = new ContentValues();
+                cv2.put(MediaStore.Downloads.IS_PENDING, 0);
+                getContentResolver().update(dlUri, cv2, null, null);
+                out[0] = dlUri;
                 return true;
             } catch (Exception e) {
-                if (attempt < 4) try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ignored) {}
+                Log.e(TAG, "downloadMediaStore attempt " + attempt + ": " + e.getMessage());
+                if (attempt < 4) try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ig) {}
             }
         }
-        if (downloadUri != null) try { getContentResolver().delete(downloadUri, null, null); } catch (Exception ignored) {}
+        if (dlUri != null) try { getContentResolver().delete(dlUri, null, null); } catch (Exception ig) {}
         return false;
     }
 
-    private boolean downloadViaFileSystem(String url, String userAgent, String filename,
-            int notifId, NotificationCompat.Builder builder, NotificationManagerCompat nm, Uri[] resultUri) {
+    private boolean downloadFileSystem(String url, String filename, int notifId,
+            NotificationCompat.Builder nb, NotificationManagerCompat nm, Uri[] out) {
         File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "NazzilhaPlus");
         dir.mkdirs();
-        File out = new File(dir, filename);
+        File file = new File(dir, filename);
         for (int attempt = 0; attempt < 5; attempt++) {
             try {
-                long existingSize = out.exists() ? out.length() : 0;
+                long existing = file.exists() ? file.length() : 0;
                 HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.setRequestProperty("User-Agent", userAgent);
-                String cookie = CookieManager.getInstance().getCookie(url);
-                if (cookie != null) conn.setRequestProperty("Cookie", cookie);
-                if (existingSize > 0) conn.setRequestProperty("Range", "bytes=" + existingSize + "-");
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                if (existing > 0) conn.setRequestProperty("Range", "bytes=" + existing + "-");
                 conn.setConnectTimeout(30_000); conn.setReadTimeout(60_000); conn.connect();
                 int code = conn.getResponseCode();
                 if (code != 200 && code != 206) break;
-                long totalSize = existingSize + conn.getContentLengthLong();
+                long total = existing + conn.getContentLengthLong();
                 try (InputStream in = conn.getInputStream();
-                     FileOutputStream fos = new FileOutputStream(out, code == 206 && existingSize > 0)) {
-                    byte[] buf = new byte[8192]; int read; long dl = existingSize;
+                     FileOutputStream fos = new FileOutputStream(file, code == 206 && existing > 0)) {
+                    byte[] buf = new byte[8192]; int read; long done = existing;
                     while ((read = in.read(buf)) != -1) {
-                        fos.write(buf, 0, read); dl += read;
-                        if (totalSize > 0) {
-                            int pct = (int)(dl * 100L / totalSize);
-                            builder.setProgress(100, pct, false).setContentText(pct + "%");
-                            try { nm.notify(notifId, builder.build()); } catch (Exception ignored) {}
+                        fos.write(buf, 0, read); done += read;
+                        if (total > 0) {
+                            int pct = (int)(done * 100L / total);
+                            runOnUiThread(() -> updateProgress(pct));
+                            nb.setProgress(100, pct, false).setContentText(pct + "%");
+                            try { nm.notify(notifId, nb.build()); } catch (Exception ig) {}
                         }
                     }
                 }
-                Uri[] scanned = new Uri[]{null};
+                Uri[] scanned = {null};
                 Object lock = new Object();
-                MediaScannerConnection.scanFile(this, new String[]{out.getAbsolutePath()}, null, (p, u) -> {
+                MediaScannerConnection.scanFile(this, new String[]{file.getAbsolutePath()}, null, (p, u) -> {
                     scanned[0] = u;
                     synchronized (lock) { lock.notifyAll(); }
                 });
-                synchronized (lock) { try { lock.wait(3000); } catch (InterruptedException ignored) {} }
-                resultUri[0] = scanned[0] != null ? scanned[0] : Uri.fromFile(out);
+                synchronized (lock) { try { lock.wait(3000); } catch (InterruptedException ig) {} }
+                out[0] = scanned[0] != null ? scanned[0] : Uri.fromFile(file);
                 return true;
             } catch (Exception e) {
-                if (attempt < 4) try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ignored) {}
+                Log.e(TAG, "downloadFileSystem attempt " + attempt + ": " + e.getMessage());
+                if (attempt < 4) try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ig) {}
             }
         }
         return false;
@@ -539,12 +607,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void showSuccessDialog(Uri fileUri) {
         androidx.appcompat.app.AlertDialog.Builder d =
-                new androidx.appcompat.app.AlertDialog.Builder(this)
-                        .setTitle("✅ اكتمل التحميل")
-                        .setMessage("تم حفظ الفيديو في Downloads/NazzilhaPlus")
-                        .setNegativeButton("حسناً", null);
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("✅ اكتمل التحميل")
+                .setMessage("تم الحفظ في Downloads/NazzilhaPlus")
+                .setNegativeButton("حسناً", null);
         if (fileUri != null) {
-            d.setPositiveButton("فتح الفيديو", (dlg, w) -> {
+            d.setPositiveButton("فتح الملف", (dlg, w) -> {
                 Intent i = new Intent(Intent.ACTION_VIEW);
                 i.setDataAndType(fileUri, "video/*");
                 i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -555,65 +623,80 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  JavaScript Bridge
+    //  UI helpers
     // ══════════════════════════════════════════════════════════════════════════
 
-    private class AppBridge {
+    private void setLoading(boolean on) {
+        loadingSpinner.setVisibility(on ? View.VISIBLE : View.GONE);
+        fetchBtn.setEnabled(!on);
+        fetchBtn.setAlpha(on ? 0.6f : 1f);
+    }
 
-        @JavascriptInterface
-        public String getClipboard() {
-            return getClipboardText();
-        }
+    private void showError(String msg) {
+        errorBox.setText("⚠ " + msg);
+        errorBox.setVisibility(View.VISIBLE);
+    }
 
-        @JavascriptInterface
-        public void openPlayStore() {
-            runOnUiThread(() -> {
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW,
-                            Uri.parse("market://details?id=com.nazzilhaplus.app")));
-                } catch (ActivityNotFoundException e) {
-                    startActivity(new Intent(Intent.ACTION_VIEW,
-                            Uri.parse("https://play.google.com/store/apps/details?id=com.nazzilhaplus.app")));
-                }
-            });
-        }
+    private void hideError() {
+        errorBox.setVisibility(View.GONE);
+    }
 
-        @JavascriptInterface
-        public void watchAd(String token) {
-            if (token == null || token.isEmpty()) return;
-            pendingAdToken.set(token);
-            runOnUiThread(() -> showRewardedInterstitialAd());
+    private void hideResult() {
+        resultCard.setVisibility(View.GONE);
+        progressSection.setVisibility(View.GONE);
+        hintCard.setVisibility(View.VISIBLE);
+    }
+
+    private void showProgressSection(boolean on) {
+        progressSection.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (on) {
+            downloadProgress.setProgress(0);
+            progressPercent.setText("0%");
         }
     }
 
+    private void updateProgress(int pct) {
+        downloadProgress.setProgress(pct);
+        progressPercent.setText(pct + "%");
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
-    //  Permissions & Back
+    //  Permissions
     // ══════════════════════════════════════════════════════════════════════════
 
     private void requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 200);
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 200);
         }
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == STORAGE_PERMISSION_CODE
-                && grantResults.length > 0
-                && grantResults[0] == PackageManager.PERMISSION_GRANTED
-                && pendingUrl != null) {
-            startDownload(pendingUrl, pendingUserAgent, pendingContentDisposition, pendingMimeType);
-            pendingUrl = null;
+    public void onRequestPermissionsResult(int code, @NonNull String[] perms, @NonNull int[] results) {
+        super.onRequestPermissionsResult(code, perms, results);
+        if (code == STORAGE_PERM_CODE && results.length > 0
+                && results[0] == PackageManager.PERMISSION_GRANTED) {
+            beginDownload();
         }
     }
 
-    @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Utilities
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private SharedPreferences getPrefs() {
+        return getSharedPreferences("nazzilha_prefs", MODE_PRIVATE);
+    }
+
+    private String sanitizeFilename(String title) {
+        if (title == null || title.isEmpty()) return "video";
+        return title.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+    }
+
+    private String mimeFor(String filename) {
+        if (filename.endsWith(".mp3")) return "audio/mpeg";
+        if (filename.endsWith(".m4a")) return "audio/mp4";
+        return "video/mp4";
     }
 }
