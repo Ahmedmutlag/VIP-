@@ -125,8 +125,8 @@ public class MainActivity extends AppCompatActivity {
         MobileAds.initialize(this, status -> {
             bannerAdView.loadAd(new AdRequest.Builder().build());
             loadInterstitialAd();
+            loadRewardedAd();
         });
-        loadRewardedAd();
 
         FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
             if (token != null)
@@ -231,7 +231,9 @@ public class MainActivity extends AppCompatActivity {
     private void openUrl(String url) {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Toast.makeText(this, "تعذّر فتح الرابط", Toast.LENGTH_SHORT).show();
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -350,12 +352,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String readBody(InputStream is) throws Exception {
-        java.io.BufferedReader br = new java.io.BufferedReader(
-            new java.io.InputStreamReader(is, "UTF-8"));
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = br.readLine()) != null) sb.append(line);
-        return sb.toString();
+        byte[] buf = new byte[512 * 1024]; // 512KB max
+        int totalRead = 0, n;
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        while ((n = is.read(buf)) != -1) {
+            totalRead += n;
+            if (totalRead > 512 * 1024) break;
+            baos.write(buf, 0, n);
+        }
+        return baos.toString("utf-8");
     }
 
     private String readErrorBody(HttpURLConnection conn) {
@@ -387,7 +392,7 @@ public class MainActivity extends AppCompatActivity {
         resultCard.setVisibility(View.VISIBLE);
 
         // Load thumbnail asynchronously
-        if (!thumbUrl.isEmpty()) {
+        if (!thumbUrl.isEmpty() && isSafeUrl(thumbUrl)) {
             final String tu = thumbUrl;
             new Thread(() -> {
                 try {
@@ -662,7 +667,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         interstitialAd.show(this);
-        interstitialAd = null;
     }
 
     private void loadRewardedAd() {
@@ -717,7 +721,10 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         showProgressSection(true, name);
-        new Thread(() -> doDownload(url, name)).start();
+        new Thread(() -> {
+            AppOpenAdManager.suppressAd = true;
+            doDownload(url, name);
+        }).start();
     }
 
     private void doDownload(String url, String filename) {
@@ -738,12 +745,13 @@ public class MainActivity extends AppCompatActivity {
             : downloadFileSystem(url, filename, notifId, nb, nm, resultUri);
 
         nm.cancel(notifId);
+        AppOpenAdManager.suppressAd = false;
         if (ok) {
             incrementDownloadCount();
             Uri fu = resultUri[0];
-            runOnUiThread(() -> { showProgressSection(false, null); showInterstitialAd(() -> showSuccessDialog(fu)); });
+            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> { showProgressSection(false, null); showInterstitialAd(() -> showSuccessDialog(fu, filename)); });
         } else {
-            runOnUiThread(() -> { showProgressSection(false, null); showError("فشل التحميل، حاول مجدداً"); });
+            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> { showProgressSection(false, null); showError("فشل التحميل، حاول مجدداً"); });
         }
     }
 
@@ -783,7 +791,7 @@ public class MainActivity extends AppCompatActivity {
                         os.write(buf, 0, read); done += read;
                         if (total > 0) {
                             int pct = (int)(done * 100L / total);
-                            runOnUiThread(() -> updateProgress(pct));
+                            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> updateProgress(pct));
                             nb.setProgress(100, pct, false).setContentText(pct + "%");
                             try { nm.notify(notifId, nb.build()); } catch (Exception ig) {}
                         }
@@ -825,7 +833,7 @@ public class MainActivity extends AppCompatActivity {
                         fos.write(buf, 0, read); done += read;
                         if (total > 0) {
                             int pct = (int)(done * 100L / total);
-                            runOnUiThread(() -> updateProgress(pct));
+                            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> updateProgress(pct));
                             nb.setProgress(100, pct, false).setContentText(pct + "%");
                             try { nm.notify(notifId, nb.build()); } catch (Exception ig) {}
                         }
@@ -847,7 +855,7 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
-    private void showSuccessDialog(Uri fileUri) {
+    private void showSuccessDialog(Uri fileUri, String filename) {
         androidx.appcompat.app.AlertDialog.Builder d =
             new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("✅ اكتمل التحميل")
@@ -856,7 +864,7 @@ public class MainActivity extends AppCompatActivity {
         if (fileUri != null) {
             d.setPositiveButton("فتح الملف", (dlg, w) -> {
                 Intent i = new Intent(Intent.ACTION_VIEW);
-                i.setDataAndType(fileUri, "video/*");
+                i.setDataAndType(fileUri, mimeFor(filename != null ? filename : "video.mp4"));
                 i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 try { startActivity(i); } catch (Exception ignored) {}
             });
@@ -939,6 +947,15 @@ public class MainActivity extends AppCompatActivity {
     private String sanitizeFilename(String title) {
         if (title == null || title.isEmpty()) return "video";
         return title.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+    }
+
+    private boolean isSafeUrl(String url) {
+        if (url == null || url.isEmpty()) return false;
+        try {
+            java.net.URL u = new java.net.URL(url);
+            String protocol = u.getProtocol();
+            return protocol.equals("https") || protocol.equals("http");
+        } catch (Exception e) { return false; }
     }
 
     private String mimeFor(String filename) {

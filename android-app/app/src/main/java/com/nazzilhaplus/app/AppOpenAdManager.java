@@ -12,6 +12,8 @@ import com.google.android.gms.ads.appopen.AppOpenAd;
 
 public class AppOpenAdManager implements Application.ActivityLifecycleCallbacks {
 
+    public static boolean suppressAd = false;
+
     private AppOpenAd appOpenAd = null;
     private boolean isLoadingAd = false;
     private boolean isShowingAd = false;
@@ -48,7 +50,7 @@ public class AppOpenAdManager implements Application.ActivityLifecycleCallbacks 
     }
 
     private void showAdIfAvailable() {
-        if (isShowingAd || !isAdAvailable() || currentActivity == null) {
+        if (suppressAd || isShowingAd || !isAdAvailable() || currentActivity == null) {
             loadAd();
             return;
         }
@@ -80,7 +82,7 @@ public class AppOpenAdManager implements Application.ActivityLifecycleCallbacks 
     }
 
     @Override public void onActivityStopped(@NonNull Activity a) {
-        if (!isShowingAd) activityCount--;
+        if (!isShowingAd && activityCount > 0) activityCount--;
     }
 
     @Override public void onActivityResumed(@NonNull Activity a)  { currentActivity = a; }

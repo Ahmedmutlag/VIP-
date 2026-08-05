@@ -87,6 +87,7 @@ app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 CORS(app, origins=["https://www.vip-dl.com", "https://vip-dl.com"])
 Compress(app)
+app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # 1 MB
 
 @app.before_request
 def track_activity():
@@ -105,7 +106,7 @@ def add_cache_headers(response):
         response.cache_control.public = True
 
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
     response.headers['Content-Security-Policy'] = (
@@ -168,7 +169,6 @@ ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 RESET_SECRET = os.environ.get("RESET_SECRET", "")
-SMTP_PASS = os.environ.get("SMTP_PASS", "")
 INSTAGRAM_COOKIES = os.environ.get("INSTAGRAM_COOKIES", "")  # Netscape cookies.txt content
 YOUTUBE_COOKIES  = os.environ.get("YOUTUBE_COOKIES",  "")  # Netscape cookies.txt content
 
@@ -561,6 +561,11 @@ def clean_old_files():
                      if not v.get("locked_until") and v.get("_ts", 0) < cutoff]
         for ip in stale_ips:
             login_attempts.pop(ip, None)
+        # Clean expired reset tokens
+        now_dt = now()
+        expired_tokens = [k for k, v in list(reset_tokens.items()) if now_dt > v.get("expires", now_dt)]
+        for k in expired_tokens:
+            reset_tokens.pop(k, None)
         time.sleep(300)
 
 
@@ -970,6 +975,7 @@ def about():
 
 
 @app.route("/api/app-ping", methods=["POST"])
+@limiter.limit("30 per minute")
 def app_ping():
     data = request.get_json() or {}
     device_id = (data.get("device_id") or "").strip()[:64]
@@ -1145,8 +1151,10 @@ def admin_logout():
 @app.route("/admin/emergency")
 @limiter.limit("5 per hour")
 def admin_emergency():
-    secret = request.args.get("secret", "")
-    new_pass = request.args.get("new_pass", "")
+    # WARNING: avoid passing secrets in URL query params (logged by proxies/servers).
+    # Prefer sending secret in the JSON request body instead.
+    secret = (request.get_json(silent=True) or {}).get("secret") or request.args.get("secret", "")
+    new_pass = (request.get_json(silent=True) or {}).get("new_pass") or request.args.get("new_pass", "")
 
     if not RESET_SECRET:
         return Response("<h2 style='font-family:sans-serif;color:red'>RESET_SECRET غير مضبوط في المتغيرات</h2>", mimetype="text/html")
@@ -1697,7 +1705,7 @@ def get_info():
         "no_warnings": True,
         "skip_download": True,
         "noplaylist": True,
-        "nocheckcertificate": True,
+        "nocheckcertificate": False,
     }
 
     if "instagram.com" in url.lower():
@@ -1918,7 +1926,7 @@ def start_download():
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
-            "nocheckcertificate": True,
+            "nocheckcertificate": False,
             "prefer_ffmpeg": True,
             "concurrent_fragment_downloads": 1,
             "buffersize": 16384,
