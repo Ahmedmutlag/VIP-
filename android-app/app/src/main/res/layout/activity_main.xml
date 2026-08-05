@@ -1,5 +1,717 @@
 <?xml version="1.0" encoding="utf-8"?>
-<WebView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/webview"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:ads="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent" />
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F5F3FF">
+
+    <!-- ══ Header ══════════════════════════════════════════════════════════ -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#7C3AED"
+        android:paddingStart="18dp"
+        android:paddingEnd="8dp"
+        android:elevation="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⬇ نزلها بلس"
+            android:textSize="20sp"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/menuBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_more"
+            android:tint="#FFFFFF"
+            android:contentDescription="القائمة" />
+
+    </LinearLayout>
+
+    <!-- ══ Scrollable body ════════════════════════════════════════════════ -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="none"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- ── Hero ──────────────────────────────────────────────────── -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="@drawable/hero_bg"
+                android:paddingTop="28dp"
+                android:paddingBottom="28dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp">
+
+                <!-- Badge -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="مجاني ✦ بدون تسجيل ✦ سريع"
+                    android:textSize="12sp"
+                    android:textColor="#7C3AED"
+                    android:background="@drawable/chip_bg"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp"
+                    android:layout_marginBottom="14dp" />
+
+                <!-- Title line 1 -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="احفظ المحتوى"
+                    android:textSize="28sp"
+                    android:textColor="#1F1F2E"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:layout_marginBottom="2dp" />
+
+                <!-- Title line 2 (accent color) -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="بضغطة واحدة"
+                    android:textSize="28sp"
+                    android:textColor="#7C3AED"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:layout_marginBottom="20dp" />
+
+                <!-- Feature chips row -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🌐 +50 منصة"
+                        android:textSize="12sp"
+                        android:textColor="#7C3AED"
+                        android:background="@drawable/chip_bg"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🎬 فيديو وصوت"
+                        android:textSize="12sp"
+                        android:textColor="#6D28D9"
+                        android:background="@drawable/chip_bg"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⚡ جودة عالية"
+                        android:textSize="12sp"
+                        android:textColor="#7C3AED"
+                        android:background="@drawable/chip_bg"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- ── Stats bar ───────────────────────────────────────────── -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="@drawable/card_bg"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
+                android:layout_marginTop="16dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp"
+                android:elevation="3dp"
+                android:gravity="center">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="100%"
+                        android:textSize="16sp"
+                        android:textColor="#7C3AED"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="مجاني وآمن"
+                        android:textSize="11sp"
+                        android:textColor="#6B7280" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="32dp"
+                    android:background="#E5E7EB" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="بدون تسجيل"
+                        android:textSize="14sp"
+                        android:textColor="#7C3AED"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="لا حاجة لحساب"
+                        android:textSize="11sp"
+                        android:textColor="#6B7280" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="32dp"
+                    android:background="#E5E7EB" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="فوري"
+                        android:textSize="16sp"
+                        android:textColor="#7C3AED"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="تحميل سريع"
+                        android:textSize="11sp"
+                        android:textColor="#6B7280" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- ── Premium Banner ────────────────────────────────────────── -->
+            <LinearLayout
+                android:id="@+id/premiumBtn"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="#F59E0B"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
+                android:layout_marginTop="14dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:elevation="3dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="⭐ بريميوم — قريباً"
+                    android:textSize="15sp"
+                    android:textColor="#1F1F2E"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/premiumBtnSub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textSize="12sp"
+                    android:textColor="#374151"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <!-- ── URL Input Card ────────────────────────────────────────── -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
+                android:layout_marginTop="14dp"
+                android:padding="16dp"
+                android:elevation="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="الصق رابط الفيديو هنا..."
+                    android:textSize="13sp"
+                    android:textColor="#6B7280"
+                    android:layout_marginBottom="10dp" />
+
+                <!-- Input row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:orientation="horizontal"
+                    android:background="@drawable/input_bg"
+                    android:gravity="center_vertical"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="4dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🔗"
+                        android:textSize="18sp"
+                        android:layout_marginEnd="8dp" />
+
+                    <EditText
+                        android:id="@+id/urlInput"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:hint="https://..."
+                        android:inputType="textUri"
+                        android:textSize="13sp"
+                        android:textColor="#1F1F2E"
+                        android:textColorHint="#9CA3AF"
+                        android:background="@null"
+                        android:singleLine="true"
+                        android:layoutDirection="ltr"
+                        android:textDirection="ltr" />
+
+                    <Button
+                        android:id="@+id/pasteBtn"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:text="📋"
+                        android:textSize="16sp"
+                        android:background="@null"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:contentDescription="لصق" />
+
+                </LinearLayout>
+
+                <!-- Fetch button -->
+                <Button
+                    android:id="@+id/fetchBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="12dp"
+                    android:text="جلب معلومات الفيديو ←"
+                    android:textSize="15sp"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold"
+                    android:background="@drawable/btn_primary"
+                    android:stateListAnimator="@null" />
+
+            </LinearLayout>
+
+            <!-- ── Loading Spinner ────────────────────────────────────────── -->
+            <ProgressBar
+                android:id="@+id/loadingSpinner"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="20dp"
+                android:indeterminateTint="#7C3AED"
+                android:visibility="gone" />
+
+            <!-- ── Error Box ────────────────────────────────────────────── -->
+            <TextView
+                android:id="@+id/errorBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
+                android:layout_marginTop="10dp"
+                android:background="#FEE2E2"
+                android:padding="14dp"
+                android:textColor="#DC2626"
+                android:textSize="13sp"
+                android:lineSpacingExtra="4dp"
+                android:visibility="gone" />
+
+            <!-- ── Result Card ────────────────────────────────────────── -->
+            <LinearLayout
+                android:id="@+id/resultCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
+                android:layout_marginTop="14dp"
+                android:padding="16dp"
+                android:elevation="4dp"
+                android:visibility="gone">
+
+                <!-- Thumbnail + meta -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="14dp">
+
+                    <ImageView
+                        android:id="@+id/thumbnail"
+                        android:layout_width="120dp"
+                        android:layout_height="80dp"
+                        android:scaleType="centerCrop"
+                        android:background="#E5E7EB"
+                        android:layout_marginEnd="12dp" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:id="@+id/platformBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/chip_bg"
+                            android:textColor="#7C3AED"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:paddingStart="10dp"
+                            android:paddingEnd="10dp"
+                            android:paddingTop="3dp"
+                            android:paddingBottom="3dp"
+                            android:layout_marginBottom="8dp" />
+
+                        <TextView
+                            android:id="@+id/videoTitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="13sp"
+                            android:textColor="#1F1F2E"
+                            android:textStyle="bold"
+                            android:maxLines="3"
+                            android:ellipsize="end"
+                            android:lineSpacingExtra="2dp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- Divider -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#F3F4F6"
+                    android:layout_marginBottom="14dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="اختر الجودة"
+                    android:textSize="13sp"
+                    android:textColor="#6B7280"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="10dp" />
+
+                <!-- Format buttons (filled dynamically) -->
+                <LinearLayout
+                    android:id="@+id/formatsContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+            </LinearLayout>
+
+            <!-- ── Download Progress ─────────────────────────────────────── -->
+            <LinearLayout
+                android:id="@+id/progressSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
+                android:layout_marginTop="14dp"
+                android:padding="16dp"
+                android:elevation="4dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="⬇  جاري التحميل..."
+                        android:textSize="14sp"
+                        android:textColor="#1F1F2E"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/progressPercent"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0%"
+                        android:textSize="14sp"
+                        android:textColor="#7C3AED"
+                        android:textStyle="bold" />
+
+                </LinearLayout>
+
+                <ProgressBar
+                    android:id="@+id/downloadProgress"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="#7C3AED"
+                    android:progressBackgroundTint="#EEE9FF" />
+
+                <TextView
+                    android:id="@+id/downloadFilename"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:textColor="#9CA3AF"
+                    android:layout_marginTop="6dp"
+                    android:maxLines="1"
+                    android:ellipsize="middle"
+                    android:layoutDirection="ltr" />
+
+            </LinearLayout>
+
+            <!-- ── History Section ─────────────────────────────────────── -->
+            <LinearLayout
+                android:id="@+id/historySection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
+                android:layout_marginTop="14dp"
+                android:padding="16dp"
+                android:elevation="4dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="📋 سجل التحميلات الأخيرة"
+                        android:textSize="14sp"
+                        android:textColor="#1F1F2E"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/clearHistoryBtn"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:text="مسح الكل"
+                        android:textSize="11sp"
+                        android:textColor="#6B7280"
+                        android:background="@null"
+                        android:stateListAnimator="@null" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/historyList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+            </LinearLayout>
+
+            <!-- ── Hint (when no result yet) ────────────────────────────── -->
+            <LinearLayout
+                android:id="@+id/hintCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_marginTop="32dp"
+                android:paddingStart="32dp"
+                android:paddingEnd="32dp"
+                android:paddingBottom="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔗"
+                    android:textSize="52sp"
+                    android:layout_marginBottom="14dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="الصق رابط أي فيديو من الإنترنت"
+                    android:textSize="15sp"
+                    android:textColor="#6B7280"
+                    android:gravity="center" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="+50 منصة مدعومة"
+                    android:textSize="13sp"
+                    android:textColor="#A78BFA"
+                    android:gravity="center"
+                    android:layout_marginTop="6dp" />
+
+            </LinearLayout>
+
+            <!-- ── Footer ───────────────────────────────────────────────── -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/footer_bg"
+                android:layout_marginTop="32dp"
+                android:padding="20dp">
+
+                <!-- Footer logo -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⬇ نزلها بلس"
+                    android:textSize="18sp"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="6dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="احفظ المحتوى الرقمي بضغطة واحدة"
+                    android:textSize="12sp"
+                    android:textColor="#9CA3AF"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- Footer links -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:id="@+id/footerHowTo"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="كيف تستخدمه"
+                        android:textSize="12sp"
+                        android:textColor="#C4B5FD"
+                        android:layout_marginEnd="20dp"
+                        android:padding="4dp" />
+
+                    <TextView
+                        android:id="@+id/footerPrivacy"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="سياسة الخصوصية"
+                        android:textSize="12sp"
+                        android:textColor="#C4B5FD"
+                        android:layout_marginEnd="20dp"
+                        android:padding="4dp" />
+
+                    <TextView
+                        android:id="@+id/footerAbout"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="عن التطبيق"
+                        android:textSize="12sp"
+                        android:textColor="#C4B5FD"
+                        android:padding="4dp" />
+
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#374151"
+                    android:layout_marginBottom="14dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="© 2026 نزلها بلس. جميع الحقوق محفوظة."
+                    android:textSize="11sp"
+                    android:textColor="#6B7280" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </ScrollView>
+
+    <!-- ══ Banner Ad ════════════════════════════════════════════════════════ -->
+    <com.google.android.gms.ads.AdView
+        android:id="@+id/bannerAd"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        ads:adSize="BANNER"
+        ads:adUnitId="@string/admob_banner_id" />
+
+</LinearLayout>
