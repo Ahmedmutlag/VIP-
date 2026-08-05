@@ -302,7 +302,7 @@ function renderInfo(data) {
   const thumb = document.getElementById('thumbnail');
   const thumbWrap = document.getElementById('thumbWrap');
   currentThumbnail = data.thumbnail || '';
-  const platformIcons = { Instagram: '📷', TikTok: '🎵', YouTube: '▶️', Twitter: '🐦', Facebook: '👍' };
+  const platformIcons = { Instagram: '📷', TikTok: '🎵', Twitter: '🐦', Facebook: '👍' };
   if (data.thumbnail) {
     // Proxy Instagram/Facebook thumbnails (blocked by CORS/auth when loaded directly)
     const needsProxy = data.platform === 'Instagram' || data.platform === 'Facebook';

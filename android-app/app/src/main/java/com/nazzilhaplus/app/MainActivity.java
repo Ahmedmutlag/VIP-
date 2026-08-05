@@ -6,6 +6,7 @@ import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
@@ -105,6 +106,8 @@ public class MainActivity extends AppCompatActivity {
 
         webView = findViewById(R.id.webview);
         setupWebView();
+
+        showDisclaimerIfNeeded(getIntent());
         webView.loadUrl("https://www.vip-dl.com");
 
         NotificationReceiver.createChannel(this);
@@ -152,6 +155,36 @@ public class MainActivity extends AppCompatActivity {
                 webView.post(() -> webView.loadUrl(url));
             }
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Disclaimer (first launch)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void showDisclaimerIfNeeded(Intent launchIntent) {
+        // Skip disclaimer if app opened via watch-ad deep link
+        if (launchIntent != null && launchIntent.getData() != null) {
+            String path = launchIntent.getData().getPath();
+            if (path != null && path.startsWith("/watch-ad/")) return;
+        }
+        SharedPreferences prefs = getSharedPreferences("app_prefs", MODE_PRIVATE);
+        if (prefs.getBoolean("disclaimer_accepted", false)) return;
+
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("سياسة الاستخدام")
+            .setMessage(
+                "هذا التطبيق مخصص للاستخدام الشخصي فقط.\n\n" +
+                "يتحمل المستخدم المسؤولية الكاملة عن المحتوى الذي يقوم بتحميله، " +
+                "ويجب التأكد من امتلاك الحقوق اللازمة لتحميل أي محتوى.\n\n" +
+                "باستخدامك هذا التطبيق، فأنت توافق على عدم انتهاك حقوق الملكية " +
+                "الفكرية أو شروط استخدام أي منصة."
+            )
+            .setPositiveButton("أوافق", (dialog, which) ->
+                prefs.edit().putBoolean("disclaimer_accepted", true).apply()
+            )
+            .setNegativeButton("رفض", (dialog, which) -> finishAffinity())
+            .setCancelable(false)
+            .show();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
