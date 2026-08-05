@@ -1241,10 +1241,31 @@ def create_wayl_link(chat_id: int, days: int, iqd: int, label: str) -> str:
             timeout=15,
         )
         data = r.json()
-        return data.get("paymentUrl") or data.get("url") or data.get("link") or ""
+        url = data.get("paymentUrl") or data.get("url") or data.get("link") or ""
+        return url, ref
     except Exception as e:
         log.error("Wayl create link error: %s", e)
-        return ""
+        return "", ""
+
+
+def check_wayl_payment(ref: str) -> str:
+    """Query Wayl API for payment status. Returns 'paid', 'pending', or 'error'."""
+    if not WAYL_API_KEY:
+        return "error"
+    try:
+        r = requests.get(
+            f"{WAYL_BASE_URL}/links/{ref}",
+            headers={"X-WAYL-AUTHENTICATION": WAYL_API_KEY},
+            timeout=10,
+        )
+        data = r.json()
+        status = (data.get("status") or "").lower()
+        if status in ("paid", "completed", "success"):
+            return "paid"
+        return "pending"
+    except Exception as e:
+        log.error("Wayl check payment error: %s", e)
+        return "error"
 
 
 def activate_wayl_premium(chat_id: int, days: int):
@@ -1294,17 +1315,46 @@ def handle_wayl_callback(chat_id: int, cq_id: str, plan: str):
     if not wp:
         return
     label = wp["label_ar"]
-    pay_url = create_wayl_link(chat_id, days, wp["iqd"], label)
+    pay_url, ref = create_wayl_link(chat_id, days, wp["iqd"], label)
     if not pay_url:
         send_message(chat_id, t(chat_id, "wayl_error"))
         return
+    pending.setdefault(chat_id, {})
+    pending[chat_id]["wayl_ref"] = ref
+    pending[chat_id]["wayl_days"] = days
     send_message(
         chat_id,
         t(chat_id, "wayl_payment_link", label=label, iqd=wp["iqd"]),
-        reply_markup={"inline_keyboard": [[
-            {"text": "💳 ادفع الآن", "url": pay_url}
-        ]]},
+        reply_markup={"inline_keyboard": [
+            [{"text": "💳 ادفع الآن", "url": pay_url}],
+            [{"text": "✅ دفعت — فعّل اشتراكي", "callback_data": "wayl_verify"}],
+        ]},
     )
+
+
+def handle_wayl_verify(chat_id: int, cq_id: str):
+    answer_callback(cq_id)
+    data = pending.get(chat_id, {})
+    ref = data.get("wayl_ref", "")
+    days = data.get("wayl_days", 0)
+    if not ref or not days:
+        send_message(chat_id, "⚠️ لا يوجد طلب دفع نشط. استخدم /subscribe لإنشاء رابط جديد.")
+        return
+    status = check_wayl_payment(ref)
+    if status == "paid":
+        pending[chat_id].pop("wayl_ref", None)
+        pending[chat_id].pop("wayl_days", None)
+        activate_wayl_premium(chat_id, days)
+    elif status == "pending":
+        send_message(
+            chat_id,
+            "⏳ الدفع لم يُكتمل بعد.\n\nأكمل عملية الدفع ثم اضغط ✅ مجدداً.",
+            reply_markup={"inline_keyboard": [[
+                {"text": "✅ دفعت — فعّل اشتراكي", "callback_data": "wayl_verify"}
+            ]]},
+        )
+    else:
+        send_message(chat_id, t(chat_id, "wayl_error"))
 
 
 def handle_adwatch_start(chat_id: int, cq_id: str):
@@ -2009,6 +2059,8 @@ def handle_callback_query(cq: dict):
     elif data.startswith("wayl:"):
         plan = data[5:]
         threading.Thread(target=handle_wayl_callback, args=(chat_id, cq_id, plan), daemon=True).start()
+    elif data == "wayl_verify":
+        threading.Thread(target=handle_wayl_verify, args=(chat_id, cq_id), daemon=True).start()
     elif data == "adwatch:start":
         threading.Thread(target=handle_adwatch_start, args=(chat_id, cq_id), daemon=True).start()
     elif data == "adwatch:done":
