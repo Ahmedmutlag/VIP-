@@ -1745,8 +1745,9 @@ def get_info():
                 continue
             seen.add(key)
 
+            fid = (f["format_id"] + "+bestaudio/best") if ftype == "video" else f["format_id"]
             formats.append({
-                "format_id": f["format_id"],
+                "format_id": fid,
                 "label": label,
                 "ext": ext,
                 "type": ftype,
