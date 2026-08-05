@@ -266,10 +266,11 @@
                     android:id="@+id/premiumBtnSub"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="5,000 د.ع / شهر ←"
+                    android:text=""
                     android:textSize="12sp"
                     android:textColor="#374151"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:visibility="gone" />
 
             </LinearLayout>
 
