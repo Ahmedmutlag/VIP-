@@ -67,7 +67,9 @@ public class MainActivity extends AppCompatActivity {
 
     // ── Views ────────────────────────────────────────────────────────────────
     private EditText urlInput;
-    private Button pasteBtn, fetchBtn, premiumBtn;
+    private Button pasteBtn, fetchBtn;
+    private LinearLayout premiumBtn;
+    private TextView premiumBtnSub;
     private ImageButton menuBtn;
     private ProgressBar loadingSpinner;
     private TextView errorBox;
@@ -145,6 +147,7 @@ public class MainActivity extends AppCompatActivity {
         fetchBtn         = findViewById(R.id.fetchBtn);
         menuBtn          = findViewById(R.id.menuBtn);
         premiumBtn       = findViewById(R.id.premiumBtn);
+        premiumBtnSub    = findViewById(R.id.premiumBtnSub);
         loadingSpinner   = findViewById(R.id.loadingSpinner);
         errorBox         = findViewById(R.id.errorBox);
         resultCard       = findViewById(R.id.resultCard);
@@ -499,11 +502,13 @@ public class MainActivity extends AppCompatActivity {
 
     private void refreshPremiumButton() {
         if (isPremiumActive()) {
-            premiumBtn.setText("⭐ مفعّل");
-            premiumBtn.setBackgroundResource(R.drawable.btn_gold);
+            SharedPreferences p = getPrefs();
+            String exp = p.getString("premium_expires", "");
+            premiumBtnSub.setText("مفعّل حتى " + exp.substring(0, Math.min(10, exp.length())) + " ✓");
+            premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#16A34A"));
         } else {
-            premiumBtn.setText("⭐ بريميوم");
-            premiumBtn.setBackgroundResource(R.drawable.btn_gold);
+            premiumBtnSub.setText("5,000 د.ع / شهر ←");
+            premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#F59E0B"));
         }
     }
 
