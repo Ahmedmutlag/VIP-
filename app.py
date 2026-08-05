@@ -2624,6 +2624,218 @@ def bot_download_file(task_id):
     return send_file(str(file_path), as_attachment=True, download_name=file_name)
 
 
+def _resolve_platform(url: str) -> str:
+    u = url.lower()
+    if "tiktok" in u:
+        return "TikTok"
+    if "instagram" in u:
+        return "Instagram"
+    if "facebook" in u or "fb.watch" in u:
+        return "Facebook"
+    if "twitter" in u or "x.com" in u:
+        return "Twitter/X"
+    if "pinterest" in u or "pin.it" in u:
+        return "Pinterest"
+    if "snapchat" in u or "snap.com" in u:
+        return "Snapchat"
+    return "Other"
+
+
+@app.route("/api/resolve", methods=["POST"])
+@limiter.limit("30 per minute")
+def api_resolve():
+    """Resolve a social-media URL into a list of downloadable formats.
+
+    POST body: {"url": "https://..."}
+    Response:  {"title": "...", "thumbnail": "...", "platform": "TikTok",
+                "formats": [{"id": "v720", "label": "720p", "url": "...",
+                             "ext": "mp4", "type": "video", "height": 720}, ...]}
+    """
+    data = request.get_json(silent=True) or {}
+    url = data.get("url", "").strip()
+
+    if not url or not url.startswith(("http://", "https://")):
+        return jsonify({"error": "url مطلوب"}), 400
+
+    if not _is_safe_url(url):
+        return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    platform = _resolve_platform(url)
+    formats: list = []
+    title = ""
+    thumbnail = ""
+
+    # ── 1. Try RapidAPI ───────────────────────────────────────────────────────
+    try:
+        rapid_result = _call_rapidapi(url)
+        medias = rapid_result.get("medias") or []
+        if medias:
+            title = (rapid_result.get("title") or rapid_result.get("author") or "").strip()
+            thumbnail = (rapid_result.get("thumbnail") or rapid_result.get("cover") or "").strip()
+
+            seen_heights: set = set()
+            audio_added = False
+
+            for i, m in enumerate(medias):
+                m_type = (m.get("type") or "").lower()
+                ext = (m.get("extension") or m.get("ext") or "mp4").lower()
+                m_url = (m.get("url") or "").strip()
+                if not m_url:
+                    continue
+
+                # Audio track
+                if m_type == "audio" or ext in ("mp3", "m4a", "aac", "opus"):
+                    if not audio_added:
+                        formats.append({
+                            "id": "audio",
+                            "label": "صوت فقط",
+                            "url": m_url,
+                            "ext": ext if ext in ("mp3", "m4a", "aac") else "mp3",
+                            "type": "audio",
+                            "height": 0,
+                        })
+                        audio_added = True
+                    continue
+
+                # Video track — extract height from quality string
+                quality = str(m.get("quality") or m.get("resolution") or "")
+                height = 0
+                h_match = re.search(r"(\d{3,4})[pP]", quality)
+                if h_match:
+                    height = int(h_match.group(1))
+                elif quality.isdigit():
+                    h = int(quality)
+                    if 120 <= h <= 4320:
+                        height = h
+
+                if height in seen_heights and height != 0:
+                    continue
+                seen_heights.add(height)
+
+                label = f"{height}p" if height else (quality or f"جودة {i + 1}")
+                formats.append({
+                    "id": f"v{height or i}",
+                    "label": label,
+                    "url": m_url,
+                    "ext": ext,
+                    "type": "video",
+                    "height": height,
+                })
+
+            # Sort video formats by height descending, then append audio
+            video_fmts = sorted(
+                [f for f in formats if f["type"] == "video"],
+                key=lambda x: x["height"],
+                reverse=True,
+            )
+            audio_fmts = [f for f in formats if f["type"] == "audio"]
+            formats = video_fmts + audio_fmts
+    except Exception as e:
+        app.logger.warning("RapidAPI resolve failed: %s", e)
+
+    # ── 2. Fallback: yt-dlp ───────────────────────────────────────────────────
+    if not formats:
+        try:
+            ydl_opts: dict = {
+                "quiet": True,
+                "no_warnings": True,
+                "skip_download": True,
+                "noplaylist": True,
+                "socket_timeout": 25,
+            }
+            cookies_file = get_cookies_file()
+            if cookies_file:
+                ydl_opts["cookiefile"] = cookies_file
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+
+            if info:
+                title = title or (info.get("title") or info.get("description") or "").strip()
+                thumbnail = thumbnail or info.get("thumbnail") or ""
+                raw_formats = info.get("formats") or []
+
+                # Single-URL extractors (e.g. direct video links)
+                if not raw_formats and info.get("url"):
+                    raw_formats = [{
+                        "format_id": "best",
+                        "url": info["url"],
+                        "ext": info.get("ext", "mp4"),
+                        "height": info.get("height"),
+                        "vcodec": info.get("vcodec", "avc1"),
+                        "acodec": info.get("acodec", "mp4a"),
+                    }]
+
+                seen_heights2: set = set()
+                audio_added2 = False
+                video_candidates: list = []
+
+                for f in raw_formats:
+                    f_url = (f.get("url") or "").strip()
+                    if not f_url or f_url.startswith("manifest"):
+                        continue
+                    vcodec = (f.get("vcodec") or "").lower()
+                    acodec = (f.get("acodec") or "").lower()
+                    height = f.get("height") or 0
+                    ext = f.get("ext") or "mp4"
+
+                    # Pure audio stream
+                    if vcodec in ("none", "") and acodec not in ("none", ""):
+                        if not audio_added2:
+                            formats.append({
+                                "id": "audio",
+                                "label": "صوت فقط",
+                                "url": f_url,
+                                "ext": ext if ext in ("mp3", "m4a", "aac", "opus") else "m4a",
+                                "type": "audio",
+                                "height": 0,
+                            })
+                            audio_added2 = True
+                        continue
+
+                    # Video stream (must carry both video and audio or at least video)
+                    if height and height not in seen_heights2:
+                        seen_heights2.add(height)
+                        video_candidates.append({
+                            "id": f"v{height}",
+                            "label": f"{height}p",
+                            "url": f_url,
+                            "ext": ext,
+                            "type": "video",
+                            "height": height,
+                        })
+
+                # Pick up to 4 quality tiers
+                video_candidates.sort(key=lambda x: x["height"], reverse=True)
+                WANT_HEIGHTS = [1080, 720, 480, 360, 240]
+                picked: list = []
+                used_h: set = set()
+                for want in WANT_HEIGHTS:
+                    match = next(
+                        (c for c in video_candidates if c["height"] <= want and c["height"] not in used_h),
+                        None,
+                    )
+                    if match:
+                        picked.append(match)
+                        used_h.add(match["height"])
+                if not picked and video_candidates:
+                    picked = video_candidates[:4]
+
+                formats = picked + [f for f in formats if f["type"] == "audio"]
+        except Exception as e:
+            app.logger.warning("yt-dlp resolve failed: %s", e)
+
+    if not formats:
+        return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
+
+    return jsonify({
+        "title": title[:200] if title else "",
+        "thumbnail": thumbnail or "",
+        "platform": platform,
+        "formats": formats,
+    })
+
+
 def _setup_telegram_webhook():
     if not os.environ.get("TELEGRAM_BOT_TOKEN"):
         return
