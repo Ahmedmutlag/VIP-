@@ -26,6 +26,20 @@
             android:textColor="#FFFFFF"
             android:textStyle="bold" />
 
+        <Button
+            android:id="@+id/premiumBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="⭐ بريميوم"
+            android:textSize="12sp"
+            android:textColor="#1F1F2E"
+            android:textStyle="bold"
+            android:background="@drawable/btn_gold"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginEnd="6dp"
+            android:stateListAnimator="@null" />
+
         <ImageButton
             android:id="@+id/menuBtn"
             android:layout_width="48dp"

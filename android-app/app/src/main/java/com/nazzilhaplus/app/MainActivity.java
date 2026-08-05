@@ -67,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
 
     // ── Views ────────────────────────────────────────────────────────────────
     private EditText urlInput;
-    private Button pasteBtn, fetchBtn;
+    private Button pasteBtn, fetchBtn, premiumBtn;
     private ImageButton menuBtn;
     private ProgressBar loadingSpinner;
     private TextView errorBox;
@@ -144,6 +144,7 @@ public class MainActivity extends AppCompatActivity {
         pasteBtn         = findViewById(R.id.pasteBtn);
         fetchBtn         = findViewById(R.id.fetchBtn);
         menuBtn          = findViewById(R.id.menuBtn);
+        premiumBtn       = findViewById(R.id.premiumBtn);
         loadingSpinner   = findViewById(R.id.loadingSpinner);
         errorBox         = findViewById(R.id.errorBox);
         resultCard       = findViewById(R.id.resultCard);
@@ -183,6 +184,8 @@ public class MainActivity extends AppCompatActivity {
         fetchBtn.setOnClickListener(v -> fetchInfo());
 
         menuBtn.setOnClickListener(v -> showPopupMenu(v));
+        premiumBtn.setOnClickListener(v -> showUpgradeDialog());
+        refreshPremiumButton();
 
         clearHistoryBtn.setOnClickListener(v -> {
             getPrefs().edit().remove("dl_history").apply();
@@ -494,6 +497,16 @@ public class MainActivity extends AppCompatActivity {
 
     // ── Premium (Wayl) ───────────────────────────────────────────────────────
 
+    private void refreshPremiumButton() {
+        if (isPremiumActive()) {
+            premiumBtn.setText("⭐ مفعّل");
+            premiumBtn.setBackgroundResource(R.drawable.btn_gold);
+        } else {
+            premiumBtn.setText("⭐ بريميوم");
+            premiumBtn.setBackgroundResource(R.drawable.btn_gold);
+        }
+    }
+
     private boolean isPremiumActive() {
         SharedPreferences p = getPrefs();
         String exp = p.getString("premium_expires", "");
@@ -632,13 +645,14 @@ public class MainActivity extends AppCompatActivity {
                         .putString("premium_code", json.optString("code", ""))
                         .remove("pending_payment_id")
                         .apply();
-                    runOnUiThread(() ->
+                    runOnUiThread(() -> {
+                        refreshPremiumButton();
                         new androidx.appcompat.app.AlertDialog.Builder(this)
                             .setTitle("⭐ تم تفعيل البريميوم!")
                             .setMessage("اشتراكك مفعّل حتى:\n" + exp + "\n\nاستمتع بتحميل غير محدود!")
                             .setPositiveButton("رائع!", null)
-                            .show()
-                    );
+                            .show();
+                    });
                 } else {
                     String err = json.optString("error", "الدفع لم يُكتمل بعد. تأكد من إتمام الدفع وحاول مجدداً.");
                     runOnUiThread(() -> Toast.makeText(this, err, Toast.LENGTH_LONG).show());
