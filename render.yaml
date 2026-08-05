@@ -2,7 +2,7 @@ services:
   - type: web
     name: vip-dl
     runtime: python
-    buildCommand: pip install -r requirements.txt && pip install "yt-dlp==2024.12.13" --force-reinstall --quiet
+    buildCommand: apt-get install -y ffmpeg && pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
