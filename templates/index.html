@@ -3,724 +3,394 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- ===== SEO Primary ===== -->
   <title>نزلها بلس — أداة حفظ المحتوى الرقمي للاستخدام الشخصي</title>
-  <meta name="description" content="نزلها بلس — أداة سهلة وسريعة لحفظ المحتوى الرقمي من الإنترنت للاستخدام الشخصي. تدعم أكثر من 50 منصة ومنافذ متعددة." />
+  <meta name="description" content="نزلها بلس — تطبيق أندرويد مجاني لحفظ المحتوى الرقمي من الإنترنت للاستخدام الشخصي. يدعم أكثر من 50 موقعاً." />
   <meta name="keywords" content="حفظ محتوى, نزلها بلس, حفظ فيديو, محتوى رقمي, media saver, video saver" />
   <meta name="author" content="نزلها بلس" />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://www.vip-dl.com/" />
 
-  <!-- ===== Open Graph (Facebook / WhatsApp) ===== -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://www.vip-dl.com/" />
   <meta property="og:title" content="نزلها بلس — أداة حفظ المحتوى الرقمي" />
-  <meta property="og:description" content="أداة سهلة وسريعة لحفظ المحتوى الرقمي من الإنترنت للاستخدام الشخصي. تدعم أكثر من 50 منصة." />
+  <meta property="og:description" content="تطبيق أندرويد مجاني لحفظ المحتوى الرقمي للاستخدام الشخصي." />
   <meta property="og:image" content="https://www.vip-dl.com/static/icons/512" />
-  <meta property="og:image:width" content="512" />
-  <meta property="og:image:height" content="512" />
   <meta property="og:site_name" content="نزلها بلس" />
   <meta property="og:locale" content="ar_AR" />
 
-  <!-- ===== Twitter Card ===== -->
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="نزلها بلس — أداة حفظ المحتوى الرقمي" />
-  <meta name="twitter:description" content="أداة سهلة وسريعة لحفظ المحتوى الرقمي من الإنترنت للاستخدام الشخصي." />
+  <meta name="twitter:description" content="تطبيق أندرويد مجاني لحفظ المحتوى الرقمي للاستخدام الشخصي." />
   <meta name="twitter:image" content="https://www.vip-dl.com/static/icons/512" />
 
-  <!-- ===== JSON-LD Structured Data ===== -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "WebApplication",
+    "@type": "MobileApplication",
     "name": "نزلها بلس",
     "url": "https://www.vip-dl.com",
-    "description": "أداة لحفظ المحتوى الرقمي من الإنترنت للاستخدام الشخصي، تدعم أكثر من 50 منصة ومنفذاً.",
+    "description": "تطبيق أندرويد لحفظ المحتوى الرقمي من الإنترنت للاستخدام الشخصي.",
+    "operatingSystem": "Android",
     "applicationCategory": "MultimediaApplication",
-    "operatingSystem": "All",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD"
-    },
-    "aggregateRating": {
-      "@type": "AggregateRating",
-      "ratingValue": "4.8",
-      "ratingCount": "100",
-      "bestRating": "5"
-    },
-    "inLanguage": "ar",
-    "browserRequirements": "Requires JavaScript"
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "installUrl": "https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"
   }
   </script>
 
-
-  <!-- ===== PWA & Icons ===== -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="/static/css/style.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet" />
-  <link rel="manifest" href="/static/manifest.json" />
-  <meta name="theme-color" content="#7c3aed" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="نزلها بلس" />
-  <link rel="apple-touch-icon" href="/static/images/app-icon.png" />
-  <link rel="icon" type="image/png" href="/static/images/app-icon.png" />
-
-  <!-- Google Search Console — replace content value with your verification token -->
-  <meta name="google-site-verification" content="REPLACE_WITH_YOUR_SEARCH_CONSOLE_TOKEN" />
-
-  <!-- Google Analytics GA4 — replace G-XXXXXXXXXX with your Measurement ID -->
+  <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-HYY3LFZZCS"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-HYY3LFZZCS');
-  </script>
-
-  <script>
-    const AD_WAIT_SECONDS = {{ settings.ad_wait_seconds | default(10) }};
-    const RATINGS_ENABLED = {{ 'true' if settings.ratings_enabled else 'false' }};
-  </script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-HYY3LFZZCS');</script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18168434532"></script>
   <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','AW-18168434532');</script>
-  <script>gtag('event','conversion',{'send_to':'AW-18168434532/qdn5CPLVlcYcEOSesddD'});</script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" href="/static/images/app-icon.png" />
+  <link rel="apple-touch-icon" href="/static/images/app-icon.png" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --card: #16161f;
+      --border: #2a2a3a;
+      --text: #f0f0f8;
+      --muted: #8888aa;
+      --accent: #7c3aed;
+      --accent2: #06b6d4;
+    }
+
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10,10,15,.9);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .85rem 1.5rem;
+    }
+    .logo {
+      display: flex; align-items: center; gap: .5rem;
+      text-decoration: none; color: var(--text);
+      font-weight: 900; font-size: 1.1rem; white-space: nowrap;
+    }
+    .logo-icon { font-size: 1.4rem; }
+    .accent { color: #a855f7; }
+    .nav-links { display: flex; gap: 1.2rem; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: .88rem; }
+    .nav-links a:hover { color: var(--text); }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 5rem 1.5rem 4rem;
+      background:
+        radial-gradient(ellipse 90% 70% at 50% -5%, rgba(124,58,237,.22) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(6,182,212,.08) 0%, transparent 60%);
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: rgba(124,58,237,.15);
+      border: 1px solid rgba(124,58,237,.4);
+      border-radius: 100px;
+      padding: .35rem 1.1rem;
+      font-size: .8rem; font-weight: 700; color: #a855f7;
+      margin-bottom: 1.5rem;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 7vw, 3.2rem);
+      font-weight: 900;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+    .gradient-text {
+      background: linear-gradient(135deg, #a855f7, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      color: var(--muted); font-size: 1.05rem;
+      max-width: 480px; margin: 0 auto 2.5rem;
+    }
+
+    /* ── Google Play Button ── */
+    .play-btn {
+      display: inline-flex; align-items: center; gap: .75rem;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: #fff; text-decoration: none;
+      border-radius: 16px;
+      padding: 1rem 2rem;
+      font-weight: 700; font-size: 1.05rem;
+      box-shadow: 0 8px 32px rgba(124,58,237,.45);
+      transition: transform .2s, opacity .2s;
+    }
+    .play-btn:hover { transform: translateY(-3px); opacity: .92; }
+    .play-btn-icon { font-size: 1.5rem; }
+    .play-btn-text { text-align: right; }
+    .play-btn-label { font-size: .72rem; opacity: .85; display: block; }
+    .play-btn-name { font-size: 1rem; font-weight: 900; display: block; }
+
+    .play-note {
+      margin-top: 1rem; font-size: .8rem; color: var(--muted);
+    }
+
+    /* ── Stats bar ── */
+    .stats {
+      display: flex; justify-content: center; gap: 0;
+      max-width: 500px; margin: 3.5rem auto 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .stat {
+      flex: 1; padding: 1.1rem .5rem; text-align: center;
+      border-left: 1px solid var(--border);
+    }
+    .stat:last-child { border-left: none; }
+    .stat-num { font-size: 1.4rem; font-weight: 900; color: #a855f7; }
+    .stat-lbl { font-size: .75rem; color: var(--muted); margin-top: .15rem; }
+
+    /* ── Features ── */
+    .section {
+      max-width: 860px; margin: 0 auto;
+      padding: 4rem 1.2rem 0;
+    }
+    .section-title {
+      text-align: center; font-size: 1.4rem; font-weight: 900;
+      margin-bottom: 2rem;
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .feature-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem 1.2rem;
+      transition: border-color .2s, transform .15s;
+    }
+    .feature-card:hover { border-color: rgba(124,58,237,.5); transform: translateY(-3px); }
+    .feature-icon { font-size: 2rem; margin-bottom: .7rem; }
+    .feature-card h3 { font-size: 1rem; font-weight: 800; margin-bottom: .4rem; }
+    .feature-card p { color: var(--muted); font-size: .85rem; line-height: 1.65; }
+
+    /* ── How it works ── */
+    .steps {
+      display: flex; flex-direction: column; gap: .9rem;
+      margin-top: 0;
+    }
+    .step {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.3rem 1.5rem;
+      display: flex; align-items: center; gap: 1.2rem;
+    }
+    .step-num {
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: #fff; border-radius: 50%;
+      width: 42px; height: 42px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 1.1rem;
+    }
+    .step h3 { font-size: .95rem; font-weight: 800; margin-bottom: .2rem; }
+    .step p { color: var(--muted); font-size: .85rem; }
+
+    /* ── CTA bottom ── */
+    .cta-section {
+      max-width: 600px; margin: 5rem auto 0;
+      padding: 0 1.2rem;
+      text-align: center;
+    }
+    .cta-box {
+      background: linear-gradient(135deg, rgba(124,58,237,.15), rgba(6,182,212,.1));
+      border: 1px solid rgba(124,58,237,.35);
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+    }
+    .cta-box h2 { font-size: 1.5rem; font-weight: 900; margin-bottom: .5rem; }
+    .cta-box p { color: var(--muted); font-size: .95rem; margin-bottom: 1.8rem; }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 5rem;
+      border-top: 1px solid var(--border);
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+    .footer-links {
+      display: flex; justify-content: center; flex-wrap: wrap;
+      gap: .3rem 1rem; margin-top: .8rem;
+    }
+    .footer-links a { color: var(--muted); text-decoration: none; }
+    .footer-links a:hover { color: var(--text); }
+
+    @media (max-width: 480px) {
+      .nav-links { display: none; }
+      .hero { padding: 3.5rem 1rem 3rem; }
+      .stats { margin: 2.5rem 1rem 0; }
+    }
+  </style>
 </head>
 <body>
-  <div class="bg-particles" id="particles"></div>
 
-  <!-- Splash Screen (App only) -->
-  <div id="splashScreen" style="display:none;position:fixed;inset:0;z-index:9999;background:#0a0a0f;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;transition:opacity .5s ease">
-    <div style="font-size:4rem;animation:splashPulse 1s ease-in-out infinite alternate">⬇️</div>
-    <div style="font-size:1.6rem;font-weight:900;color:#f0f0f8;font-family:'Cairo',sans-serif">نزلها <span style="color:#a855f7">بلس</span></div>
-    <div style="width:48px;height:3px;background:linear-gradient(90deg,#7c3aed,#06b6d4);border-radius:2px;animation:splashBar 1.2s ease-in-out infinite"></div>
-  </div>
-  <style>
-    @keyframes splashPulse { from{transform:scale(1)} to{transform:scale(1.12)} }
-    @keyframes splashBar { 0%,100%{width:30px;opacity:.6} 50%{width:60px;opacity:1} }
-  </style>
-  <script>
-    if (window.AndroidClipboard) {
-      var appBanner = document.getElementById('appDownloadBanner');
-      if (appBanner) appBanner.style.display = 'none';
-      var sp = document.getElementById('splashScreen');
-      sp.style.display = 'flex';
-      setTimeout(function() {
-        sp.style.opacity = '0';
-        setTimeout(function() { sp.style.display = 'none'; }, 500);
-      }, 1800);
-    }
-  </script>
-
-  {% if settings.app_update_banner %}
-  <div id="updateBanner" style="display:none;position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);z-index:999;width:calc(100% - 2rem);max-width:420px;background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;border-radius:16px;padding:.9rem 1.2rem;box-shadow:0 8px 30px rgba(124,58,237,.5);display:none;align-items:center;gap:.8rem;flex-wrap:wrap">
-    <span style="font-size:1.3rem">📲</span>
-    <div style="flex:1;min-width:150px">
-      <div style="font-weight:800;font-size:.92rem">يتوفر تحديث جديد!</div>
-      <div style="font-size:.78rem;opacity:.85">حدّث التطبيق للحصول على أحدث الميزات</div>
-    </div>
-    <a href="https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"
-       onclick="if(window.AndroidClipboard){event.preventDefault();window.location.href='market://details?id=com.nazzilhaplus.app';}"
-       style="background:#fff;color:#7c3aed;border-radius:10px;padding:.4rem 1rem;font-weight:800;font-size:.85rem;text-decoration:none;white-space:nowrap">تحديث</a>
-    <button onclick="document.getElementById('updateBanner').style.display='none'" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:.9rem;flex-shrink:0">✕</button>
-  </div>
-  <script>
-    if(window.AndroidClipboard){
-      var b=document.getElementById('updateBanner');
-      b.style.display='flex';
-    }
-  </script>
-  {% endif %}
-
-  <!-- ===== Header ===== -->
+  <!-- Header -->
   <header class="header">
-    <div class="logo">
+    <a href="/" class="logo">
       <span class="logo-icon">⬇️</span>
-      <span class="logo-text"><span class="logo-name">نزلها</span> <span class="accent">بلس</span></span>
-    </div>
+      <span>نزلها <span class="accent">بلس</span></span>
+    </a>
     <nav class="nav-links">
       <a href="/how-to-use">كيف تستخدمه</a>
-      <a href="/blog">المدونة</a>
+      <a href="/about">عن التطبيق</a>
+      <a href="/privacy">الخصوصية</a>
     </nav>
-    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="تبديل الوضع">🌙</button>
   </header>
 
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-badge">📲 متاح على Google Play</div>
+    <h1>احفظ المحتوى<br><span class="gradient-text">بضغطة واحدة</span></h1>
+    <p class="hero-sub">تطبيق مجاني لحفظ المحتوى الرقمي للاستخدام الشخصي — بدون تسجيل، بدون تعقيدات</p>
 
-  <main>
-    <!-- ===== Hero ===== -->
-    <section class="hero">
-      <div class="hero-badge">مجاني ✦ بدون تسجيل ✦ سريع</div>
-      <h1 class="hero-title">احفظ المحتوى<br /><span class="gradient-text">بضغطة واحدة</span></h1>
-      <div class="platforms-row">
-        <div class="platform-chip" style="background:rgba(124,58,237,.15);color:#7c3aed;border-color:rgba(124,58,237,.3)">
-          🌐 +50 منصة
-        </div>
-        <div class="platform-chip" style="background:rgba(34,197,94,.15);color:#22c55e;border-color:rgba(34,197,94,.3)">
-          🎬 فيديو وصوت
-        </div>
-        <div class="platform-chip" style="background:rgba(245,158,11,.15);color:#f59e0b;border-color:rgba(245,158,11,.3)">
-          ⚡ جودة عالية
+    <a href="https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"
+       class="play-btn" target="_blank" rel="noopener">
+      <span class="play-btn-icon">▶</span>
+      <span class="play-btn-text">
+        <span class="play-btn-label">تحميل مجاني من</span>
+        <span class="play-btn-name">Google Play</span>
+      </span>
+    </a>
+    <p class="play-note">Android 7.0+ • مجاني تماماً</p>
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">+50</div>
+        <div class="stat-lbl">موقع مدعوم</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">100%</div>
+        <div class="stat-lbl">مجاني</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">⚡</div>
+        <div class="stat-lbl">حفظ فوري</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">🔒</div>
+        <div class="stat-lbl">خاص وآمن</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <section class="section">
+    <h2 class="section-title">✨ لماذا نزلها بلس؟</h2>
+    <div class="features">
+      <div class="feature-card">
+        <div class="feature-icon">🆓</div>
+        <h3>مجاني 100%</h3>
+        <p>لا رسوم ولا اشتراكات — كل الميزات مجانية بالكامل</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">👤</div>
+        <h3>بدون تسجيل</h3>
+        <p>افتح التطبيق واستخدمه مباشرة — لا حاجة لإنشاء حساب</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎬</div>
+        <h3>جودة عالية</h3>
+        <p>اختر من بين خيارات جودة متعددة تصل لأعلى دقة متاحة</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎵</div>
+        <h3>فيديو وصوت</h3>
+        <p>احفظ كفيديو أو استخرج الصوت فقط بصيغة MP3</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📂</div>
+        <h3>حفظ مباشر</h3>
+        <p>يُحفظ مباشرة في معرض الصور بدون خطوات إضافية</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3>+50 موقع</h3>
+        <p>دعم واسع لمختلف مواقع الإنترنت ومنصات المحتوى</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="section" style="padding-top:3.5rem">
+    <h2 class="section-title">🚀 ثلاث خطوات فقط</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">١</div>
+        <div>
+          <h3>انسخ الرابط</h3>
+          <p>افتح المحتوى المراد حفظه واضغط زر المشاركة ← نسخ الرابط</p>
         </div>
       </div>
-
-      <!-- Stats Bar -->
-      <div class="stats-bar">
-        <div class="stat-item">
-          <span class="stat-num">100%</span>
-          <span class="stat-desc">مجاني وآمن</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-num">بدون تسجيل</span>
-          <span class="stat-desc">لا حاجة لحساب</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-num">فوري</span>
-          <span class="stat-desc">تحميل سريع</span>
+      <div class="step">
+        <div class="step-num">٢</div>
+        <div>
+          <h3>الصق في نزلها بلس</h3>
+          <p>افتح التطبيق واضغط زر اللصق التلقائي — يكتشف الرابط فوراً</p>
         </div>
       </div>
-
-      <!-- URL Input -->
-      <div class="card input-card">
-        <div class="input-wrap">
-          <span class="input-icon">🔗</span>
-          <input id="urlInput" type="url" placeholder="الصق رابط الفيديو هنا..." autocomplete="off" spellcheck="false" />
-          <button id="pasteBtn" class="paste-btn" title="لصق">📋</button>
-        </div>
-        <button id="fetchBtn" class="btn-primary" onclick="fetchInfo()">
-          <span class="btn-text">جلب معلومات الفيديو</span>
-          <span class="btn-icon">→</span>
-        </button>
-        <div class="long-video-note">
-          <span class="long-video-note-icon">💡</span>
-          <span>لتحميل مقاطع الفيديو الطويلة، يرجى فتح الموقع عبر المتصفح:
-            <a href="https://www.vip-dl.com" target="_blank" rel="noopener">www.vip-dl.com</a>
-          </span>
-        </div>
-      </div>
-
-      <div id="errorBox" class="error-box hidden">
-        <span class="error-icon">⚠️</span>
-        <span id="errorText"></span>
-      </div>
-    </section>
-
-
-    <!-- ===== Video Info ===== -->
-    <section id="infoSection" class="hidden">
-      <div class="card info-card">
-        <div class="video-meta">
-          <div class="thumb-wrap" id="thumbWrap" onclick="openOriginalVideo()">
-            <img id="thumbnail" src="" alt="thumbnail" class="thumbnail" />
-            <div class="thumb-play">
-              <div class="thumb-play-icon">▶</div>
-            </div>
-            <span class="thumb-open-hint">فتح الفيديو الأصلي ↗</span>
-          </div>
-          <div class="video-details">
-            <div id="platformBadge" class="platform-badge"></div>
-            <h2 id="videoTitle" class="video-title"></h2>
-            <div class="video-stats">
-              <span id="uploaderEl" class="stat"></span>
-              <span id="durationEl" class="stat"></span>
-            </div>
-          </div>
-        </div>
-        <div class="formats-section">
-          <h3 class="formats-title">اختر الجودة</h3>
-          <div id="formatsList" class="formats-grid"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== Skeleton ===== -->
-    <section id="skeletonSection" class="hidden">
-      <div class="card" style="padding:1.5rem">
-        <div style="display:flex;gap:1rem;margin-bottom:1.2rem">
-          <div class="skeleton-box" style="width:140px;height:90px;flex-shrink:0"></div>
-          <div style="flex:1;display:flex;flex-direction:column;gap:.6rem;padding-top:.3rem">
-            <div class="skeleton-box" style="height:14px;width:55%"></div>
-            <div class="skeleton-box" style="height:18px;width:90%"></div>
-            <div class="skeleton-box" style="height:14px;width:70%"></div>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem">
-          <div class="skeleton-box" style="height:68px"></div>
-          <div class="skeleton-box" style="height:68px"></div>
-          <div class="skeleton-box" style="height:68px"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== Progress ===== -->
-    <section id="progressSection" class="hidden">
-      <div class="card progress-card">
-        <svg width="150" height="150" viewBox="0 0 150 150" style="display:block;margin:0 auto .8rem">
-          <defs>
-            <linearGradient id="circGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#7c3aed"/>
-              <stop offset="100%" stop-color="#06b6d4"/>
-            </linearGradient>
-          </defs>
-          <circle cx="75" cy="75" r="60" fill="none" stroke="var(--border)" stroke-width="10"/>
-          <circle id="progressCircle" cx="75" cy="75" r="60" fill="none"
-                  stroke="url(#circGrad)" stroke-width="10" stroke-linecap="round"
-                  stroke-dasharray="377" stroke-dashoffset="377"
-                  transform="rotate(-90 75 75)"/>
-          <text id="progressPercent" x="75" y="82" text-anchor="middle"
-                font-family="Cairo,sans-serif" font-size="24" font-weight="900"
-                fill="var(--text)">0%</text>
-        </svg>
-        <div class="progress-label" style="font-weight:700;font-size:1rem;margin-bottom:.4rem">جاري التحميل...</div>
-        <div class="progress-meta" style="display:flex;justify-content:center;gap:1.5rem;color:var(--muted);font-size:.85rem">
-          <span id="progressSpeed"></span>
-          <span id="progressEta"></span>
-        </div>
-        <p id="progressMsg" style="text-align:center;color:var(--muted);font-size:.82rem;margin-top:.6rem;min-height:1.2rem"></p>
-      </div>
-    </section>
-
-    <!-- ===== Success ===== -->
-    <section id="successSection" class="hidden">
-      <div class="card success-card">
-        <img id="successThumb" src="" alt="" class="success-thumb hidden" />
-        <div class="success-icon">✅</div>
-        <h3>جاهز للتحميل!</h3>
-        <p>تم معالجة الفيديو بنجاح</p>
-        <a id="downloadLink" href="#" class="btn-download"><span>⬇️</span> تحميل الفيديو</a>
-        <button id="copyLinkBtn" onclick="copyDownloadLink()" class="btn-ghost" style="margin-top:.5rem">🔗 نسخ رابط التحميل</button>
-        <div style="display:flex;gap:.5rem;margin-top:.5rem">
-          <button onclick="openVideoPlayer()" class="btn-ghost" style="flex:1;margin-top:0">🎬 معاينة</button>
-          <button onclick="generateShareCard()" class="btn-ghost" style="flex:1;margin-top:0">📸 بطاقة</button>
-        </div>
-        <div id="downloadHint" style="margin-top:.75rem;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);border-radius:10px;padding:.6rem .9rem;font-size:.8rem;color:var(--muted);text-align:right;line-height:1.7"></div>
-        <div style="margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--border)">
-          <p style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">أعجبك الموقع؟ شاركه مع أصدقائك 👇</p>
-          <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
-            <button onclick="shareWhatsApp()" style="display:flex;align-items:center;gap:.4rem;background:#25d366;color:#fff;border:none;border-radius:10px;padding:.45rem 1rem;font-family:inherit;font-size:.82rem;font-weight:700;cursor:pointer">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              واتساب
-            </button>
-            <button onclick="shareNative()" style="display:flex;align-items:center;gap:.4rem;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:.45rem 1rem;font-family:inherit;font-size:.82rem;font-weight:700;cursor:pointer">
-              🔗 مشاركة
-            </button>
-          </div>
-        </div>
-        <button onclick="resetPage()" class="btn-ghost" style="margin-top:.6rem">تحميل فيديو آخر</button>
-      </div>
-    </section>
-
-    <!-- ===== Premium Welcome Modal ===== -->
-    <div id="premiumModal" class="ad-modal hidden">
-      <div class="ad-modal-box" style="max-width:360px">
-        <div style="text-align:center;padding:2rem 1.5rem">
-          <div style="font-size:3rem;margin-bottom:.6rem">👑</div>
-          <h2 style="font-size:1.3rem;font-weight:900;margin-bottom:.4rem;background:linear-gradient(135deg,#f59e0b,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent">مرحباً بك في VIP!</h2>
-          <p style="color:var(--muted);font-size:.85rem;margin-bottom:1.4rem">اشتراكك فعّال — استمتع بالمميزات التالية</p>
-          <div style="display:flex;flex-direction:column;gap:.6rem;text-align:right;margin-bottom:1.4rem">
-            <div style="display:flex;align-items:center;gap:.7rem;background:var(--bg2);border-radius:10px;padding:.6rem .9rem">
-              <span style="font-size:1.2rem">🚫</span>
-              <span style="font-size:.88rem;font-weight:600">بدون إعلانات نهائياً</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:.7rem;background:var(--bg2);border-radius:10px;padding:.6rem .9rem">
-              <span style="font-size:1.2rem">⚡</span>
-              <span style="font-size:.88rem;font-weight:600">تحميل فوري بدون انتظار</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:.7rem;background:var(--bg2);border-radius:10px;padding:.6rem .9rem">
-              <span style="font-size:1.2rem">🎯</span>
-              <span style="font-size:.88rem;font-weight:600">أولوية في الدعم الفني</span>
-            </div>
-          </div>
-          <button onclick="closePremiumModal()" style="width:100%;padding:.8rem;background:linear-gradient(135deg,#f59e0b,#f97316);color:#000;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:900;cursor:pointer">
-            ابدأ التحميل ⬇️
-          </button>
+      <div class="step">
+        <div class="step-num">٣</div>
+        <div>
+          <h3>اختر الجودة واحفظ</h3>
+          <p>اختر الجودة المناسبة واضغط حفظ — ينزل مباشرة للجهاز</p>
         </div>
       </div>
     </div>
-    <div id="premiumOverlay" class="ad-overlay hidden" onclick="closePremiumModal()"></div>
+  </section>
 
-    <!-- ===== App Download Banner ===== -->
-    <section id="appDownloadBanner" class="reveal" style="padding:0 0 .5rem">
-      <div class="card" style="padding:1.5rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(6,182,212,.1));border:1px solid rgba(124,58,237,.3)">
-        <div style="font-size:3rem;flex-shrink:0">📱</div>
-        <div style="flex:1;min-width:180px">
-          <h3 style="font-size:1.05rem;font-weight:900;margin-bottom:.3rem">تطبيق نزلها بلس</h3>
-          <p style="color:var(--muted);font-size:.82rem;line-height:1.6">تجربة أسرع وأسهل على هاتفك — متاح الآن على Google Play</p>
-        </div>
-        <a href="https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"
-           target="_blank"
-           style="display:inline-flex;align-items:center;gap:.5rem;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border-radius:12px;padding:.65rem 1.3rem;font-weight:700;font-size:.9rem;white-space:nowrap;flex-shrink:0;text-decoration:none">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" style="height:1.1rem;filter:brightness(0) invert(1)">
-          حمّل التطبيق
-        </a>
-      </div>
-    </section>
+  <!-- Bottom CTA -->
+  <div class="cta-section">
+    <div class="cta-box">
+      <h2>جاهز للتجربة؟ ⬇️</h2>
+      <p>حمّل التطبيق الآن مجاناً وابدأ في الحفظ</p>
+      <a href="https://play.google.com/store/apps/details?id=com.nazzilhaplus.app"
+         class="play-btn" target="_blank" rel="noopener">
+        <span class="play-btn-icon">▶</span>
+        <span class="play-btn-text">
+          <span class="play-btn-label">تحميل مجاني من</span>
+          <span class="play-btn-name">Google Play</span>
+        </span>
+      </a>
+    </div>
+  </div>
 
-    <!-- ===== Platforms ===== -->
-    <section id="platforms" class="platforms-section reveal">
-      <h2 class="section-title">ما الذي يدعمه؟</h2>
-      <div class="platforms-grid" style="grid-template-columns:repeat(2,1fr);max-width:420px;margin:0 auto">
-        <div class="platform-card featured">
-          <div class="p-icon" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff">🎬</div>
-          <span>فيديو بجودة عالية</span>
-          <small style="font-size:.7rem;color:var(--muted);margin-top:.2rem">حتى 4K</small>
-        </div>
-        <div class="platform-card featured">
-          <div class="p-icon" style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff">🎵</div>
-          <span>صوت MP3</span>
-          <small style="font-size:.7rem;color:var(--muted);margin-top:.2rem">جودة عالية</small>
-        </div>
-        <div class="platform-card featured">
-          <div class="p-icon" style="background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff">🌐</div>
-          <span>+50 منصة</span>
-          <small style="font-size:.7rem;color:var(--muted);margin-top:.2rem">منصات متعددة</small>
-        </div>
-        <div class="platform-card featured">
-          <div class="p-icon" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff">⚡</div>
-          <span>معالجة فورية</span>
-          <small style="font-size:.7rem;color:var(--muted);margin-top:.2rem">بدون انتظار</small>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== Pricing ===== -->
-    <section id="pricing" class="pricing-section" style="display:none">
-      <h2 class="section-title">اختر خطتك</h2>
-      <p class="section-sub">استمتع بالتحميل المجاني أو اشترك للحصول على تجربة أفضل</p>
-
-      <div class="pricing-grid">
-        <!-- Free Plan -->
-        <div class="plan-card">
-          <div class="plan-header">
-            <h3>مجاني</h3>
-            <div class="plan-price">
-              <span class="price-amount">$0</span>
-              <span class="price-period">/دائماً</span>
-            </div>
-          </div>
-          <ul class="plan-features">
-            <li class="feat ok">✅ يدعم أكثر من 50 منصة ومنفذاً</li>
-            <li class="feat ok">✅ جميع الجودات المتاحة</li>
-            <li class="feat ok">✅ بدون تسجيل</li>
-            <li class="feat no">⏳ مشاهدة إعلان قصير قبل التحميل</li>
-            <li class="feat no">❌ تحميل متعدد بالتزامن</li>
-          </ul>
-          <button class="plan-btn free-btn" onclick="document.getElementById('urlInput').focus(); document.querySelector('.hero').scrollIntoView({behavior:'smooth'})">
-            ابدأ مجاناً
-          </button>
-        </div>
-
-        <!-- Premium Plan -->
-        <div class="plan-card premium">
-          <div class="plan-badge">الأكثر شيوعاً ⭐</div>
-          <div class="plan-header">
-            <h3>مميز</h3>
-            <div class="plan-price">
-              <span class="price-amount">$2</span>
-              <span class="price-period">/شهرياً</span>
-            </div>
-          </div>
-          <ul class="plan-features">
-            <li class="feat ok">✅ كل مميزات الخطة المجانية</li>
-            <li class="feat ok">✅ بدون إعلانات نهائياً</li>
-            <li class="feat ok">✅ تحميل فوري بدون انتظار</li>
-            <li class="feat ok">✅ تحميل متعدد بالتزامن</li>
-            <li class="feat ok">✅ أولوية في الدعم الفني</li>
-          </ul>
-          <button onclick="openPayModal()" class="plan-btn premium-btn" id="stripeBtn">
-            اشترك الآن — $2/شهر
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== Download History ===== -->
-    <section id="historySection" class="hidden">
-      <div class="card" style="padding:1.3rem">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-          <h3 style="font-size:1rem;font-weight:700">📋 سجل تحميلاتك الأخيرة</h3>
-          <button onclick="clearHistory()" style="background:none;border:none;color:var(--muted);font-size:.8rem;cursor:pointer">مسح الكل</button>
-        </div>
-        <div id="historyList" style="display:flex;flex-direction:column;gap:.6rem"></div>
-      </div>
-    </section>
-
-    <!-- ===== Guide: Download Without Watermark ===== -->
-    <section class="guide-section reveal">
-      <div class="card" style="padding:1.8rem">
-        <h2 style="font-size:1.3rem;font-weight:900;margin-bottom:.5rem">📖 كيف تحفظ المحتوى؟</h2>
-        <p style="color:var(--muted);font-size:.9rem;margin-bottom:1.2rem">دليل سريع لحفظ المحتوى الرقمي بجودة عالية للاستخدام الشخصي</p>
-        <div style="display:flex;flex-direction:column;gap:1rem">
-          <div style="display:flex;gap:1rem;align-items:flex-start">
-            <div style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-weight:900;flex-shrink:0">١</div>
-            <div><strong>انسخ رابط الفيديو</strong><br><span style="color:var(--muted);font-size:.85rem">افتح التطبيق، اضغط "مشاركة" ثم "نسخ الرابط"</span></div>
-          </div>
-          <div style="display:flex;gap:1rem;align-items:flex-start">
-            <div style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-weight:900;flex-shrink:0">٢</div>
-            <div><strong>الصق الرابط هنا</strong><br><span style="color:var(--muted);font-size:.85rem">اضغط زر اللصق أو Ctrl+V في حقل الرابط</span></div>
-          </div>
-          <div style="display:flex;gap:1rem;align-items:flex-start">
-            <div style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-weight:900;flex-shrink:0">٣</div>
-            <div><strong>اختر "أفضل جودة"</strong><br><span style="color:var(--muted);font-size:.85rem">سيُحفَظ المحتوى بأعلى دقة متاحة تلقائياً</span></div>
-          </div>
-          <div style="display:flex;gap:1rem;align-items:flex-start">
-            <div style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-weight:900;flex-shrink:0">٤</div>
-            <div><strong>حمّل واستمتع</strong><br><span style="color:var(--muted);font-size:.85rem">الفيديو جاهز — احفظه في هاتفك مباشرة</span></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== How It Works ===== -->
-    <section id="how" class="how-section reveal">
-      <h2 class="section-title">كيف يعمل؟</h2>
-      <div class="steps-grid">
-        <div class="step">
-          <div class="step-num">١</div>
-          <h3>انسخ الرابط</h3>
-          <p>انسخ رابط المحتوى من أي منصة أو موقع مدعوم</p>
-        </div>
-        <div class="step-arrow">←</div>
-        <div class="step">
-          <div class="step-num">٢</div>
-          <h3>اختر الجودة</h3>
-          <p>اختر الجودة المناسبة أو حمّل الصوت فقط</p>
-        </div>
-        <div class="step-arrow">←</div>
-        <div class="step">
-          <div class="step-num">٣</div>
-          <h3>حمّل الآن</h3>
-          <p>شاهد إعلاناً قصيراً ثم احفظ الفيديو مجاناً</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== SEO Descriptive Content ===== -->
-    <section class="reveal" style="padding:0 0 .5rem">
-      <div class="card" style="padding:1.8rem">
-        <h2 style="font-size:1.2rem;font-weight:900;margin-bottom:.8rem">لماذا نزلها بلس؟</h2>
-        <p style="color:var(--muted);font-size:.88rem;line-height:1.9">
-          نزلها بلس أداة سهلة وسريعة لحفظ المحتوى الرقمي من الإنترنت للاستخدام الشخصي،
-          بجودة عالية تصل إلى 1080p. لا نحتاج منك أي تسجيل دخول أو تثبيت تطبيق —
-          فقط الصق الرابط واحفظ المحتوى مجاناً في ثوانٍ. ندعم حفظ الصوت بصيغة MP3 عالية الجودة.
-          الأداة تعمل على جميع الأجهزة: الهاتف والكمبيوتر والتابلت.
-        </p>
-      </div>
-    </section>
-
-    <!-- ===== FAQ ===== -->
-    <section id="faq" class="reveal" style="padding:0 0 1rem">
-      <h2 class="section-title">الأسئلة الشائعة</h2>
-      <div style="display:flex;flex-direction:column;gap:.7rem">
-
-        <details class="faq-item">
-          <summary class="faq-q">كيف أحفظ المحتوى؟</summary>
-          <p class="faq-a">افتح التطبيق أو الموقع الذي تريد حفظ محتواه، اضغط "مشاركة" ثم "نسخ الرابط"، ثم الصق الرابط في حقل البحث أعلاه واضغط "جلب معلومات". اختر "أفضل جودة" وسيُحفَظ المحتوى تلقائياً.</p>
-        </details>
-
-        <details class="faq-item">
-          <summary class="faq-q">هل الخدمة مجانية تماماً؟</summary>
-          <p class="faq-a">نعم، الخدمة مجانية بالكامل وبدون حدود وبدون تسجيل حساب. المستخدمون المجانيون يشاهدون إعلاناً قصيراً قبل كل حفظ لدعم المنصة.</p>
-        </details>
-
-        <details class="faq-item">
-          <summary class="faq-q">هل يمكنني حفظ المحتوى من منصات متعددة؟</summary>
-          <p class="faq-a">نعم، تدعم الأداة أكثر من 50 منصة ومنفذاً للمحتوى الرقمي. المحتوى العام المتاح للعامة يمكن حفظه، أما المحتوى الخاص أو المقيّد فلا يمكن معالجته.</p>
-        </details>
-
-        <details class="faq-item">
-          <summary class="faq-q">ما هي المنصات المدعومة؟</summary>
-          <p class="faq-a">تدعم الأداة أكثر من 50 منصة للمحتوى الرقمي. نعمل على إضافة منصات جديدة باستمرار.</p>
-        </details>
-
-        <details class="faq-item">
-          <summary class="faq-q">كيف أحمّل الصوت فقط من فيديو؟</summary>
-          <p class="faq-a">بعد جلب معلومات الفيديو، ستجد ضمن الجودات المتاحة خياراً باسم "صوت فقط". اختره وسيُحمَّل الصوت بصيغة MP3 عالية الجودة.</p>
-        </details>
-
-        <details class="faq-item">
-          <summary class="faq-q">هل الموقع آمن وهل يحفظ بياناتي؟</summary>
-          <p class="faq-a">الموقع آمن تماماً. لا نحتفظ بأي روابط أو بيانات شخصية. الملفات المحملة تُحذف تلقائياً من خوادمنا بعد 30 دقيقة من معالجتها.</p>
-        </details>
-
-        <details class="faq-item">
-          <summary class="faq-q">لماذا لا يعمل الرابط الذي أدخلته؟</summary>
-          <p class="faq-a">تأكد من أن الرابط صحيح وكامل. الفيديوهات الخاصة أو المقيّدة جغرافياً قد لا تعمل. إذا استمرت المشكلة، جرب نسخ الرابط من التطبيق مباشرة وليس من المتصفح.</p>
-        </details>
-
-      </div>
-    </section>
-
-    <style>
-      .faq-item {
-        background: var(--card, #16161f);
-        border: 1px solid var(--border, #2a2a3a);
-        border-radius: 14px;
-        overflow: hidden;
-      }
-      .faq-q {
-        padding: 1rem 1.2rem;
-        font-weight: 700;
-        font-size: .95rem;
-        cursor: pointer;
-        list-style: none;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: .8rem;
-        transition: background .2s;
-      }
-      .faq-q::-webkit-details-marker { display: none; }
-      .faq-q::after {
-        content: '+';
-        font-size: 1.3rem;
-        font-weight: 400;
-        color: var(--accent, #a855f7);
-        flex-shrink: 0;
-        transition: transform .25s;
-      }
-      details[open] .faq-q::after { transform: rotate(45deg); }
-      .faq-q:hover { background: rgba(168,85,247,.06); }
-      .faq-a {
-        padding: 0 1.2rem 1rem;
-        color: var(--muted, #8888aa);
-        font-size: .88rem;
-        line-height: 1.75;
-        border-top: 1px solid var(--border, #2a2a3a);
-        margin-top: 0;
-      }
-    </style>
-
-  </main>
-
-
-  <footer class="footer">
-    <div class="footer-grid">
-      <div class="footer-brand">
-        <div class="footer-logo">⬇️ <span>نزلها <strong>بلس</strong></span></div>
-        <p class="footer-desc">احفظ المحتوى الرقمي من الإنترنت بضغطة واحدة — مجاناً وبدون تسجيل.</p>
-        <p class="footer-copy">&copy; 2026 نزلها بلس. جميع الحقوق محفوظة.</p>
-      </div>
-      <div class="footer-col">
-        <h4 class="footer-col-title">روابط سريعة</h4>
-        <a href="/how-to-use">كيف تستخدمه</a>
-        <a href="/blog">المدونة</a>
-      </div>
-      <div class="footer-col">
-        <h4 class="footer-col-title">الشركة</h4>
-        <a href="/about">عن الموقع</a>
-        <a href="/privacy">سياسة الخصوصية</a>
-      </div>
+  <!-- Footer -->
+  <footer>
+    <div>نزلها بلس &copy; 2026 — جميع الحقوق محفوظة</div>
+    <div class="footer-links">
+      <a href="/how-to-use">كيف تستخدمه</a>
+      <a href="/about">عن التطبيق</a>
+      <a href="/privacy">سياسة الخصوصية</a>
+      <a href="/blog">المدونة</a>
     </div>
   </footer>
 
-  <!-- ===== Pay Modal ===== -->
-  <div id="payModal" class="ad-modal hidden">
-    <div class="ad-modal-box">
-      <div class="ad-modal-header">
-        <span class="ad-modal-title">💳 الاشتراك المميز — $2/شهر</span>
-        <button onclick="closePayModal()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>
-      </div>
-      <div class="ad-modal-content" style="padding:1.5rem;text-align:center">
-        <p style="color:var(--muted);font-size:.88rem;margin-bottom:1rem">
-          ادفع عبر <strong style="color:#a855f7">ZainCash</strong> بمسح الباركود أدناه
-        </p>
-        <div style="background:#fff;border-radius:16px;padding:1rem;display:inline-block;margin-bottom:1rem">
-          <img src="/static/images/zaincash-qr.jpg" alt="ZainCash QR"
-            style="width:200px;height:200px;object-fit:contain;display:block" />
-        </div>
-        <div style="background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);border-radius:10px;padding:.8rem 1rem;margin-bottom:1rem">
-          <p style="font-size:.85rem;color:var(--text);line-height:1.7">
-            ١. افتح ZainCash واسحب الباركود<br>
-            ٢. أرسل <strong>$2</strong> أو ما يعادلها بالدينار<br>
-            ٣. أرسل لقطة الشاشة على <strong>انستغرام</strong><br>
-            ٤. ستستلم كود التفعيل خلال <strong>24 ساعة</strong>
-          </p>
-        </div>
-        <div style="display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap">
-          <a href="https://www.instagram.com/4t9s2" target="_blank"
-            style="display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1.2rem;background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:.9rem">
-            📸 إرسال الإيصال على انستا
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div id="payOverlay" class="ad-overlay hidden" onclick="closePayModal()"></div>
-
-  <!-- ===== Redeem Code Modal ===== -->
-  <div id="redeemModal" class="ad-modal hidden">
-    <div class="ad-modal-box">
-      <div class="ad-modal-header">
-        <span class="ad-modal-title">🔑 تفعيل اشتراك مميز</span>
-        <button onclick="closeRedeemModal()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>
-      </div>
-      <div class="ad-modal-content" style="padding:1.5rem">
-        <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">أدخل كود الاشتراك الذي حصلت عليه بعد الدفع</p>
-        <input id="redeemInput" type="text" placeholder="VIP-XXXX-XXXX"
-          style="width:100%;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;
-          padding:.8rem 1rem;color:var(--text);font-family:inherit;font-size:1rem;outline:none;
-          text-align:center;letter-spacing:2px;direction:ltr;margin-bottom:.8rem" />
-        <div id="redeemMsg" style="font-size:.9rem;text-align:center;min-height:1.2rem;margin-bottom:.8rem"></div>
-        <button onclick="submitRedeemCode()" class="btn-primary" style="margin:0">
-          <span>تفعيل الاشتراك</span>
-        </button>
-      </div>
-    </div>
-  </div>
-  <div id="redeemOverlay" class="ad-overlay hidden" onclick="closeRedeemModal()"></div>
-
-  <!-- ===== Install PWA Banner ===== -->
-  <div id="installBanner" class="install-banner hidden">
-    <div class="install-icon">⬇️</div>
-    <div class="install-text">
-      <strong>ثبّت التطبيق على هاتفك</strong>
-      <span>وصول أسرع — يعمل بدون متصفح</span>
-    </div>
-    <button id="installBtn" class="install-confirm">تثبيت</button>
-    <button onclick="dismissInstall()" class="install-dismiss">✕</button>
-  </div>
-
-
-
-  <!-- ===== Video Player Modal ===== -->
-  <div id="videoPlayerModal" class="ad-modal hidden">
-    <div class="ad-modal-box" style="max-width:520px">
-      <div class="ad-modal-header">
-        <span class="ad-modal-title">🎬 معاينة الفيديو</span>
-        <button onclick="closeVideoPlayer()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>
-      </div>
-      <div style="padding:.8rem">
-        <video id="videoPlayerEl" controls playsinline style="width:100%;border-radius:12px;background:#000;max-height:360px;display:block"></video>
-      </div>
-    </div>
-  </div>
-  <div id="videoPlayerOverlay" class="ad-overlay hidden" onclick="closeVideoPlayer()"></div>
-
-  <!-- ===== Share Card Modal ===== -->
-  <div id="shareCardModal" class="ad-modal hidden">
-    <div class="ad-modal-box" style="max-width:420px">
-      <div class="ad-modal-header">
-        <span class="ad-modal-title">📸 بطاقة المشاركة</span>
-        <button onclick="closeShareCardModal()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>
-      </div>
-      <div style="padding:1rem;text-align:center">
-        <img id="shareCardImg" style="width:100%;border-radius:12px;display:block" alt="share card" />
-        <p style="color:var(--muted);font-size:.8rem;margin:.7rem 0 .5rem">اضغط مطولاً لحفظها أو مشاركتها</p>
-        <button onclick="downloadShareCard()" style="width:100%;padding:.75rem;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:.95rem;font-weight:700;cursor:pointer">⬇️ تحميل البطاقة</button>
-      </div>
-    </div>
-  </div>
-  <div id="shareCardOverlay" class="ad-overlay hidden" onclick="closeShareCardModal()"></div>
-
-  <script src="/static/js/main.js" defer></script>
-  <script>
-    setInterval(function() {
-      fetch('/api/public-stats').catch(function(){});
-    }, 600000);
-  </script>
 </body>
 </html>
