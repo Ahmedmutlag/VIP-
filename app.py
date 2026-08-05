@@ -1745,7 +1745,8 @@ def get_info():
                 continue
             seen.add(key)
 
-            fid = (f["format_id"] + "+bestaudio/best") if ftype == "video" else f["format_id"]
+            video_only = ftype == "video" and f.get("acodec", "none") == "none"
+            fid = (f["format_id"] + "+bestaudio/best") if video_only else f["format_id"]
             formats.append({
                 "format_id": fid,
                 "label": label,
@@ -1871,11 +1872,8 @@ def start_download():
             return
 
         # ── RapidAPI path ──────────────────────────────────────────────────────
-        use_rapidapi = RAPIDAPI_KEY and (
-            format_id.startswith("rapidapi_") or
-            not format_id.startswith("bestvideo") and not format_id.startswith("best[")
-        )
-        if RAPIDAPI_KEY:
+        use_rapidapi = RAPIDAPI_KEY and format_id.startswith("rapidapi_")
+        if use_rapidapi:
             prefer_audio = "audio" in format_id or "bestaudio" in format_id
             api_data = _call_rapidapi(url)
             medias = api_data.get("medias", [])
