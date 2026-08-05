@@ -418,7 +418,7 @@ STRINGS: dict[str, dict] = {
         "daily_limit": "⛔ <b>وصلت للحد اليومي المجاني ({limit} تحميلات)</b>\n\nاختر طريقة للمتابعة:",
         "btn_watch_ad": "📺 شاهد إعلان على الموقع",
         "btn_watch_ad_app": "📱 شاهد إعلان عبر التطبيق",
-        "btn_subscribe_now": "💎 اشترك بالبريميوم ⭐",
+        "btn_subscribe_now": "💎 اشترك بالبريميوم",
         "adwatch_app_msg": "📱 <b>شاهد إعلاناً في التطبيق واحصل على تحميل مجاني</b>\n\n1️⃣ اضغط <b>فتح التطبيق</b> أدناه\n2️⃣ سيظهر الإعلان تلقائياً — شاهده كاملاً\n3️⃣ ارجع هنا واضغط ✅ تم",
         "btn_app_ad_done": "✅ شاهدت الإعلان — حمّل الآن",
         "choose_format": "🎬 <b>{platform}</b> — اختر الصيغة:{rem}",
@@ -471,9 +471,8 @@ STRINGS: dict[str, dict] = {
         "subscribe_menu": (
             "💎 <b>ترقية للبريميوم</b>\n\n"
             "اختر الباقة المناسبة:\n\n"
-            "⭐ <b>Telegram Stars</b> — الدفع داخل التطبيق مباشرة\n"
-            "💳 <b>دينار عراقي (IQD)</b> — عبر ZainCash / بطاقة\n"
-            "✅ تفعيل فوري بعد الدفع"
+            "💳 الدفع بالدينار العراقي عبر <b>ZainCash</b>\n"
+            "✅ تفعيل فوري بعد إتمام الدفع"
         ),
         "wayl_payment_link": (
             "💳 <b>ادفع بالدينار العراقي</b>\n\n"
@@ -548,7 +547,7 @@ STRINGS: dict[str, dict] = {
         "daily_limit": "⛔ <b>You've reached the free daily limit ({limit} downloads)</b>\n\nChoose how to continue:",
         "btn_watch_ad": "📺 Watch ad on website",
         "btn_watch_ad_app": "📱 Watch ad via the app",
-        "btn_subscribe_now": "💎 Subscribe to Premium ⭐",
+        "btn_subscribe_now": "💎 Subscribe to Premium",
         "adwatch_app_msg": "📱 <b>Watch an ad in the app to unlock a free download</b>\n\n1️⃣ Tap <b>Open App</b> below\n2️⃣ An ad will appear automatically — watch it fully\n3️⃣ Come back here and press ✅ Done",
         "btn_app_ad_done": "✅ I watched the ad — Download now",
         "choose_format": "🎬 <b>{platform}</b> — Choose format:{rem}",
@@ -601,8 +600,7 @@ STRINGS: dict[str, dict] = {
         "subscribe_menu": (
             "💎 <b>Upgrade to Premium</b>\n\n"
             "Choose a plan:\n\n"
-            "⭐ <b>Telegram Stars</b> — pay inside the app\n"
-            "💳 <b>Iraqi Dinar (IQD)</b> — via ZainCash / card\n"
+            "💳 Pay in Iraqi Dinar via <b>ZainCash</b>\n"
             "✅ Instant activation after payment"
         ),
         "wayl_payment_link": (
@@ -1204,10 +1202,8 @@ WAYL_PLANS = [
 
 SUBSCRIBE_KEYBOARD = {
     "inline_keyboard": (
-        [[{"text": f"⭐ {p['stars']} Stars — {p['label']}", "callback_data": f"sub:{p['days']}"}]
-         for p in SUBSCRIBE_PLANS]
-        + [[{"text": f"💳 {p['iqd']:,} IQD — {p['label_ar']}", "callback_data": f"wayl:{p['days']}"}]
-           for p in WAYL_PLANS]
+        [[{"text": f"💳 {p['iqd']:,} IQD — {p['label_ar']}", "callback_data": f"wayl:{p['days']}"}]
+         for p in WAYL_PLANS]
         + [[{"text": "🔑 عندي كود — /redeem", "callback_data": "sub:code"}]]
     )
 }
