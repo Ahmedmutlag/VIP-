@@ -3,14 +3,264 @@
     xmlns:ads="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@color/background"
+    android:layoutDirection="rtl">
 
-    <WebView
-        android:id="@+id/webview"
+    <!-- ── Header Bar ──────────────────────────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@color/primary"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:elevation="4dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="&#x1F3AC; نزلها بلس"
+            android:textColor="@color/white"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
+    <!-- ── Scrollable content area (weight=1) ─────────────────────────────── -->
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="vertical">
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- URL input row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical">
+
+                <EditText
+                    android:id="@+id/urlInput"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="الصق رابط الفيديو هنا..."
+                    android:gravity="end|center_vertical"
+                    android:inputType="textUri"
+                    android:singleLine="true"
+                    android:padding="12dp"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/pasteBtn"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:text="&#x1F4CB;"
+                    android:textSize="20sp"
+                    android:padding="4dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@color/primary"
+                    android:textColor="@color/white" />
+
+            </LinearLayout>
+
+            <!-- Analyze button -->
+            <Button
+                android:id="@+id/analyzeBtn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="&#x1F50D; تحليل الرابط"
+                android:background="@color/primary"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp" />
+
+            <!-- Status text (hidden by default) -->
+            <TextView
+                android:id="@+id/statusText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <!-- Loading spinner (gone by default) -->
+            <ProgressBar
+                android:id="@+id/loadingBar"
+                style="?android:attr/progressBarStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp"
+                android:visibility="gone" />
+
+            <!-- ── Format section (gone until URL is analyzed) ───────────── -->
+            <LinearLayout
+                android:id="@+id/formatSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="16dp"
+                android:visibility="gone">
+
+                <!-- Video title -->
+                <TextView
+                    android:id="@+id/videoTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- Video / Audio toggle row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <Button
+                        android:id="@+id/btnVideo"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="&#x1F3AC; فيديو"
+                        android:layout_marginEnd="4dp"
+                        android:background="@color/primary"
+                        android:textColor="@color/white"
+                        android:textSize="15sp" />
+
+                    <Button
+                        android:id="@+id/btnAudio"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="&#x1F3B5; صوت"
+                        android:layout_marginStart="4dp"
+                        android:background="@color/primary"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                        android:alpha="0.5" />
+
+                </LinearLayout>
+
+                <!-- Quality buttons (horizontal scroll; LinearLayout is gone by default) -->
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/qualitySection"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:padding="4dp"
+                        android:visibility="gone" />
+
+                </HorizontalScrollView>
+
+                <!-- Download button -->
+                <Button
+                    android:id="@+id/downloadBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="&#x2B07;&#xFE0F; تحميل"
+                    android:background="@color/green"
+                    android:textColor="@color/white"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:paddingTop="14dp"
+                    android:paddingBottom="14dp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <!-- ── Progress section (gone by default) ───────────────────── -->
+            <LinearLayout
+                android:id="@+id/progressSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="16dp"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:id="@+id/downloadProgress"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:progress="0" />
+
+                <TextView
+                    android:id="@+id/progressText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:textSize="14sp"
+                    android:layout_marginTop="4dp" />
+
+            </LinearLayout>
+
+            <!-- Download counter -->
+            <TextView
+                android:id="@+id/downloadCounter"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:gravity="center"
+                android:textSize="12sp"
+                android:textColor="@color/text_gray" />
+
+            <!-- Watch-ad button (gone by default) -->
+            <Button
+                android:id="@+id/watchAdBtn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="&#x1F4FA; شاهد إعلاناً للحصول على تحميل إضافي"
+                android:background="@color/primary"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <!-- Subscribe button -->
+            <Button
+                android:id="@+id/subscribeBtn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="8dp"
+                android:text="&#x1F48E; اشترك للتحميل غير المحدود"
+                android:background="@color/gold"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp" />
+
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ── Banner Ad (outside scroll, always at bottom) ──────────────────── -->
     <com.google.android.gms.ads.AdView
         android:id="@+id/bannerAd"
         android:layout_width="match_parent"
