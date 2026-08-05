@@ -54,25 +54,6 @@
   }
   </script>
 
-  <!-- ===== Telegram Mini App SDK ===== -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script>
-    (function() {
-      var tg = window.Telegram && window.Telegram.WebApp;
-      if (!tg) return;
-      tg.ready();
-      tg.expand();
-      // Apply Telegram theme colors if available
-      var p = tg.themeParams;
-      if (p && p.bg_color) {
-        document.documentElement.style.setProperty('--tg-bg', p.bg_color);
-      }
-      // Show back button when inside Telegram
-      if (tg.platform !== 'unknown') {
-        tg.BackButton.onClick(function() { history.back(); });
-      }
-    })();
-  </script>
 
   <!-- ===== PWA & Icons ===== -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -703,40 +684,6 @@
     <button onclick="dismissInstall()" class="install-dismiss">✕</button>
   </div>
 
-  <!-- ===== Bot Redirect Modal ===== -->
-  <div id="adModal" class="ad-modal hidden">
-    <div class="ad-modal-box" style="max-width:420px;text-align:center">
-      <div class="ad-modal-header">
-        <span class="ad-modal-title">📲 تحميل عبر البوت</span>
-      </div>
-
-      <div class="ad-modal-content" style="padding:1.4rem 1rem">
-        <div style="font-size:3rem;margin-bottom:.6rem">🤖</div>
-        <p style="font-size:1rem;font-weight:600;margin-bottom:.4rem">نزّل الفيديو مجاناً عبر بوت نزلها بلس!</p>
-        <p style="font-size:.85rem;color:var(--muted);margin-bottom:1rem">
-          افتح البوت، الصق الرابط، واستلم الفيديو مباشرةً في تيليغرام ⚡
-        </p>
-        <div id="botRedirectUrl" style="
-          background:var(--card);border:1px solid var(--border);border-radius:8px;
-          padding:.5rem .8rem;font-size:.78rem;word-break:break-all;
-          color:var(--muted);margin-bottom:1rem;direction:ltr;text-align:left"></div>
-        <button onclick="copyBotUrl()" class="ad-skip-btn" style="margin-bottom:.6rem;width:100%;background:var(--border)">
-          📋 نسخ الرابط
-        </button>
-        <a id="openBotBtn" href="https://t.me/nazzilhaplus_bot" target="_blank"
-           class="ad-skip-btn" style="display:block;width:100%;text-decoration:none;box-sizing:border-box">
-          📲 فتح البوت الآن
-        </a>
-      </div>
-
-      <div class="ad-modal-footer" style="padding-top:0">
-        <button onclick="closeAdModal()" style="background:none;border:none;color:var(--muted);font-size:.8rem;cursor:pointer;padding:.4rem">
-          إغلاق ✕
-        </button>
-      </div>
-    </div>
-  </div>
-  <div id="adOverlay" class="ad-overlay hidden" onclick="closeAdModal()"></div>
 
 
   <!-- ===== Video Player Modal ===== -->

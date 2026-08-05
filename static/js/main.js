@@ -370,49 +370,7 @@ function renderInfo(data) {
 // ===== Download Flow =====
 function handleDownloadClick() {
   if (!selectedFormat) return;
-  if (isPremium()) {
-    startDownload();
-  } else {
-    showAdModal();
-  }
-}
-
-// ===== Bot Redirect Modal =====
-async function showAdModal() {
-  const url = document.getElementById('urlInput').value.trim();
-  document.getElementById('botRedirectUrl').textContent = url;
-  document.getElementById('adModal').classList.remove('hidden');
-  document.getElementById('adOverlay').classList.remove('hidden');
-  try { navigator.clipboard.writeText(url); } catch(e) {}
-
-  // Create deep link token so bot auto-downloads the URL
-  try {
-    const res = await fetch('/api/bot-link', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url})
-    });
-    const data = await res.json();
-    if (data.token) {
-      document.getElementById('openBotBtn').href = 'https://t.me/nazzilhaplus_bot?start=' + data.token;
-    }
-  } catch(e) {
-    document.getElementById('openBotBtn').href = 'https://t.me/nazzilhaplus_bot';
-  }
-}
-
-function closeAdModal() {
-  document.getElementById('adModal').classList.add('hidden');
-  document.getElementById('adOverlay').classList.add('hidden');
-}
-
-function copyBotUrl() {
-  const url = document.getElementById('botRedirectUrl').textContent;
-  navigator.clipboard.writeText(url).then(() => {
-    const btn = event.target;
-    btn.textContent = '✅ تم النسخ!';
-    setTimeout(() => { btn.textContent = '📋 نسخ الرابط'; }, 2000);
-  }).catch(() => {});
+  startDownload();
 }
 
 // ===== Start Download =====
