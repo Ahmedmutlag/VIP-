@@ -204,7 +204,6 @@ public class MainActivity extends AppCompatActivity {
             if (id == R.id.menu_privacy)  { openUrl(SITE_URL + "/privacy");    return true; }
             if (id == R.id.menu_about)    { openUrl(SITE_URL + "/about");      return true; }
             if (id == R.id.menu_blog)     { openUrl(SITE_URL + "/blog");       return true; }
-            if (id == R.id.menu_telegram) { openUrl("https://t.me/NazzilhaPlusBot"); return true; }
             return false;
         });
         popup.show();

@@ -4,5 +4,4 @@
     <item android:id="@+id/menu_privacy"  android:title="سياسة الخصوصية" />
     <item android:id="@+id/menu_about"    android:title="عن التطبيق" />
     <item android:id="@+id/menu_blog"     android:title="المدونة" />
-    <item android:id="@+id/menu_telegram" android:title="بوت تيليغرام" />
 </menu>
