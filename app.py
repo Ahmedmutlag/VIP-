@@ -2372,8 +2372,9 @@ def api_resolve():
                             audio_added2 = True
                         continue
 
-                    # Video stream (must carry both video and audio or at least video)
-                    if height and height not in seen_heights2:
+                    # Video stream — only include if audio is embedded (acodec != none)
+                    has_audio = acodec not in ("none", "")
+                    if height and height not in seen_heights2 and has_audio:
                         seen_heights2.add(height)
                         video_candidates.append({
                             "id": f"v{height}",
