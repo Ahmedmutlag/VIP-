@@ -39,6 +39,8 @@ import com.google.android.gms.ads.AdView;
 import com.google.android.gms.ads.FullScreenContentCallback;
 import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.interstitial.InterstitialAd;
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd;
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback;
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -84,6 +86,7 @@ public class MainActivity extends AppCompatActivity {
 
     // ── Ads ──────────────────────────────────────────────────────────────────
     private RewardedInterstitialAd rewardedAd;
+    private InterstitialAd interstitialAd;
     private boolean rewardedAdLoading = false;
     private boolean isShowingAd = false;
 
@@ -119,8 +122,10 @@ public class MainActivity extends AppCompatActivity {
         requestNotificationPermission();
         NotificationReceiver.schedule(this);
 
-        MobileAds.initialize(this, status ->
-            bannerAdView.loadAd(new AdRequest.Builder().build()));
+        MobileAds.initialize(this, status -> {
+            bannerAdView.loadAd(new AdRequest.Builder().build());
+            loadInterstitialAd();
+        });
         loadRewardedAd();
 
         FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
@@ -624,6 +629,42 @@ public class MainActivity extends AppCompatActivity {
     //  AdMob rewarded interstitial
     // ══════════════════════════════════════════════════════════════════════════
 
+    private void loadInterstitialAd() {
+        InterstitialAd.load(this,
+            getString(R.string.admob_interstitial_id),
+            new AdRequest.Builder().build(),
+            new InterstitialAdLoadCallback() {
+                @Override public void onAdLoaded(@NonNull InterstitialAd ad) {
+                    interstitialAd = ad;
+                }
+                @Override public void onAdFailedToLoad(@NonNull LoadAdError e) {
+                    interstitialAd = null;
+                }
+            });
+    }
+
+    private void showInterstitialAd(Runnable afterAd) {
+        if (interstitialAd == null) {
+            loadInterstitialAd();
+            if (afterAd != null) afterAd.run();
+            return;
+        }
+        interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
+            @Override public void onAdDismissedFullScreenContent() {
+                interstitialAd = null;
+                loadInterstitialAd();
+                if (afterAd != null) afterAd.run();
+            }
+            @Override public void onAdFailedToShowFullScreenContent(@NonNull com.google.android.gms.ads.AdError e) {
+                interstitialAd = null;
+                loadInterstitialAd();
+                if (afterAd != null) afterAd.run();
+            }
+        });
+        interstitialAd.show(this);
+        interstitialAd = null;
+    }
+
     private void loadRewardedAd() {
         if (rewardedAdLoading) return;
         rewardedAdLoading = true;
@@ -700,7 +741,7 @@ public class MainActivity extends AppCompatActivity {
         if (ok) {
             incrementDownloadCount();
             Uri fu = resultUri[0];
-            runOnUiThread(() -> { showProgressSection(false, null); showSuccessDialog(fu); });
+            runOnUiThread(() -> { showProgressSection(false, null); showInterstitialAd(() -> showSuccessDialog(fu)); });
         } else {
             runOnUiThread(() -> { showProgressSection(false, null); showError("فشل التحميل، حاول مجدداً"); });
         }
