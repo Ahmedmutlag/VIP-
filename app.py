@@ -2385,6 +2385,30 @@ def api_resolve():
                             "height": height,
                         })
 
+                # If no combined streams found, check for DASH separate streams → server-merge fallback
+                if not video_candidates:
+                    has_dash_video = any(
+                        (f.get("vcodec") or "").lower() not in ("none", "")
+                        and (f.get("acodec") or "").lower() in ("none", "")
+                        and f.get("height", 0)
+                        for f in raw_formats
+                    )
+                    if has_dash_video:
+                        import urllib.parse as _up
+                        merge_url = (
+                            request.host_url.rstrip("/")
+                            + "/api/merged-download?src="
+                            + _up.quote(url, safe="")
+                        )
+                        video_candidates.append({
+                            "id": "v_server",
+                            "label": "أفضل جودة",
+                            "url": merge_url,
+                            "ext": "mp4",
+                            "type": "video",
+                            "height": 720,
+                        })
+
                 # Pick up to 4 quality tiers
                 video_candidates.sort(key=lambda x: x["height"], reverse=True)
                 WANT_HEIGHTS = [1080, 720, 480, 360, 240]
@@ -2415,6 +2439,86 @@ def api_resolve():
         "formats": formats,
     })
 
+
+
+@app.route("/api/merged-download", methods=["GET"])
+@limiter.limit("3 per minute")
+def api_merged_download():
+    """Server-side download + ffmpeg merge for DASH-only platforms (no combined CDN URL).
+
+    Called by the Android app when /api/resolve detects separate video+audio streams.
+    Downloads best video+audio via yt-dlp, merges with ffmpeg, streams mp4 to client.
+    """
+    import tempfile
+    import shutil
+    import glob as _glob
+    import urllib.parse as _up
+
+    src = _up.unquote(request.args.get("src", "").strip())
+
+    if not src or not src.startswith(("http://", "https://")):
+        return jsonify({"error": "src مطلوب"}), 400
+    if not _is_safe_url(src):
+        return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    tmp_dir = tempfile.mkdtemp(prefix="nazzilha_merge_")
+    try:
+        ydl_opts: dict = {
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "format": (
+                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]"
+                "/bestvideo[height<=720]+bestaudio"
+                "/best[height<=720]/best"
+            ),
+            "outtmpl": os.path.join(tmp_dir, "video.%(ext)s"),
+            "merge_output_format": "mp4",
+            "socket_timeout": 30,
+            "postprocessors": [{"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"}],
+        }
+        if _FFMPEG_PATH:
+            ydl_opts["ffmpeg_location"] = _FFMPEG_PATH
+
+        cookies_file = get_cookies_file()
+        if cookies_file:
+            ydl_opts["cookiefile"] = cookies_file
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([src])
+
+        mp4_files = _glob.glob(os.path.join(tmp_dir, "*.mp4"))
+        if not mp4_files:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            return jsonify({"error": "فشل دمج الفيديو"}), 500
+
+        out_path = mp4_files[0]
+        file_size = os.path.getsize(out_path)
+
+        def _stream_and_cleanup():
+            try:
+                with open(out_path, "rb") as fh:
+                    while True:
+                        chunk = fh.read(65536)
+                        if not chunk:
+                            break
+                        yield chunk
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        return Response(
+            _stream_and_cleanup(),
+            mimetype="video/mp4",
+            headers={
+                "Content-Disposition": 'attachment; filename="video.mp4"',
+                "Content-Length": str(file_size),
+            },
+        )
+
+    except Exception as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        app.logger.error("merged-download error for %s: %s", src[:80], e)
+        return jsonify({"error": "فشل تحميل الفيديو"}), 500
 
 
 if __name__ == "__main__":
