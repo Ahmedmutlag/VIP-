@@ -26,6 +26,11 @@ from flask_compress import Compress
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 import yt_dlp
+try:
+    import imageio_ffmpeg
+    _FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
+except Exception:
+    _FFMPEG_PATH = None
 
 # ===== RapidAPI — Auto Download All In One =====
 RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
@@ -1706,6 +1711,7 @@ def get_info():
         "skip_download": True,
         "noplaylist": True,
         "nocheckcertificate": False,
+        **({"ffmpeg_location": _FFMPEG_PATH} if _FFMPEG_PATH else {}),
     }
 
     if "instagram.com" in url.lower():
@@ -1927,6 +1933,7 @@ def start_download():
             "noplaylist": True,
             "nocheckcertificate": False,
             "prefer_ffmpeg": True,
+            **({"ffmpeg_location": _FFMPEG_PATH} if _FFMPEG_PATH else {}),
             "concurrent_fragment_downloads": 1,
             "buffersize": 16384,
             "http_chunk_size": 10485760,
