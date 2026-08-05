@@ -163,7 +163,7 @@ _codes_lock = threading.Lock()
 
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
 WAYL_API_KEY   = os.environ.get("WAYL_API_KEY", "")
-WAYL_API_BASE  = "https://api.wayl.app"
+WAYL_API_BASE  = "https://api.thewayl.com/api/v1"
 WAYL_PLAN_IQD  = int(os.environ.get("WAYL_PLAN_IQD", "5000"))   # price in IQD
 WAYL_PLAN_DAYS = int(os.environ.get("WAYL_PLAN_DAYS", "30"))     # subscription duration
 ADMIN_USER = os.environ.get("ADMIN_USER", "")
@@ -1623,7 +1623,7 @@ def check_premium():
 
 def _wayl_headers():
     return {
-        "Authorization": f"Bearer {WAYL_API_KEY}",
+        "X-WAYL-AUTHENTICATION": WAYL_API_KEY,
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
@@ -1640,19 +1640,17 @@ def wayl_create():
     if not device_id:
         return jsonify({"error": "معرّف الجهاز مطلوب"}), 400
 
+    reference_id = f"nzl_{device_id[:20]}_{secrets.token_hex(6)}"
     try:
         import requests as _req
         payload = {
             "amount": WAYL_PLAN_IQD,
             "currency": "IQD",
+            "referenceId": reference_id,
             "description": f"نزلها بلس — اشتراك {WAYL_PLAN_DAYS} يوم",
-            "reference": f"nzl_{device_id[:20]}_{secrets.token_hex(6)}",
-            "redirect_url": "https://www.vip-dl.com/payment/success",
-            "cancel_url": "https://www.vip-dl.com/payment/cancel",
-            "metadata": {"device_id": device_id, "days": WAYL_PLAN_DAYS},
         }
         resp = _req.post(
-            f"{WAYL_API_BASE}/v1/payments",
+            f"{WAYL_API_BASE}/links",
             headers=_wayl_headers(),
             json=payload,
             timeout=20,
@@ -1661,9 +1659,13 @@ def wayl_create():
         if resp.status_code not in (200, 201):
             return jsonify({"error": resp_data.get("message", "فشل إنشاء الدفع")}), 502
 
+        pay_url = resp_data.get("paymentUrl") or resp_data.get("url") or resp_data.get("link") or ""
+        if not pay_url:
+            return jsonify({"error": "لم يُرجع الخادم رابط الدفع"}), 502
+
         return jsonify({
-            "payment_id": resp_data.get("id") or resp_data.get("payment_id"),
-            "payment_url": resp_data.get("payment_url") or resp_data.get("checkout_url"),
+            "payment_id": reference_id,
+            "payment_url": pay_url,
             "amount": WAYL_PLAN_IQD,
             "days": WAYL_PLAN_DAYS,
         })
@@ -1687,7 +1689,7 @@ def wayl_verify():
     try:
         import requests as _req
         resp = _req.get(
-            f"{WAYL_API_BASE}/v1/payments/{payment_id}",
+            f"{WAYL_API_BASE}/links/{payment_id}",
             headers=_wayl_headers(),
             timeout=20,
         )
@@ -1697,7 +1699,7 @@ def wayl_verify():
         pmt = resp.json()
         status = (pmt.get("status") or "").lower()
 
-        if status not in ("paid", "completed", "captured", "success"):
+        if status not in ("paid", "completed", "success"):
             return jsonify({"paid": False, "status": status})
 
         # Generate and activate a premium code for this device
