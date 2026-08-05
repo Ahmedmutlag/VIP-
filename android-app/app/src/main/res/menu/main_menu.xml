@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/menu_upgrade"  android:title="⭐ ترقية للبريميوم" />
     <item android:id="@+id/menu_how_to"   android:title="كيف تستخدمه" />
     <item android:id="@+id/menu_privacy"  android:title="سياسة الخصوصية" />
     <item android:id="@+id/menu_about"    android:title="عن التطبيق" />

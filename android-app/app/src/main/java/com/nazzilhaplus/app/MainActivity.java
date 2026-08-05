@@ -198,8 +198,16 @@ public class MainActivity extends AppCompatActivity {
         PopupMenu popup = new PopupMenu(this, anchor);
         MenuInflater inflater = popup.getMenuInflater();
         inflater.inflate(R.menu.main_menu, popup.getMenu());
+
+        // Show correct label for upgrade item based on premium status
+        String premiumLabel = isPremiumActive()
+            ? "⭐ بريميوم مفعّل — تجديد"
+            : "⭐ ترقية للبريميوم";
+        popup.getMenu().findItem(R.id.menu_upgrade).setTitle(premiumLabel);
+
         popup.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
+            if (id == R.id.menu_upgrade)  { showUpgradeDialog();            return true; }
             if (id == R.id.menu_how_to)   { openUrl(SITE_URL + "/how-to-use"); return true; }
             if (id == R.id.menu_privacy)  { openUrl(SITE_URL + "/privacy");    return true; }
             if (id == R.id.menu_about)    { openUrl(SITE_URL + "/about");      return true; }
@@ -458,17 +466,18 @@ public class MainActivity extends AppCompatActivity {
         pendingDlFilename = filename;
         downloadPending   = true;
 
-        if (canDownloadFree()) {
+        if (isPremiumActive() || canDownloadFree()) {
             saveHistory(title, platform);
             beginDownload();
         } else {
             new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("تجاوزت الحد اليومي")
-                .setMessage("استنفذت " + FREE_DAILY_LIMIT + " تحميلات مجانية اليوم.\nشاهد إعلاناً قصيراً للمتابعة.")
+                .setMessage("استنفذت " + FREE_DAILY_LIMIT + " تحميلات مجانية اليوم.\nشاهد إعلاناً أو اشترك في البريميوم للحصول على تحميل غير محدود.")
                 .setPositiveButton("شاهد الإعلان", (d, w) -> {
                     saveHistory(title, platform);
                     showRewardedAd();
                 })
+                .setNeutralButton("⭐ بريميوم", (d, w) -> showUpgradeDialog())
                 .setNegativeButton("إلغاء", null)
                 .show();
         }
@@ -481,6 +490,163 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences p = getPrefs();
         if (!today.equals(p.getString("dl_date", ""))) return true;
         return p.getInt("dl_count", 0) < FREE_DAILY_LIMIT;
+    }
+
+    // ── Premium (Wayl) ───────────────────────────────────────────────────────
+
+    private boolean isPremiumActive() {
+        SharedPreferences p = getPrefs();
+        String exp = p.getString("premium_expires", "");
+        if (exp.isEmpty()) return false;
+        try {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US);
+            java.util.Date expDate = sdf.parse(exp);
+            return expDate != null && expDate.after(new java.util.Date());
+        } catch (Exception e) { return false; }
+    }
+
+    private String getDeviceId() {
+        SharedPreferences p = getPrefs();
+        String id = p.getString("device_id", "");
+        if (id.isEmpty()) {
+            id = java.util.UUID.randomUUID().toString().replace("-", "");
+            p.edit().putString("device_id", id).apply();
+        }
+        return id;
+    }
+
+    private void showUpgradeDialog() {
+        if (isPremiumActive()) {
+            SharedPreferences p = getPrefs();
+            String exp = p.getString("premium_expires", "");
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("⭐ أنت مشترك في البريميوم")
+                .setMessage("اشتراكك فعّال حتى:\n" + exp + "\n\nهل تريد التجديد المبكر أو التحقق من دفع جديد؟")
+                .setPositiveButton("تجديد", (d, w) -> startWaylPayment())
+                .setNeutralButton("تحقق من دفع", (d, w) -> showVerifyPaymentDialog())
+                .setNegativeButton("إغلاق", null)
+                .show();
+        } else {
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("⭐ ترقية للبريميوم")
+                .setMessage("احصل على تحميل غير محدود طوال الشهر!\n\nالسعر: 5,000 د.ع / شهر\n\nستُفتح صفحة الدفع في المتصفح، وبعد إتمام الدفع اضغط \"تحقق من الدفع\".")
+                .setPositiveButton("ادفع الآن", (d, w) -> startWaylPayment())
+                .setNeutralButton("تحقق من دفع", (d, w) -> showVerifyPaymentDialog())
+                .setNegativeButton("لاحقاً", null)
+                .show();
+        }
+    }
+
+    private void startWaylPayment() {
+        String deviceId = getDeviceId();
+        new Thread(() -> {
+            try {
+                org.json.JSONObject body = new org.json.JSONObject();
+                body.put("device_id", deviceId);
+
+                java.net.URL url = new java.net.URL(API_BASE + "/api/wayl/create");
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
+
+                byte[] input = body.toString().getBytes("utf-8");
+                conn.getOutputStream().write(input);
+
+                int code = conn.getResponseCode();
+                java.io.InputStream is = code < 400 ? conn.getInputStream() : conn.getErrorStream();
+                String resp = new String(is.readAllBytes(), "utf-8");
+                org.json.JSONObject json = new org.json.JSONObject(resp);
+
+                if (code == 200 || code == 201) {
+                    String paymentUrl = json.getString("payment_url");
+                    String paymentId  = json.getString("payment_id");
+                    getPrefs().edit().putString("pending_payment_id", paymentId).apply();
+                    runOnUiThread(() -> {
+                        try {
+                            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(paymentUrl)));
+                        } catch (Exception e) {
+                            Toast.makeText(this, "تعذّر فتح صفحة الدفع", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                } else {
+                    String err = json.optString("error", "فشل الاتصال");
+                    runOnUiThread(() -> Toast.makeText(this, err, Toast.LENGTH_LONG).show());
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "خطأ: " + e.getMessage(), Toast.LENGTH_LONG).show());
+            }
+        }).start();
+    }
+
+    private void showVerifyPaymentDialog() {
+        String pending = getPrefs().getString("pending_payment_id", "");
+        android.widget.EditText input = new android.widget.EditText(this);
+        input.setHint("رقم الدفع (Payment ID)");
+        input.setText(pending);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("تحقق من الدفع")
+            .setMessage("أدخل رقم الدفع الذي استلمته من Wayl:")
+            .setView(input)
+            .setPositiveButton("تحقق", (d, w) -> {
+                String pid = input.getText().toString().trim();
+                if (!pid.isEmpty()) verifyWaylPayment(pid);
+            })
+            .setNegativeButton("إلغاء", null)
+            .show();
+    }
+
+    private void verifyWaylPayment(String paymentId) {
+        Toast.makeText(this, "جاري التحقق...", Toast.LENGTH_SHORT).show();
+        String deviceId = getDeviceId();
+        new Thread(() -> {
+            try {
+                org.json.JSONObject body = new org.json.JSONObject();
+                body.put("payment_id", paymentId);
+                body.put("device_id", deviceId);
+
+                java.net.URL url = new java.net.URL(API_BASE + "/api/wayl/verify");
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
+
+                byte[] input = body.toString().getBytes("utf-8");
+                conn.getOutputStream().write(input);
+
+                int code = conn.getResponseCode();
+                java.io.InputStream is = code < 400 ? conn.getInputStream() : conn.getErrorStream();
+                String resp = new String(is.readAllBytes(), "utf-8");
+                org.json.JSONObject json = new org.json.JSONObject(resp);
+
+                if ((code == 200) && json.optBoolean("paid", false)) {
+                    String exp = json.optString("expires_at", "");
+                    getPrefs().edit()
+                        .putString("premium_expires", exp)
+                        .putString("premium_code", json.optString("code", ""))
+                        .remove("pending_payment_id")
+                        .apply();
+                    runOnUiThread(() ->
+                        new androidx.appcompat.app.AlertDialog.Builder(this)
+                            .setTitle("⭐ تم تفعيل البريميوم!")
+                            .setMessage("اشتراكك مفعّل حتى:\n" + exp + "\n\nاستمتع بتحميل غير محدود!")
+                            .setPositiveButton("رائع!", null)
+                            .show()
+                    );
+                } else {
+                    String err = json.optString("error", "الدفع لم يُكتمل بعد. تأكد من إتمام الدفع وحاول مجدداً.");
+                    runOnUiThread(() -> Toast.makeText(this, err, Toast.LENGTH_LONG).show());
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "خطأ في التحقق: " + e.getMessage(), Toast.LENGTH_LONG).show());
+            }
+        }).start();
     }
 
     private void incrementDownloadCount() {
