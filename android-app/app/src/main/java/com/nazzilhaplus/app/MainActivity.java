@@ -459,7 +459,6 @@ public class MainActivity extends AppCompatActivity {
         downloadPending   = true;
 
         if (canDownloadFree()) {
-            incrementDownloadCount();
             saveHistory(title, platform);
             beginDownload();
         } else {
@@ -663,6 +662,7 @@ public class MainActivity extends AppCompatActivity {
 
         nm.cancel(notifId);
         if (ok) {
+            incrementDownloadCount();
             Uri fu = resultUri[0];
             runOnUiThread(() -> { showProgressSection(false, null); showSuccessDialog(fu); });
         } else {
