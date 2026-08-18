@@ -2432,8 +2432,27 @@ def api_resolve():
     if not formats:
         return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
 
-    # yt-dlp DASH fallback already sets merged-download URLs above.
-    # RapidAPI CDN URLs are returned as-is — Android downloads directly.
+    # Route video downloads through the server where direct CDN fails.
+    # TikTok CDN URLs require yt-dlp handling — use merged-download.
+    # Instagram/Facebook/Snapchat CDN requires Referer header — use proxy-download.
+    import urllib.parse as _up
+    _host = request.host_url.rstrip("/")
+    for fmt in formats:
+        raw_url = fmt.get("url", "")
+        if (fmt.get("type") == "video"
+                and raw_url.startswith("http")
+                and "/api/proxy-download" not in raw_url
+                and "/api/merged-download" not in raw_url):
+            if platform == "TikTok":
+                fmt["url"] = (
+                    f"{_host}/api/merged-download?src={_up.quote(url, safe='')}"
+                )
+            elif platform in ("Instagram", "Facebook", "Snapchat"):
+                fmt["url"] = (
+                    f"{_host}/api/proxy-download"
+                    f"?url={_up.quote(raw_url, safe='')}"
+                    f"&ext={fmt.get('ext', 'mp4')}"
+                )
 
     return jsonify({
         "title": title[:200] if title else "",
