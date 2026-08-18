@@ -42,7 +42,6 @@ SMVD_PLATFORM_PATHS = {
     "Instagram": "/instagram/v3/media/details",
     "Facebook":  "/facebook/v3/post/details",
     "Twitter/X": "/twitter/v3/post/details",
-    "YouTube":   "/youtube/v3/video/details",
     "Snapchat":  "/snapchat/v3/post/details",
     "Pinterest": "/pinterest/v3/pin/details",
 }
