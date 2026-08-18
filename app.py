@@ -2448,9 +2448,7 @@ def api_resolve():
     if not formats:
         return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
 
-    # Route video downloads through the server where direct CDN fails.
-    # TikTok CDN URLs require yt-dlp handling — use merged-download.
-    # Instagram/Facebook/Snapchat CDN requires Referer header — use proxy-download.
+    # Route video downloads through the correct server endpoint
     import urllib.parse as _up
     _host = request.host_url.rstrip("/")
     for fmt in formats:
@@ -2460,10 +2458,12 @@ def api_resolve():
                 and "/api/proxy-download" not in raw_url
                 and "/api/merged-download" not in raw_url):
             if platform == "TikTok":
+                # TikTok CDN blocks datacenter IPs — use yt-dlp server-side download
                 fmt["url"] = (
                     f"{_host}/api/merged-download?src={_up.quote(url, safe='')}"
                 )
-            elif platform in ("Instagram", "Facebook", "Snapchat"):
+            else:
+                # Other platforms: proxy CDN URL with correct headers
                 fmt["url"] = (
                     f"{_host}/api/proxy-download"
                     f"?url={_up.quote(raw_url, safe='')}"
