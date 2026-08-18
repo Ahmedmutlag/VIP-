@@ -42,6 +42,9 @@ SMVD_PLATFORM_PATHS = {
     "Instagram": "/instagram/v3/media/details",
     "Facebook":  "/facebook/v3/post/details",
     "Twitter/X": "/twitter/v3/post/details",
+    "YouTube":   "/youtube/v3/video/details",
+    "Snapchat":  "/snapchat/v3/post/details",
+    "Pinterest": "/pinterest/v3/pin/details",
 }
 
 
@@ -2372,21 +2375,20 @@ def api_resolve():
     title = ""
     thumbnail = ""
 
-    # ── 1. Try SMVD RapidAPI ──────────────────────────────────────────────────
-    if platform in SMVD_PLATFORM_PATHS:
-        try:
-            smvd_result = _call_smvd_api(url, platform)
-            if not smvd_result.get("error"):
-                s_title, s_thumb, s_formats = _parse_smvd_response(smvd_result)
-                if s_formats:
-                    title = s_title or title
-                    thumbnail = s_thumb or thumbnail
-                    formats = s_formats
-                    app.logger.info("resolve: SMVD returned %d formats for %s", len(formats), platform)
-            else:
-                app.logger.warning("SMVD resolve error for %s: %s", platform, smvd_result.get("error"))
-        except Exception as e:
-            app.logger.warning("SMVD resolve failed: %s", e)
+    # ── 1. Try SMVD RapidAPI (all supported platforms) ────────────────────────
+    try:
+        smvd_result = _call_smvd_api(url, platform)
+        if not smvd_result.get("error"):
+            s_title, s_thumb, s_formats = _parse_smvd_response(smvd_result)
+            if s_formats:
+                title = s_title or title
+                thumbnail = s_thumb or thumbnail
+                formats = s_formats
+                app.logger.info("resolve: SMVD returned %d formats for %s", len(formats), platform)
+        else:
+            app.logger.warning("SMVD resolve error for %s: %s", platform, smvd_result.get("error"))
+    except Exception as e:
+        app.logger.warning("SMVD resolve failed: %s", e)
 
     # ── 2. Fallback: yt-dlp ───────────────────────────────────────────────────
     if not formats:
