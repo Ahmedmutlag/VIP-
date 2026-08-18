@@ -168,6 +168,7 @@ _active_downloads_lock = threading.Lock()
 _codes_lock = threading.Lock()
 
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
+SITE_URL = os.environ.get("SITE_URL", "https://www.vip-dl.com").rstrip("/")
 ADMIN_USER = os.environ.get("ADMIN_USER", "")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
@@ -2412,7 +2413,7 @@ def api_resolve():
                     if has_dash_video:
                         import urllib.parse as _up
                         merge_url = (
-                            request.host_url.rstrip("/")
+                            SITE_URL
                             + "/api/merged-download?src="
                             + _up.quote(url, safe="")
                         )
@@ -2450,7 +2451,7 @@ def api_resolve():
 
     # Route video downloads through the correct server endpoint
     import urllib.parse as _up
-    _host = request.host_url.rstrip("/")
+    _host = SITE_URL
     for fmt in formats:
         raw_url = fmt.get("url", "")
         if (fmt.get("type") == "video"
