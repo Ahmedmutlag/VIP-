@@ -2449,21 +2449,8 @@ def api_resolve():
     if not formats:
         return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
 
-    # Route video downloads through the correct server endpoint
-    import urllib.parse as _up
-    _host = SITE_URL
-    for fmt in formats:
-        raw_url = fmt.get("url", "")
-        if (fmt.get("type") == "video"
-                and raw_url.startswith("http")
-                and "/api/proxy-download" not in raw_url
-                and "/api/merged-download" not in raw_url):
-            # All platforms: proxy CDN URL with platform-specific headers
-            fmt["url"] = (
-                f"{_host}/api/proxy-download"
-                f"?url={_up.quote(raw_url, safe='')}"
-                f"&ext={fmt.get('ext', 'mp4')}"
-            )
+    # RapidAPI CDN URLs returned directly — Android downloads from CDN.
+    # (DASH fallback still uses merged-download, set earlier in yt-dlp block.)
 
     return jsonify({
         "title": title[:200] if title else "",
