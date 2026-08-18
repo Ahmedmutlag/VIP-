@@ -2449,18 +2449,19 @@ def api_resolve():
     if not formats:
         return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
 
-    # TikTok CDN rejects direct downloads without a Referer header — route
-    # through proxy-download so the server adds the required header.
+    # TikTok CDN URLs expire quickly — route through tiktok-download which
+    # fetches a fresh CDN URL at download time instead of using the stale one.
     if platform == "TikTok":
         import urllib.parse as _up
+        original_url = url  # the original tiktok.com URL
         for fmt in formats:
             raw = fmt.get("url", "")
             if (raw.startswith("http")
-                    and "/api/proxy-download" not in raw
+                    and "/api/tiktok-download" not in raw
                     and "/api/merged-download" not in raw):
                 fmt["url"] = (
-                    f"{SITE_URL}/api/proxy-download"
-                    f"?url={_up.quote(raw, safe='')}"
+                    f"{SITE_URL}/api/tiktok-download"
+                    f"?src={_up.quote(original_url, safe='')}"
                     f"&ext={fmt.get('ext', 'mp4')}"
                 )
 
@@ -2471,6 +2472,92 @@ def api_resolve():
         "formats": formats,
     })
 
+
+
+@app.route("/api/tiktok-download", methods=["GET"])
+@limiter.limit("20 per minute")
+def api_tiktok_download():
+    """Fetch a fresh TikTok CDN URL at download time via RapidAPI and stream it.
+
+    TikTok CDN URLs expire quickly, so we re-call RapidAPI on every download
+    request instead of reusing the URL returned at resolve time.
+    """
+    import urllib.parse as _up
+    import requests
+
+    src = _up.unquote(request.args.get("src", "").strip())
+    ext = request.args.get("ext", "mp4").strip().lower()
+    if ext not in ("mp4", "mp3", "m4a", "webm", "mov"):
+        ext = "mp4"
+
+    if not src or not src.startswith(("http://", "https://")):
+        return jsonify({"error": "src مطلوب"}), 400
+    if not _is_safe_url(src):
+        return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    # Get a fresh CDN URL from RapidAPI right now
+    cdn_url = ""
+    try:
+        rapid = _call_rapidapi(src)
+        medias = rapid.get("medias") or []
+        for m in medias:
+            m_type = (m.get("type") or "").lower()
+            m_ext = (m.get("extension") or "mp4").lower()
+            m_url = (m.get("url") or "").strip()
+            if not m_url:
+                continue
+            if m_type == "audio":
+                continue
+            if m_ext == "mp4" or m_type == "video":
+                cdn_url = m_url
+                break
+        if not cdn_url and medias:
+            cdn_url = (medias[0].get("url") or "").strip()
+    except Exception as e:
+        app.logger.error("tiktok-download: RapidAPI error %s", e)
+
+    if not cdn_url:
+        return jsonify({"error": "تعذر جلب رابط التيك توك"}), 500
+
+    app.logger.info("tiktok-download: streaming from %s", cdn_url[:120])
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/114.0.0.0 Mobile Safari/537.36"
+        ),
+        "Referer": "https://www.tiktok.com/",
+        "Accept": "*/*",
+        "Accept-Encoding": "identity",
+    }
+
+    try:
+        resp = requests.get(cdn_url, headers=headers, stream=True, timeout=30, allow_redirects=True)
+        app.logger.info("tiktok-download: CDN status=%s length=%s",
+                        resp.status_code, resp.headers.get("Content-Length", "?"))
+        resp.raise_for_status()
+
+        content_type = resp.headers.get("Content-Type", f"video/{ext}")
+        content_length = resp.headers.get("Content-Length")
+
+        def _stream():
+            for chunk in resp.iter_content(chunk_size=65536):
+                if chunk:
+                    yield chunk
+
+        out_headers = {
+            "Content-Type": content_type,
+            "Content-Disposition": f'attachment; filename="video.{ext}"',
+        }
+        if content_length:
+            out_headers["Content-Length"] = content_length
+
+        return Response(_stream(), headers=out_headers)
+
+    except Exception as e:
+        app.logger.error("tiktok-download: stream failed cdn=%s error=%s", cdn_url[:120], e)
+        return jsonify({"error": "فشل تحميل الفيديو"}), 500
 
 
 @app.route("/api/tiktok-redirect", methods=["GET"])
