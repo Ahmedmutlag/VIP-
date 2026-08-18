@@ -171,6 +171,7 @@ STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
 ADMIN_USER = os.environ.get("ADMIN_USER", "")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
+ADMIN_CODE = os.environ.get("ADMIN_CODE", "")
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 RESET_SECRET = os.environ.get("RESET_SECRET", "")
@@ -1578,6 +1579,15 @@ def redeem_code():
     if not code:
         return jsonify({"error": "أدخل الكود"}), 400
 
+    # Admin code: never expires, never consumed
+    if ADMIN_CODE and code == ADMIN_CODE.upper():
+        from datetime import timedelta
+        expires_at = (now() + timedelta(days=36500)).strftime("%Y-%m-%d %H:%M")
+        return jsonify({
+            "message": "مرحباً بك أيها الأدمن ✅ تحميل غير محدود",
+            "expires_at": expires_at,
+        })
+
     with _codes_lock:
         codes = load_codes()
         if code not in codes:
@@ -1606,6 +1616,12 @@ def check_premium():
     code = ((request.get_json() or {}).get("code", "")).strip().upper()
     if not code:
         return jsonify({"valid": False}), 400
+
+    # Admin code: always valid, renew expiry on every check
+    if ADMIN_CODE and code == ADMIN_CODE.upper():
+        from datetime import timedelta
+        expires_at = (now() + timedelta(days=36500)).strftime("%Y-%m-%d %H:%M")
+        return jsonify({"valid": True, "expires_at": expires_at})
 
     codes = load_codes()
     if code not in codes:
