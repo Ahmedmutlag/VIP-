@@ -2916,7 +2916,10 @@ def api_merged_download():
         if _FFMPEG_PATH:
             ydl_opts["ffmpeg_location"] = _FFMPEG_PATH
 
-        cookies_file = get_cookies_file()
+        if "youtube" in src.lower() or "youtu.be" in src.lower():
+            cookies_file = get_youtube_cookies_file()
+        else:
+            cookies_file = get_cookies_file()
         if cookies_file:
             ydl_opts["cookiefile"] = cookies_file
 
