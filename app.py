@@ -2541,6 +2541,7 @@ def api_merged_download():
 def api_proxy_download():
     """Proxy a CDN video URL through the server with correct headers to bypass platform blocking."""
     import urllib.parse as _up
+    import requests
 
     cdn_url = _up.unquote(request.args.get("url", "").strip())
     ext = request.args.get("ext", "mp4").strip().lower()
