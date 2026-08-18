@@ -2597,8 +2597,13 @@ def api_proxy_download():
     elif "snapchat" in cdn_lower:
         headers["Referer"] = "https://www.snapchat.com/"
 
+    app.logger.info("proxy-download: fetching %s", cdn_url[:120])
     try:
         resp = requests.get(cdn_url, headers=headers, stream=True, timeout=30, allow_redirects=True)
+        app.logger.info("proxy-download: CDN status=%s content-type=%s length=%s",
+                        resp.status_code,
+                        resp.headers.get("Content-Type", "?"),
+                        resp.headers.get("Content-Length", "?"))
         resp.raise_for_status()
 
         content_type = resp.headers.get("Content-Type", f"video/{ext}")
@@ -2619,7 +2624,7 @@ def api_proxy_download():
         return Response(_stream(), headers=out_headers)
 
     except Exception as e:
-        app.logger.error("proxy-download failed for %s: %s", cdn_url[:80], e)
+        app.logger.error("proxy-download FAILED cdn=%s error=%s", cdn_url[:120], e)
         return jsonify({"error": "فشل تحميل الفيديو"}), 500
 
 
