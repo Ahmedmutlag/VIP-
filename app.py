@@ -2663,17 +2663,25 @@ def api_resolve():
     if not formats:
         return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
 
-    # Route CDN URLs through proxy-download so the server adds platform-specific
-    # headers (e.g. Referer). SMVD URLs (smvd.xyz) are already proxied by the
-    # API and don't need additional wrapping.
+    # Route CDN URLs through the right proxy.
+    # - smvd.xyz URLs: already proxied by SMVD, send directly
+    # - YouTube: CDN URLs are IP-restricted; use merged-download (server-side yt-dlp)
+    # - Everything else: proxy-download adds platform-specific Referer headers
     import urllib.parse as _up
     for fmt in formats:
         raw = fmt.get("url", "")
-        if (raw.startswith("http")
-                and "smvd.xyz" not in raw
-                and "/api/proxy-download" not in raw
-                and "/api/merged-download" not in raw
-                and "/api/tiktok-download" not in raw):
+        if not raw.startswith("http"):
+            continue
+        if "smvd.xyz" in raw:
+            continue
+        if "/api/proxy-download" in raw or "/api/merged-download" in raw or "/api/tiktok-download" in raw:
+            continue
+        if platform == "YouTube" and fmt.get("type") == "video":
+            fmt["url"] = (
+                f"{SITE_URL}/api/merged-download"
+                f"?src={_up.quote(url, safe='')}"
+            )
+        else:
             fmt["url"] = (
                 f"{SITE_URL}/api/proxy-download"
                 f"?url={_up.quote(raw, safe='')}"
