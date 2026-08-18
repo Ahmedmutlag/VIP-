@@ -2432,7 +2432,7 @@ def api_resolve():
     if not formats:
         return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
 
-    # Wrap video CDN URLs with proxy to handle platform blocking and headers
+    # Route video downloads through the correct server endpoint
     import urllib.parse as _up
     _host = request.host_url.rstrip("/")
     for fmt in formats:
@@ -2441,11 +2441,18 @@ def api_resolve():
                 and raw_url.startswith("http")
                 and "/api/proxy-download" not in raw_url
                 and "/api/merged-download" not in raw_url):
-            fmt["url"] = (
-                f"{_host}/api/proxy-download"
-                f"?url={_up.quote(raw_url, safe='')}"
-                f"&ext={fmt.get('ext', 'mp4')}"
-            )
+            if platform == "TikTok":
+                # TikTok CDN blocks datacenter IPs — use yt-dlp server-side download
+                fmt["url"] = (
+                    f"{_host}/api/merged-download?src={_up.quote(url, safe='')}"
+                )
+            else:
+                # Other platforms: proxy CDN URL with correct headers
+                fmt["url"] = (
+                    f"{_host}/api/proxy-download"
+                    f"?url={_up.quote(raw_url, safe='')}"
+                    f"&ext={fmt.get('ext', 'mp4')}"
+                )
 
     return jsonify({
         "title": title[:200] if title else "",
