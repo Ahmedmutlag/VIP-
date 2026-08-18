@@ -48,6 +48,22 @@ SMVD_PLATFORM_PATHS = {
 }
 
 
+def _extract_youtube_id(url: str) -> str:
+    """Extract YouTube video ID from various URL formats."""
+    import re as _re
+    patterns = [
+        r"[?&]v=([A-Za-z0-9_-]{11})",
+        r"youtu\.be/([A-Za-z0-9_-]{11})",
+        r"shorts/([A-Za-z0-9_-]{11})",
+        r"embed/([A-Za-z0-9_-]{11})",
+    ]
+    for p in patterns:
+        m = _re.search(p, url)
+        if m:
+            return m.group(1)
+    return ""
+
+
 def _call_smvd_api(url: str, platform: str) -> dict:
     """Call the Social Media Video Downloader RapidAPI (GET-based)."""
     if not RAPIDAPI_KEY:
@@ -58,7 +74,21 @@ def _call_smvd_api(url: str, platform: str) -> dict:
     try:
         import requests as _req
         import urllib.parse as _up
-        endpoint = f"https://{SMVD_HOST}{path}?url={_up.quote(url, safe='')}"
+
+        if platform == "YouTube":
+            video_id = _extract_youtube_id(url)
+            if not video_id:
+                return {"error": "could_not_extract_youtube_id"}
+            endpoint = (
+                f"https://{SMVD_HOST}{path}"
+                f"?videoId={_up.quote(video_id, safe='')}"
+                f"&urlAccess=proxied"
+                f"&renderableFormats=720p%2Chighres"
+                f"&getTranscript=false"
+            )
+        else:
+            endpoint = f"https://{SMVD_HOST}{path}?url={_up.quote(url, safe='')}"
+
         resp = _req.get(
             endpoint,
             headers={
@@ -2344,6 +2374,8 @@ def _resolve_platform(url: str) -> str:
         return "Facebook"
     if "twitter" in u or "x.com" in u:
         return "Twitter/X"
+    if "youtube" in u or "youtu.be" in u:
+        return "YouTube"
     if "pinterest" in u or "pin.it" in u:
         return "Pinterest"
     if "snapchat" in u or "snap.com" in u:
