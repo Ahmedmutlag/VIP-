@@ -2477,13 +2477,10 @@ def api_resolve():
 @app.route("/api/tiktok-download", methods=["GET"])
 @limiter.limit("20 per minute")
 def api_tiktok_download():
-    """Fetch a fresh TikTok CDN URL at download time via RapidAPI and stream it.
-
-    TikTok CDN URLs expire quickly, so we re-call RapidAPI on every download
-    request instead of reusing the URL returned at resolve time.
-    """
+    """Download a TikTok video server-side via yt-dlp and stream it to the client."""
     import urllib.parse as _up
-    import requests
+    import requests as _req
+    import tempfile, shutil, glob as _glob
 
     src = _up.unquote(request.args.get("src", "").strip())
     ext = request.args.get("ext", "mp4").strip().lower()
@@ -2495,26 +2492,64 @@ def api_tiktok_download():
     if not _is_safe_url(src):
         return jsonify({"error": "الرابط غير مسموح به"}), 400
 
-    # Get a fresh CDN URL from RapidAPI right now
+    app.logger.info("tiktok-download: extracting URL for %s", src[:80])
+
+    # Step 1: use yt-dlp (skip_download) to get a fresh CDN URL + headers
     cdn_url = ""
+    cdn_headers = {}
     try:
-        rapid = _call_rapidapi(src)
-        medias = rapid.get("medias") or []
-        for m in medias:
-            m_type = (m.get("type") or "").lower()
-            m_ext = (m.get("extension") or "mp4").lower()
-            m_url = (m.get("url") or "").strip()
-            if not m_url:
-                continue
-            if m_type == "audio":
-                continue
-            if m_ext == "mp4" or m_type == "video":
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "noplaylist": True,
+            "socket_timeout": 20,
+            "format": "bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best",
+        }
+        cookies_file = get_cookies_file()
+        if cookies_file:
+            ydl_opts["cookiefile"] = cookies_file
+        if _FFMPEG_PATH:
+            ydl_opts["ffmpeg_location"] = _FFMPEG_PATH
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(src, download=False)
+
+        if info:
+            # Prefer a direct URL on the info dict itself
+            if info.get("url"):
+                cdn_url = info["url"]
+                cdn_headers = info.get("http_headers") or {}
+            elif info.get("formats"):
+                for f in reversed(info["formats"]):
+                    if f.get("url") and f.get("ext") == "mp4":
+                        cdn_url = f["url"]
+                        cdn_headers = f.get("http_headers") or {}
+                        break
+                if not cdn_url:
+                    best = info["formats"][-1]
+                    cdn_url = best.get("url", "")
+                    cdn_headers = best.get("http_headers") or {}
+    except Exception as e:
+        app.logger.warning("tiktok-download: yt-dlp failed (%s), trying RapidAPI", e)
+
+    # Step 2: fallback to RapidAPI if yt-dlp couldn't get a URL
+    if not cdn_url:
+        try:
+            rapid = _call_rapidapi(src)
+            medias = rapid.get("medias") or []
+            app.logger.info("tiktok-download: RapidAPI medias count=%d", len(medias))
+            for m in medias:
+                m_type = (m.get("type") or "").lower()
+                m_url = (m.get("url") or "").strip()
+                if not m_url or m_type == "audio":
+                    continue
                 cdn_url = m_url
                 break
-        if not cdn_url and medias:
-            cdn_url = (medias[0].get("url") or "").strip()
-    except Exception as e:
-        app.logger.error("tiktok-download: RapidAPI error %s", e)
+            if not cdn_url and medias:
+                cdn_url = (medias[0].get("url") or "").strip()
+        except Exception as e:
+            app.logger.error("tiktok-download: RapidAPI also failed: %s", e)
 
     if not cdn_url:
         return jsonify({"error": "تعذر جلب رابط التيك توك"}), 500
@@ -2531,9 +2566,12 @@ def api_tiktok_download():
         "Accept": "*/*",
         "Accept-Encoding": "identity",
     }
+    # Merge yt-dlp provided headers (they contain auth tokens if needed)
+    if cdn_headers:
+        headers.update({k: v for k, v in cdn_headers.items() if k.lower() not in ("accept-encoding",)})
 
     try:
-        resp = requests.get(cdn_url, headers=headers, stream=True, timeout=30, allow_redirects=True)
+        resp = _req.get(cdn_url, headers=headers, stream=True, timeout=30, allow_redirects=True)
         app.logger.info("tiktok-download: CDN status=%s length=%s",
                         resp.status_code, resp.headers.get("Content-Length", "?"))
         resp.raise_for_status()
