@@ -192,9 +192,10 @@ public class MainActivity extends AppCompatActivity {
         fetchBtn.setOnClickListener(v -> fetchInfo());
 
         menuBtn.setOnClickListener(v -> showPopupMenu(v));
-        premiumBtn.setOnClickListener(v -> showPremiumCodeDialog());
+        premiumBtn.setOnClickListener(v ->
+            Toast.makeText(this, "⭐ البريميوم قريباً — ترقبوا!", Toast.LENGTH_SHORT).show()
+        );
         refreshPremiumButton();
-        checkAndRefreshPremium();
 
         clearHistoryBtn.setOnClickListener(v -> {
             getPrefs().edit().remove("dl_history").apply();
@@ -212,12 +213,12 @@ public class MainActivity extends AppCompatActivity {
         inflater.inflate(R.menu.main_menu, popup.getMenu());
 
         // Show correct label for upgrade item based on premium status
-        String premiumLabel = isPremiumActive() ? "⭐ بريميوم — فعّال" : "⭐ تفعيل البريميوم";
+        String premiumLabel = "⭐ بريميوم — قريباً";
         popup.getMenu().findItem(R.id.menu_upgrade).setTitle(premiumLabel);
 
         popup.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
-            if (id == R.id.menu_upgrade)  { showPremiumCodeDialog(); return true; }
+            if (id == R.id.menu_upgrade)  { Toast.makeText(this, "⭐ البريميوم قريباً!", Toast.LENGTH_SHORT).show(); return true; }
             if (id == R.id.menu_how_to)   { openUrl(SITE_URL + "/how-to-use"); return true; }
             if (id == R.id.menu_privacy)  { openUrl(SITE_URL + "/privacy");    return true; }
             if (id == R.id.menu_about)    { openUrl(SITE_URL + "/about");      return true; }
@@ -492,7 +493,7 @@ public class MainActivity extends AppCompatActivity {
                     saveHistory(title, platform);
                     showRewardedAd();
                 })
-                .setNeutralButton("⭐ أدخل كود", (d, w) -> showPremiumCodeDialog())
+                .setNeutralButton("⭐ بريميوم", (d, w) -> Toast.makeText(this, "⭐ البريميوم قريباً!", Toast.LENGTH_SHORT).show())
                 .setNegativeButton("إلغاء", null)
                 .show();
         }
@@ -526,90 +527,6 @@ public class MainActivity extends AppCompatActivity {
             java.util.Date expDate = sdf.parse(exp);
             return expDate != null && expDate.after(new java.util.Date());
         } catch (Exception e) { return false; }
-    }
-
-    private void showPremiumCodeDialog() {
-        EditText input = new EditText(this);
-        input.setHint("أدخل كود التفعيل");
-        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
-        int pad = (int)(16 * getResources().getDisplayMetrics().density);
-        input.setPadding(pad, pad, pad, pad);
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("⭐ تفعيل البريميوم")
-            .setMessage("أدخل كود التفعيل للحصول على تحميل غير محدود")
-            .setView(input)
-            .setPositiveButton("تفعيل", (d, w) -> {
-                String code = input.getText().toString().trim();
-                if (!code.isEmpty()) redeemCode(code);
-            })
-            .setNegativeButton("إلغاء", null)
-            .show();
-    }
-
-    private void redeemCode(String code) {
-        new Thread(() -> {
-            try {
-                HttpURLConnection conn = (HttpURLConnection) new URL(API_BASE + "/api/redeem-code").openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(15_000);
-                conn.setReadTimeout(15_000);
-                conn.getOutputStream().write(("{\"code\":" + JSONObject.quote(code.toUpperCase()) + "}").getBytes("UTF-8"));
-                int httpCode = conn.getResponseCode();
-                InputStream stream = httpCode == 200 ? conn.getInputStream() : conn.getErrorStream();
-                String resp = stream != null ? readBody(stream) : "{}";
-                conn.disconnect();
-                JSONObject json = new JSONObject(resp);
-                if (httpCode == 200) {
-                    String expiresAt = json.optString("expires_at", "");
-                    String msg = json.optString("message", "تم التفعيل ✅");
-                    getPrefs().edit()
-                        .putString("premium_code", code.toUpperCase())
-                        .putString("premium_expires", expiresAt)
-                        .apply();
-                    runOnUiThread(() -> {
-                        refreshPremiumButton();
-                        Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
-                    });
-                } else {
-                    String err = json.optString("error", "كود غير صحيح");
-                    runOnUiThread(() -> Toast.makeText(this, err, Toast.LENGTH_LONG).show());
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "redeemCode: " + e.getMessage());
-                runOnUiThread(() -> Toast.makeText(this, "خطأ في الاتصال — حاول مجدداً", Toast.LENGTH_SHORT).show());
-            }
-        }).start();
-    }
-
-    private void checkAndRefreshPremium() {
-        String code = getPrefs().getString("premium_code", "");
-        if (code.isEmpty()) return;
-        new Thread(() -> {
-            try {
-                HttpURLConnection conn = (HttpURLConnection) new URL(API_BASE + "/api/check-premium").openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(10_000);
-                conn.setReadTimeout(10_000);
-                conn.getOutputStream().write(("{\"code\":" + JSONObject.quote(code) + "}").getBytes("UTF-8"));
-                int httpCode = conn.getResponseCode();
-                if (httpCode == 200) {
-                    JSONObject json = new JSONObject(readBody(conn.getInputStream()));
-                    if (json.optBoolean("valid", false)) {
-                        String expiresAt = json.optString("expires_at", "");
-                        if (!expiresAt.isEmpty())
-                            getPrefs().edit().putString("premium_expires", expiresAt).apply();
-                        runOnUiThread(this::refreshPremiumButton);
-                    }
-                }
-                conn.disconnect();
-            } catch (Exception e) {
-                Log.e(TAG, "checkPremium: " + e.getMessage());
-            }
-        }).start();
     }
 
     private void incrementDownloadCount() {
