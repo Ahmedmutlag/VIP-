@@ -36,6 +36,110 @@ except Exception:
 RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
 SMVD_HOST     = "social-media-video-downloader.p.rapidapi.com"
 
+# ===== RapidAPI — YouTube Media Downloader =====
+YTDL_HOST = "youtube-media-downloader.p.rapidapi.com"
+
+
+def _call_youtube_api(video_id: str) -> dict:
+    """Call YouTube Media Downloader RapidAPI."""
+    if not RAPIDAPI_KEY:
+        return {"error": "no_key"}
+    try:
+        import requests as _req
+        resp = _req.get(
+            f"https://{YTDL_HOST}/v2/video/details",
+            params={
+                "videoId": video_id,
+                "urlAccess": "normal",
+                "videos": "auto",
+                "audios": "auto",
+            },
+            headers={
+                "x-rapidapi-host": YTDL_HOST,
+                "x-rapidapi-key": RAPIDAPI_KEY,
+            },
+            timeout=30,
+        )
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _parse_youtube_api_response(data: dict) -> tuple:
+    """Parse YouTube Media Downloader response into (title, thumbnail, formats)."""
+    title = ""
+    thumbnail = ""
+    formats = []
+
+    title = (data.get("title") or "").strip()
+    thumbnail = (data.get("thumbnail") or {}).get("url", "") or ""
+
+    videos = data.get("videos") or {}
+    audios = data.get("audios") or {}
+
+    # videos can be a dict keyed by quality label or a list
+    video_items = []
+    if isinstance(videos, dict):
+        for label, v in videos.items():
+            if isinstance(v, list):
+                video_items.extend(v)
+            elif isinstance(v, dict):
+                v["_label"] = label
+                video_items.append(v)
+    elif isinstance(videos, list):
+        video_items = videos
+
+    seen_heights: set = set()
+    for v in video_items:
+        v_url = (v.get("url") or "").strip()
+        if not v_url:
+            continue
+        height = v.get("height") or 0
+        label = v.get("quality") or v.get("_label") or (f"{height}p" if height else "فيديو")
+        if height and height in seen_heights:
+            continue
+        seen_heights.add(height)
+        formats.append({
+            "id": f"v{height or label}",
+            "label": str(label),
+            "url": v_url,
+            "ext": "mp4",
+            "type": "video",
+            "height": height,
+        })
+
+    audio_added = False
+    audio_items = []
+    if isinstance(audios, dict):
+        for label, a in audios.items():
+            if isinstance(a, list):
+                audio_items.extend(a)
+            elif isinstance(a, dict):
+                audio_items.append(a)
+    elif isinstance(audios, list):
+        audio_items = audios
+
+    for a in audio_items:
+        a_url = (a.get("url") or "").strip()
+        if not a_url or audio_added:
+            continue
+        formats.append({
+            "id": "audio",
+            "label": "صوت فقط",
+            "url": a_url,
+            "ext": "m4a",
+            "type": "audio",
+            "height": 0,
+        })
+        audio_added = True
+
+    video_fmts = sorted([f for f in formats if f["type"] == "video"],
+                        key=lambda x: x["height"], reverse=True)
+    audio_fmts = [f for f in formats if f["type"] == "audio"]
+    formats = video_fmts + audio_fmts
+
+    return title, thumbnail, formats
+
 # Platform → SMVD endpoint path
 SMVD_PLATFORM_PATHS = {
     "TikTok":    "/tiktok/v3/post/details",
@@ -2421,7 +2525,25 @@ def api_resolve():
     except Exception as e:
         app.logger.warning("SMVD resolve failed: %s", e)
 
-    # ── 2. Fallback: yt-dlp ───────────────────────────────────────────────────
+    # ── 2. Try YouTube Media Downloader API ───────────────────────────────────
+    if not formats and platform == "YouTube":
+        try:
+            video_id = _extract_youtube_id(url)
+            if video_id:
+                yt_result = _call_youtube_api(video_id)
+                if not yt_result.get("error"):
+                    y_title, y_thumb, y_formats = _parse_youtube_api_response(yt_result)
+                    if y_formats:
+                        title = y_title or title
+                        thumbnail = y_thumb or thumbnail
+                        formats = y_formats
+                        app.logger.info("resolve: YouTube API returned %d formats", len(formats))
+                else:
+                    app.logger.warning("YouTube API error: %s", yt_result.get("error"))
+        except Exception as e:
+            app.logger.warning("YouTube API resolve failed: %s", e)
+
+    # ── 3. Fallback: yt-dlp ───────────────────────────────────────────────────
     if not formats:
         try:
             ydl_opts: dict = {
