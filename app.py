@@ -2676,7 +2676,7 @@ def api_resolve():
             continue
         if "/api/proxy-download" in raw or "/api/merged-download" in raw or "/api/tiktok-download" in raw:
             continue
-        if platform == "YouTube" and fmt.get("type") == "video":
+        if platform == "YouTube":
             fmt["url"] = (
                 f"{SITE_URL}/api/merged-download"
                 f"?src={_up.quote(url, safe='')}"
