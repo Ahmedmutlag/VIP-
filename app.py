@@ -2449,8 +2449,20 @@ def api_resolve():
     if not formats:
         return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
 
-    # RapidAPI CDN URLs returned directly — Android downloads from CDN.
-    # (DASH fallback still uses merged-download, set earlier in yt-dlp block.)
+    # TikTok CDN rejects direct downloads without a Referer header — route
+    # through proxy-download so the server adds the required header.
+    if platform == "TikTok":
+        import urllib.parse as _up
+        for fmt in formats:
+            raw = fmt.get("url", "")
+            if (raw.startswith("http")
+                    and "/api/proxy-download" not in raw
+                    and "/api/merged-download" not in raw):
+                fmt["url"] = (
+                    f"{SITE_URL}/api/proxy-download"
+                    f"?url={_up.quote(raw, safe='')}"
+                    f"&ext={fmt.get('ext', 'mp4')}"
+                )
 
     return jsonify({
         "title": title[:200] if title else "",
