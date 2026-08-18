@@ -2477,8 +2477,6 @@ def _resolve_platform(url: str) -> str:
         return "Facebook"
     if "twitter" in u or "x.com" in u:
         return "Twitter/X"
-    if "youtube" in u or "youtu.be" in u:
-        return "YouTube"
     if "pinterest" in u or "pin.it" in u:
         return "Pinterest"
     if "snapchat" in u or "snap.com" in u:
