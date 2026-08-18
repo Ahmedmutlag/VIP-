@@ -2459,9 +2459,9 @@ def api_resolve():
                 and "/api/proxy-download" not in raw_url
                 and "/api/merged-download" not in raw_url):
             if platform == "TikTok":
-                # TikTok CDN blocks datacenter IPs — use yt-dlp server-side download
+                # yt-dlp extracts fresh TikTok CDN URL then redirects — fast, no server-side download
                 fmt["url"] = (
-                    f"{_host}/api/merged-download?src={_up.quote(url, safe='')}"
+                    f"{_host}/api/tiktok-redirect?src={_up.quote(url, safe='')}"
                 )
             else:
                 # Other platforms: proxy CDN URL with correct headers
@@ -2478,6 +2478,62 @@ def api_resolve():
         "formats": formats,
     })
 
+
+
+@app.route("/api/tiktok-redirect", methods=["GET"])
+@limiter.limit("20 per minute")
+def api_tiktok_redirect():
+    """Extract TikTok direct CDN URL via yt-dlp and redirect the client to it.
+
+    Faster than merged-download: no server-side download, just metadata extraction
+    + 302 redirect so Android downloads directly from TikTok CDN.
+    """
+    import urllib.parse as _up
+    src = _up.unquote(request.args.get("src", "").strip())
+    if not src or not src.startswith(("http://", "https://")):
+        return jsonify({"error": "src مطلوب"}), 400
+    if not _is_safe_url(src):
+        return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    try:
+        ydl_opts: dict = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "noplaylist": True,
+            "socket_timeout": 20,
+            "format": "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best",
+        }
+        cookies_file = get_cookies_file()
+        if cookies_file:
+            ydl_opts["cookiefile"] = cookies_file
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(src, download=False)
+
+        if not info:
+            return jsonify({"error": "تعذر استخراج رابط TikTok"}), 500
+
+        # Get the direct CDN URL
+        direct_url = ""
+        if info.get("url"):
+            direct_url = info["url"]
+        elif info.get("formats"):
+            for f in reversed(info["formats"]):
+                u = f.get("url", "")
+                if u and u.startswith("http") and f.get("vcodec") not in ("none", ""):
+                    direct_url = u
+                    break
+
+        if not direct_url:
+            return jsonify({"error": "لم يُعثر على رابط مباشر"}), 500
+
+        app.logger.info("tiktok-redirect: %s → %s", src[:60], direct_url[:80])
+        return redirect(direct_url, code=302)
+
+    except Exception as e:
+        app.logger.error("tiktok-redirect error: %s", e)
+        return jsonify({"error": "فشل استخراج الرابط"}), 500
 
 
 @app.route("/api/merged-download", methods=["GET"])
