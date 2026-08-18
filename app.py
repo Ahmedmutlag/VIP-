@@ -32,8 +32,119 @@ try:
 except Exception:
     _FFMPEG_PATH = None
 
-# ===== RapidAPI — Auto Download All In One =====
+# ===== RapidAPI — Social Media Video Downloader (SMVD) =====
 RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
+SMVD_HOST     = "social-media-video-downloader.p.rapidapi.com"
+
+# Platform → SMVD endpoint path
+SMVD_PLATFORM_PATHS = {
+    "TikTok":    "/tiktok/v3/post/details",
+    "Instagram": "/instagram/v3/media/details",
+    "Facebook":  "/facebook/v3/post/details",
+    "Twitter/X": "/twitter/v3/post/details",
+}
+
+
+def _call_smvd_api(url: str, platform: str) -> dict:
+    """Call the Social Media Video Downloader RapidAPI (GET-based)."""
+    if not RAPIDAPI_KEY:
+        return {"error": "no_key"}
+    path = SMVD_PLATFORM_PATHS.get(platform)
+    if not path:
+        return {"error": "unsupported_platform"}
+    try:
+        import requests as _req
+        import urllib.parse as _up
+        endpoint = f"https://{SMVD_HOST}{path}?url={_up.quote(url, safe='')}"
+        resp = _req.get(
+            endpoint,
+            headers={
+                "x-rapidapi-host": SMVD_HOST,
+                "x-rapidapi-key": RAPIDAPI_KEY,
+            },
+            timeout=30,
+        )
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _parse_smvd_response(data: dict) -> tuple:
+    """Parse SMVD API response into (title, thumbnail, formats).
+
+    SMVD response shape:
+      data.metadata.title / data.metadata.thumbnailUrl
+      data.contents[0].videos[]  → {label, url, metadata:{height, width}}
+      data.contents[0].audios[]  → {label, url, metadata:{mime_type}}
+    """
+    title = ""
+    thumbnail = ""
+    formats = []
+
+    meta = data.get("metadata") or {}
+    title = (meta.get("title") or "").strip()
+    thumbnail = (meta.get("thumbnailUrl") or "").strip()
+
+    contents = data.get("contents") or []
+    if not contents:
+        return title, thumbnail, formats
+
+    first = contents[0]
+    videos = first.get("videos") or []
+    audios = first.get("audios") or []
+
+    seen_heights: set = set()
+    for v in videos:
+        v_url = (v.get("url") or "").strip()
+        if not v_url:
+            continue
+        v_meta = v.get("metadata") or {}
+        height = v_meta.get("height") or 0
+        label_raw = (v.get("label") or "").strip()
+
+        # Skip h265 variants when an h264 of same height already added
+        if height and height in seen_heights:
+            continue
+        seen_heights.add(height)
+
+        label = label_raw if label_raw else (f"{height}p" if height else "فيديو")
+        formats.append({
+            "id": f"v{height or label_raw}",
+            "label": label,
+            "url": v_url,
+            "ext": "mp4",
+            "type": "video",
+            "height": height,
+        })
+
+    audio_added = False
+    for a in audios:
+        a_url = (a.get("url") or "").strip()
+        if not a_url or audio_added:
+            continue
+        a_meta = a.get("metadata") or {}
+        mime = (a_meta.get("mime_type") or "audio/mpeg").lower()
+        ext = "mp3" if "mpeg" in mime else ("m4a" if "mp4" in mime or "aac" in mime else "mp3")
+        formats.append({
+            "id": "audio",
+            "label": "صوت فقط",
+            "url": a_url,
+            "ext": ext,
+            "type": "audio",
+            "height": 0,
+        })
+        audio_added = True
+
+    # Sort video formats highest quality first, audio at the end
+    video_fmts = sorted([f for f in formats if f["type"] == "video"],
+                        key=lambda x: x["height"], reverse=True)
+    audio_fmts = [f for f in formats if f["type"] == "audio"]
+    formats = video_fmts + audio_fmts
+
+    return title, thumbnail, formats
+
+
+# ===== RapidAPI — Auto Download All In One (legacy, kept for tiktok-download fallback) =====
 RAPIDAPI_HOST = "auto-download-all-in-one.p.rapidapi.com"
 RAPIDAPI_URL  = f"https://{RAPIDAPI_HOST}/v1/social/autolink"
 
@@ -2261,73 +2372,21 @@ def api_resolve():
     title = ""
     thumbnail = ""
 
-    # ── 1. Try RapidAPI ───────────────────────────────────────────────────────
-    try:
-        rapid_result = _call_rapidapi(url)
-        medias = rapid_result.get("medias") or []
-        if medias:
-            title = (rapid_result.get("title") or rapid_result.get("author") or "").strip()
-            thumbnail = (rapid_result.get("thumbnail") or rapid_result.get("cover") or "").strip()
-
-            seen_heights: set = set()
-            audio_added = False
-
-            for i, m in enumerate(medias):
-                m_type = (m.get("type") or "").lower()
-                ext = (m.get("extension") or m.get("ext") or "mp4").lower()
-                m_url = (m.get("url") or "").strip()
-                if not m_url:
-                    continue
-
-                # Audio track
-                if m_type == "audio" or ext in ("mp3", "m4a", "aac", "opus"):
-                    if not audio_added:
-                        formats.append({
-                            "id": "audio",
-                            "label": "صوت فقط",
-                            "url": m_url,
-                            "ext": ext if ext in ("mp3", "m4a", "aac") else "mp3",
-                            "type": "audio",
-                            "height": 0,
-                        })
-                        audio_added = True
-                    continue
-
-                # Video track — extract height from quality string
-                quality = str(m.get("quality") or m.get("resolution") or "")
-                height = 0
-                h_match = re.search(r"(\d{3,4})[pP]", quality)
-                if h_match:
-                    height = int(h_match.group(1))
-                elif quality.isdigit():
-                    h = int(quality)
-                    if 120 <= h <= 4320:
-                        height = h
-
-                if height in seen_heights and height != 0:
-                    continue
-                seen_heights.add(height)
-
-                label = f"{height}p" if height else (quality or f"جودة {i + 1}")
-                formats.append({
-                    "id": f"v{height or i}",
-                    "label": label,
-                    "url": m_url,
-                    "ext": ext,
-                    "type": "video",
-                    "height": height,
-                })
-
-            # Sort video formats by height descending, then append audio
-            video_fmts = sorted(
-                [f for f in formats if f["type"] == "video"],
-                key=lambda x: x["height"],
-                reverse=True,
-            )
-            audio_fmts = [f for f in formats if f["type"] == "audio"]
-            formats = video_fmts + audio_fmts
-    except Exception as e:
-        app.logger.warning("RapidAPI resolve failed: %s", e)
+    # ── 1. Try SMVD RapidAPI ──────────────────────────────────────────────────
+    if platform in SMVD_PLATFORM_PATHS:
+        try:
+            smvd_result = _call_smvd_api(url, platform)
+            if not smvd_result.get("error"):
+                s_title, s_thumb, s_formats = _parse_smvd_response(smvd_result)
+                if s_formats:
+                    title = s_title or title
+                    thumbnail = s_thumb or thumbnail
+                    formats = s_formats
+                    app.logger.info("resolve: SMVD returned %d formats for %s", len(formats), platform)
+            else:
+                app.logger.warning("SMVD resolve error for %s: %s", platform, smvd_result.get("error"))
+        except Exception as e:
+            app.logger.warning("SMVD resolve failed: %s", e)
 
     # ── 2. Fallback: yt-dlp ───────────────────────────────────────────────────
     if not formats:
@@ -2449,12 +2508,14 @@ def api_resolve():
     if not formats:
         return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
 
-    # Route all CDN video URLs through proxy-download so the server adds
-    # platform-specific headers (e.g. Referer) that clients cannot send.
+    # Route CDN URLs through proxy-download so the server adds platform-specific
+    # headers (e.g. Referer). SMVD URLs (smvd.xyz) are already proxied by the
+    # API and don't need additional wrapping.
     import urllib.parse as _up
     for fmt in formats:
         raw = fmt.get("url", "")
         if (raw.startswith("http")
+                and "smvd.xyz" not in raw
                 and "/api/proxy-download" not in raw
                 and "/api/merged-download" not in raw
                 and "/api/tiktok-download" not in raw):
