@@ -2432,6 +2432,21 @@ def api_resolve():
     if not formats:
         return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
 
+    # Wrap video CDN URLs with proxy to handle platform blocking and headers
+    import urllib.parse as _up
+    _host = request.host_url.rstrip("/")
+    for fmt in formats:
+        raw_url = fmt.get("url", "")
+        if (fmt.get("type") == "video"
+                and raw_url.startswith("http")
+                and "/api/proxy-download" not in raw_url
+                and "/api/merged-download" not in raw_url):
+            fmt["url"] = (
+                f"{_host}/api/proxy-download"
+                f"?url={_up.quote(raw_url, safe='')}"
+                f"&ext={fmt.get('ext', 'mp4')}"
+            )
+
     return jsonify({
         "title": title[:200] if title else "",
         "thumbnail": thumbnail or "",
@@ -2518,6 +2533,69 @@ def api_merged_download():
     except Exception as e:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         app.logger.error("merged-download error for %s: %s", src[:80], e)
+        return jsonify({"error": "فشل تحميل الفيديو"}), 500
+
+
+@app.route("/api/proxy-download", methods=["GET"])
+@limiter.limit("10 per minute")
+def api_proxy_download():
+    """Proxy a CDN video URL through the server with correct headers to bypass platform blocking."""
+    import urllib.parse as _up
+
+    cdn_url = _up.unquote(request.args.get("url", "").strip())
+    ext = request.args.get("ext", "mp4").strip().lower()
+    if ext not in ("mp4", "mp3", "m4a", "webm", "mov"):
+        ext = "mp4"
+
+    if not cdn_url or not cdn_url.startswith(("http://", "https://")):
+        return jsonify({"error": "url مطلوب"}), 400
+    if not _is_safe_url(cdn_url):
+        return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/114.0.0.0 Mobile Safari/537.36"
+        ),
+        "Accept": "*/*",
+        "Accept-Encoding": "identity",
+        "Connection": "keep-alive",
+    }
+
+    cdn_lower = cdn_url.lower()
+    if any(k in cdn_lower for k in ("tiktok", "musically", "ibytedtos", "ttwimg", "bytedance")):
+        headers["Referer"] = "https://www.tiktok.com/"
+    elif "instagram" in cdn_lower or "cdninstagram" in cdn_lower:
+        headers["Referer"] = "https://www.instagram.com/"
+    elif "facebook" in cdn_lower or "fbcdn" in cdn_lower:
+        headers["Referer"] = "https://www.facebook.com/"
+    elif "snapchat" in cdn_lower:
+        headers["Referer"] = "https://www.snapchat.com/"
+
+    try:
+        resp = requests.get(cdn_url, headers=headers, stream=True, timeout=30, allow_redirects=True)
+        resp.raise_for_status()
+
+        content_type = resp.headers.get("Content-Type", f"video/{ext}")
+        content_length = resp.headers.get("Content-Length")
+
+        def _stream():
+            for chunk in resp.iter_content(chunk_size=65536):
+                if chunk:
+                    yield chunk
+
+        out_headers = {
+            "Content-Type": content_type,
+            "Content-Disposition": f'attachment; filename="video.{ext}"',
+        }
+        if content_length:
+            out_headers["Content-Length"] = content_length
+
+        return Response(_stream(), headers=out_headers)
+
+    except Exception as e:
+        app.logger.error("proxy-download failed for %s: %s", cdn_url[:80], e)
         return jsonify({"error": "فشل تحميل الفيديو"}), 500
 
 
