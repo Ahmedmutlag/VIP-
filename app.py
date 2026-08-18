@@ -2449,21 +2449,20 @@ def api_resolve():
     if not formats:
         return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
 
-    # TikTok CDN URLs expire quickly — route through tiktok-download which
-    # fetches a fresh CDN URL at download time instead of using the stale one.
-    if platform == "TikTok":
-        import urllib.parse as _up
-        original_url = url  # the original tiktok.com URL
-        for fmt in formats:
-            raw = fmt.get("url", "")
-            if (raw.startswith("http")
-                    and "/api/tiktok-download" not in raw
-                    and "/api/merged-download" not in raw):
-                fmt["url"] = (
-                    f"{SITE_URL}/api/tiktok-download"
-                    f"?src={_up.quote(original_url, safe='')}"
-                    f"&ext={fmt.get('ext', 'mp4')}"
-                )
+    # Route all CDN video URLs through proxy-download so the server adds
+    # platform-specific headers (e.g. Referer) that clients cannot send.
+    import urllib.parse as _up
+    for fmt in formats:
+        raw = fmt.get("url", "")
+        if (raw.startswith("http")
+                and "/api/proxy-download" not in raw
+                and "/api/merged-download" not in raw
+                and "/api/tiktok-download" not in raw):
+            fmt["url"] = (
+                f"{SITE_URL}/api/proxy-download"
+                f"?url={_up.quote(raw, safe='')}"
+                f"&ext={fmt.get('ext', 'mp4')}"
+            )
 
     return jsonify({
         "title": title[:200] if title else "",
@@ -2735,7 +2734,7 @@ def api_merged_download():
 
 
 @app.route("/api/proxy-download", methods=["GET"])
-@limiter.limit("10 per minute")
+@limiter.limit("30 per minute")
 def api_proxy_download():
     """Proxy a CDN video URL through the server with correct headers to bypass platform blocking."""
     import urllib.parse as _up
