@@ -2458,18 +2458,14 @@ def api_resolve():
                 and raw_url.startswith("http")
                 and "/api/proxy-download" not in raw_url
                 and "/api/merged-download" not in raw_url):
-            if platform == "TikTok":
-                # yt-dlp extracts fresh TikTok CDN URL then redirects — fast, no server-side download
-                fmt["url"] = (
-                    f"{_host}/api/tiktok-redirect?src={_up.quote(url, safe='')}"
-                )
-            else:
+            if platform != "TikTok":
                 # Other platforms: proxy CDN URL with correct headers
                 fmt["url"] = (
                     f"{_host}/api/proxy-download"
                     f"?url={_up.quote(raw_url, safe='')}"
                     f"&ext={fmt.get('ext', 'mp4')}"
                 )
+            # TikTok: RapidAPI CDN URL is directly downloadable — return as-is
 
     return jsonify({
         "title": title[:200] if title else "",
