@@ -44,6 +44,16 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd;
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback;
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.android.billingclient.api.AcknowledgePurchaseParams;
+import com.android.billingclient.api.BillingClient;
+import com.android.billingclient.api.BillingClientStateListener;
+import com.android.billingclient.api.BillingFlowParams;
+import com.android.billingclient.api.BillingResult;
+import com.android.billingclient.api.ProductDetails;
+import com.android.billingclient.api.Purchase;
+import com.android.billingclient.api.PurchasesUpdatedListener;
+import com.android.billingclient.api.QueryProductDetailsParams;
+import com.android.billingclient.api.QueryPurchasesParams;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -58,7 +68,7 @@ import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements PurchasesUpdatedListener {
 
     private static final String TAG = "NazzilhaPlus";
     private static final String API_BASE = "https://www.vip-dl.com";
@@ -66,6 +76,10 @@ public class MainActivity extends AppCompatActivity {
     private static final int FREE_DAILY_LIMIT = 2;
     private static final int STORAGE_PERM_CODE = 100;
     private static final int MAX_HISTORY = 10;
+    private static final String SUBSCRIPTION_ID = "premium_monthly";
+
+    // ── Billing ──────────────────────────────────────────────────────────────
+    private BillingClient billingClient;
 
     // ── Views ────────────────────────────────────────────────────────────────
     private EditText urlInput;
@@ -121,6 +135,8 @@ public class MainActivity extends AppCompatActivity {
         NotificationReceiver.createChannel(this);
         requestNotificationPermission();
         NotificationReceiver.schedule(this);
+
+        setupBilling();
 
         MobileAds.initialize(this, status -> {
             bannerAdView.loadAd(new AdRequest.Builder().build());
@@ -192,9 +208,13 @@ public class MainActivity extends AppCompatActivity {
         fetchBtn.setOnClickListener(v -> fetchInfo());
 
         menuBtn.setOnClickListener(v -> showPopupMenu(v));
-        premiumBtn.setOnClickListener(v ->
-            Toast.makeText(this, "⭐ البريميوم قريباً — ترقبوا!", Toast.LENGTH_SHORT).show()
-        );
+        premiumBtn.setOnClickListener(v -> {
+            if (isPremiumActive()) {
+                Toast.makeText(this, "✅ اشتراكك نشط", Toast.LENGTH_SHORT).show();
+            } else {
+                launchBillingFlow();
+            }
+        });
         refreshPremiumButton();
 
         clearHistoryBtn.setOnClickListener(v -> {
@@ -516,6 +536,124 @@ public class MainActivity extends AppCompatActivity {
         } else {
             premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#F59E0B"));
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Google Play Billing
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void setupBilling() {
+        billingClient = BillingClient.newBuilder(this)
+                .setListener(this)
+                .enablePendingPurchases()
+                .build();
+        billingClient.startConnection(new BillingClientStateListener() {
+            @Override
+            public void onBillingSetupFinished(@NonNull BillingResult result) {
+                if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                    checkExistingSubscription();
+                }
+            }
+            @Override
+            public void onBillingServiceDisconnected() {}
+        });
+    }
+
+    private void checkExistingSubscription() {
+        QueryPurchasesParams params = QueryPurchasesParams.newBuilder()
+                .setProductType(BillingClient.ProductType.SUBS)
+                .build();
+        billingClient.queryPurchasesAsync(params, (result, purchases) -> {
+            if (result.getResponseCode() != BillingClient.BillingResponseCode.OK) return;
+            boolean active = false;
+            for (Purchase p : purchases) {
+                if (p.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                    active = true;
+                    acknowledgePurchase(p);
+                }
+            }
+            boolean finalActive = active;
+            runOnUiThread(() -> {
+                if (finalActive) {
+                    getPrefs().edit().putString("premium_expires", "2099-12-31 23:59").apply();
+                    refreshPremiumButton();
+                }
+            });
+        });
+    }
+
+    private void launchBillingFlow() {
+        if (billingClient == null || !billingClient.isReady()) {
+            Toast.makeText(this, "جارٍ الاتصال بمتجر Google Play...", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        java.util.List<QueryProductDetailsParams.Product> products = Arrays.asList(
+                QueryProductDetailsParams.Product.newBuilder()
+                        .setProductId(SUBSCRIPTION_ID)
+                        .setProductType(BillingClient.ProductType.SUBS)
+                        .build()
+        );
+        QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
+                .setProductList(products)
+                .build();
+        billingClient.queryProductDetailsAsync(params, (result, productDetailsList) -> {
+            if (result.getResponseCode() != BillingClient.BillingResponseCode.OK
+                    || productDetailsList.isEmpty()) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "تعذر تحميل معلومات الاشتراك", Toast.LENGTH_SHORT).show());
+                return;
+            }
+            ProductDetails productDetails = productDetailsList.get(0);
+            java.util.List<ProductDetails.SubscriptionOfferDetails> offers =
+                    productDetails.getSubscriptionOfferDetails();
+            if (offers == null || offers.isEmpty()) return;
+
+            BillingFlowParams billingParams = BillingFlowParams.newBuilder()
+                    .setProductDetailsParamsList(Arrays.asList(
+                            BillingFlowParams.ProductDetailsParams.newBuilder()
+                                    .setProductDetails(productDetails)
+                                    .setOfferToken(offers.get(0).getOfferToken())
+                                    .build()
+                    ))
+                    .build();
+            runOnUiThread(() -> billingClient.launchBillingFlow(this, billingParams));
+        });
+    }
+
+    @Override
+    public void onPurchasesUpdated(@NonNull BillingResult result,
+                                   java.util.List<Purchase> purchases) {
+        if (result.getResponseCode() == BillingClient.BillingResponseCode.OK
+                && purchases != null) {
+            for (Purchase purchase : purchases) {
+                if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                    acknowledgePurchase(purchase);
+                    getPrefs().edit()
+                            .putString("premium_expires", "2099-12-31 23:59")
+                            .apply();
+                    runOnUiThread(() -> {
+                        refreshPremiumButton();
+                        Toast.makeText(this, "✅ تم تفعيل الاشتراك بنجاح!", Toast.LENGTH_LONG).show();
+                    });
+                }
+            }
+        } else if (result.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
+            Toast.makeText(this, "تم إلغاء الاشتراك", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void acknowledgePurchase(Purchase purchase) {
+        if (purchase.isAcknowledged()) return;
+        AcknowledgePurchaseParams params = AcknowledgePurchaseParams.newBuilder()
+                .setPurchaseToken(purchase.getPurchaseToken())
+                .build();
+        billingClient.acknowledgePurchase(params, r -> {});
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (billingClient != null) billingClient.endConnection();
     }
 
     private boolean isPremiumActive() {
