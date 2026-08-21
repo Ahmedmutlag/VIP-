@@ -85,7 +85,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private EditText urlInput;
     private Button pasteBtn, fetchBtn;
     private LinearLayout premiumBtn;
-    private TextView premiumBtnSub;
+    private TextView premiumBtnTitle, premiumBtnSub;
     private ImageButton menuBtn;
     private ProgressBar loadingSpinner;
     private TextView errorBox;
@@ -172,6 +172,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         fetchBtn         = findViewById(R.id.fetchBtn);
         menuBtn          = findViewById(R.id.menuBtn);
         premiumBtn       = findViewById(R.id.premiumBtn);
+        premiumBtnTitle  = findViewById(R.id.premiumBtnTitle);
         premiumBtnSub    = findViewById(R.id.premiumBtnSub);
         loadingSpinner   = findViewById(R.id.loadingSpinner);
         errorBox         = findViewById(R.id.errorBox);
@@ -541,11 +542,11 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private void refreshPremiumButton() {
         if (isPremiumActive()) {
             premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#16A34A"));
-            if (premiumBtnSub != null) premiumBtnSub.setText("✅ اشتراكك نشط — تحميل بلا حدود وبدون إعلانات");
+            if (premiumBtnTitle != null) premiumBtnTitle.setText("✅ اشتراكك نشط — تحميل بلا حدود وبدون إعلانات");
             bannerAdView.setVisibility(View.GONE);
         } else {
             premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#F59E0B"));
-            if (premiumBtnSub != null) premiumBtnSub.setText("⭐ بريميوم — تحميل بلا حدود شهرياً وبدون إعلانات");
+            if (premiumBtnTitle != null) premiumBtnTitle.setText("⭐ بريميوم — تحميل بلا حدود شهرياً وبدون إعلانات");
         }
     }
 

@@ -254,11 +254,12 @@
                 android:focusable="true">
 
                 <TextView
+                    android:id="@+id/premiumBtnTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="⭐ بريميوم — قريباً"
-                    android:textSize="15sp"
+                    android:text="⭐ بريميوم — تحميل بلا حدود شهرياً وبدون إعلانات"
+                    android:textSize="14sp"
                     android:textColor="#1F1F2E"
                     android:textStyle="bold" />
 
