@@ -139,9 +139,13 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         setupBilling();
 
         MobileAds.initialize(this, status -> {
-            bannerAdView.loadAd(new AdRequest.Builder().build());
-            loadInterstitialAd();
-            loadRewardedAd();
+            if (isPremiumActive()) {
+                bannerAdView.setVisibility(View.GONE);
+            } else {
+                bannerAdView.loadAd(new AdRequest.Builder().build());
+                loadInterstitialAd();
+                loadRewardedAd();
+            }
         });
 
         FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
@@ -233,12 +237,16 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         inflater.inflate(R.menu.main_menu, popup.getMenu());
 
         // Show correct label for upgrade item based on premium status
-        String premiumLabel = "⭐ بريميوم — قريباً";
+        String premiumLabel = isPremiumActive() ? "⭐ بريميوم — نشط ✅" : "⭐ بريميوم — تحميل بلا حدود";
         popup.getMenu().findItem(R.id.menu_upgrade).setTitle(premiumLabel);
 
         popup.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
-            if (id == R.id.menu_upgrade)  { Toast.makeText(this, "⭐ البريميوم قريباً!", Toast.LENGTH_SHORT).show(); return true; }
+            if (id == R.id.menu_upgrade) {
+                if (isPremiumActive()) Toast.makeText(this, "✅ اشتراكك نشط", Toast.LENGTH_SHORT).show();
+                else launchBillingFlow();
+                return true;
+            }
             if (id == R.id.menu_how_to)   { openUrl(SITE_URL + "/how-to-use"); return true; }
             if (id == R.id.menu_privacy)  { openUrl(SITE_URL + "/privacy");    return true; }
             if (id == R.id.menu_about)    { openUrl(SITE_URL + "/about");      return true; }
@@ -513,7 +521,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                     saveHistory(title, platform);
                     showRewardedAd();
                 })
-                .setNeutralButton("⭐ بريميوم", (d, w) -> Toast.makeText(this, "⭐ البريميوم قريباً!", Toast.LENGTH_SHORT).show())
+                .setNeutralButton("⭐ بريميوم", (d, w) -> launchBillingFlow())
                 .setNegativeButton("إلغاء", null)
                 .show();
         }
@@ -533,8 +541,11 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private void refreshPremiumButton() {
         if (isPremiumActive()) {
             premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#16A34A"));
+            if (premiumBtnSub != null) premiumBtnSub.setText("✅ اشتراكك نشط — تحميل بلا حدود وبدون إعلانات");
+            bannerAdView.setVisibility(View.GONE);
         } else {
             premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#F59E0B"));
+            if (premiumBtnSub != null) premiumBtnSub.setText("⭐ بريميوم — تحميل بلا حدود شهرياً وبدون إعلانات");
         }
     }
 
@@ -887,7 +898,11 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         if (ok) {
             incrementDownloadCount();
             Uri fu = resultUri[0];
-            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> { showProgressSection(false, null); showInterstitialAd(() -> showSuccessDialog(fu, filename)); });
+            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> {
+                showProgressSection(false, null);
+                if (isPremiumActive()) showSuccessDialog(fu, filename);
+                else showInterstitialAd(() -> showSuccessDialog(fu, filename));
+            });
         } else {
             if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> { showProgressSection(false, null); showError("فشل التحميل، حاول مجدداً"); });
         }
