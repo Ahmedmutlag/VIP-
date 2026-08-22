@@ -3,4 +3,8 @@
     <string name="app_name">نزلها بلس</string>
     <string name="app_url">https://www.vip-dl.com</string>
     <string name="app_host">www.vip-dl.com</string>
+    <string name="admob_rewarded_interstitial_id">ca-app-pub-9098461798177099/6312354951</string>
+    <string name="admob_interstitial_id">ca-app-pub-9098461798177099/5454731529</string>
+    <string name="admob_app_open_id">ca-app-pub-9098461798177099/5349241587</string>
+    <string name="admob_banner_id">ca-app-pub-9098461798177099/2852599432</string>
 </resources>
