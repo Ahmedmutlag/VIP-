@@ -48,4 +48,5 @@ dependencies {
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-messaging'
     implementation 'com.android.billingclient:billing:7.1.1'
+    implementation 'com.google.android.play:review:2.0.2'
 }

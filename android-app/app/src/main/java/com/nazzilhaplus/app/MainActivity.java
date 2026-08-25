@@ -44,6 +44,9 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd;
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback;
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.android.play.core.review.ReviewInfo;
+import com.google.android.play.core.review.ReviewManager;
+import com.google.android.play.core.review.ReviewManagerFactory;
 import com.android.billingclient.api.AcknowledgePurchaseParams;
 import com.android.billingclient.api.BillingClient;
 import com.android.billingclient.api.BillingClientStateListener;
@@ -708,6 +711,22 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         SharedPreferences p = getPrefs();
         int count = today.equals(p.getString("dl_date", "")) ? p.getInt("dl_count", 0) : 0;
         p.edit().putString("dl_date", today).putInt("dl_count", count + 1).apply();
+
+        int total = p.getInt("total_downloads", 0) + 1;
+        p.edit().putInt("total_downloads", total).apply();
+        if (total == 3 || total == 10 || total == 30) {
+            requestReview();
+        }
+    }
+
+    private void requestReview() {
+        ReviewManager manager = ReviewManagerFactory.create(this);
+        manager.requestReviewFlow().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                ReviewInfo reviewInfo = task.getResult();
+                manager.launchReviewFlow(this, reviewInfo);
+            }
+        });
     }
 
     private String todayKey() {
