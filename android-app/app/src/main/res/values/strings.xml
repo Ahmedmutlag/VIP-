@@ -1,10 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">نزلها بلس</string>
+    <string name="app_name">Nazzilha Plus</string>
     <string name="app_url">https://www.vip-dl.com</string>
     <string name="app_host">www.vip-dl.com</string>
     <string name="admob_rewarded_interstitial_id">ca-app-pub-9098461798177099/6312354951</string>
     <string name="admob_interstitial_id">ca-app-pub-9098461798177099/5454731529</string>
     <string name="admob_app_open_id">ca-app-pub-9098461798177099/5349241587</string>
     <string name="admob_banner_id">ca-app-pub-9098461798177099/2852599432</string>
+
+    <!-- UI Strings -->
+    <string name="app_header">⬇ Nazzilha Plus</string>
+    <string name="tagline">Free ✦ No Sign-up ✦ Fast</string>
+    <string name="hero_title1">Save Content</string>
+    <string name="hero_title2">With One Tap</string>
+    <string name="feat_platforms">🌐 50+ Platforms</string>
+    <string name="feat_media">🎬 Video &amp; Audio</string>
+    <string name="feat_quality">⚡ High Quality</string>
+    <string name="stat_free_label">Free &amp; Safe</string>
+    <string name="stat_noreg_label">No Sign-up</string>
+    <string name="stat_noaccount">No Account Needed</string>
+    <string name="stat_fast_label">Instant</string>
+    <string name="stat_fast_sub">Fast Download</string>
+    <string name="premium_btn_text">⭐ Premium — Unlimited Monthly Downloads, Ad-Free</string>
+    <string name="url_hint">Paste video link here…</string>
+    <string name="btn_fetch">Fetch Video Info →</string>
+    <string name="quality_label">Choose Quality</string>
+    <string name="downloading_label">⬇  Downloading…</string>
+    <string name="history_title">📋 Recent Downloads</string>
+    <string name="btn_clear">Clear All</string>
+    <string name="hint_paste_url">Paste any video link from the internet</string>
+    <string name="hint_platforms">50+ Supported Platforms</string>
+    <string name="footer_tagline">Save digital content with one tap</string>
+    <string name="footer_how_to">How to Use</string>
+    <string name="footer_privacy">Privacy Policy</string>
+    <string name="footer_about">About</string>
+    <string name="footer_copyright">© 2026 Nazzilha Plus. All rights reserved.</string>
 </resources>
