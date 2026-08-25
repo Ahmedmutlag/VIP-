@@ -86,6 +86,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private Button pasteBtn, fetchBtn;
     private LinearLayout premiumBtn;
     private TextView premiumBtnTitle, premiumBtnSub;
+    private ImageButton langBtn;
     private ImageButton menuBtn;
     private ProgressBar loadingSpinner;
     private TextView errorBox;
@@ -123,6 +124,27 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     // ══════════════════════════════════════════════════════════════════════════
     //  Lifecycle
     // ══════════════════════════════════════════════════════════════════════════
+
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        String lang = base.getSharedPreferences("nazzilha_prefs", MODE_PRIVATE)
+                .getString("app_lang", "");
+        if (!lang.isEmpty()) {
+            java.util.Locale locale = new java.util.Locale(lang);
+            java.util.Locale.setDefault(locale);
+            android.content.res.Configuration config = new android.content.res.Configuration();
+            config.setLocale(locale);
+            base = base.createConfigurationContext(config);
+        }
+        super.attachBaseContext(base);
+    }
+
+    private void toggleLanguage() {
+        String current = getPrefs().getString("app_lang", "");
+        String next = "ar".equals(current) ? "en" : "ar";
+        getPrefs().edit().putString("app_lang", next).apply();
+        recreate();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -174,6 +196,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         premiumBtn       = findViewById(R.id.premiumBtn);
         premiumBtnTitle  = findViewById(R.id.premiumBtnTitle);
         premiumBtnSub    = findViewById(R.id.premiumBtnSub);
+        langBtn          = findViewById(R.id.langBtn);
         loadingSpinner   = findViewById(R.id.loadingSpinner);
         errorBox         = findViewById(R.id.errorBox);
         resultCard       = findViewById(R.id.resultCard);
@@ -212,6 +235,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
 
         fetchBtn.setOnClickListener(v -> fetchInfo());
 
+        langBtn.setOnClickListener(v -> toggleLanguage());
         menuBtn.setOnClickListener(v -> showPopupMenu(v));
         premiumBtn.setOnClickListener(v -> {
             if (isPremiumActive()) {

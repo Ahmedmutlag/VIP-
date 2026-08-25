@@ -27,6 +27,15 @@
             android:textStyle="bold" />
 
         <ImageButton
+            android:id="@+id/langBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_compass"
+            android:tint="#FFFFFF"
+            android:contentDescription="language" />
+
+        <ImageButton
             android:id="@+id/menuBtn"
             android:layout_width="48dp"
             android:layout_height="48dp"
