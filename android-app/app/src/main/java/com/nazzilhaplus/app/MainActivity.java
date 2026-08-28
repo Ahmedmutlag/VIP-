@@ -939,9 +939,10 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     }
 
     private void showRewardedAd() {
-        if (rewardedAd == null || isShowingAd) {
-            Toast.makeText(this, "الإعلان لم يتحمل بعد، جرّب مجدداً", Toast.LENGTH_SHORT).show();
+        if (isShowingAd) return;
+        if (rewardedAd == null) {
             if (!rewardedAdLoading) loadRewardedAd();
+            showInterstitialAd(this::beginDownload);
             return;
         }
         isShowingAd = true;
@@ -951,6 +952,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             }
             @Override public void onAdFailedToShowFullScreenContent(@NonNull AdError e) {
                 rewardedAd = null; isShowingAd = false; loadRewardedAd();
+                runOnUiThread(() -> showInterstitialAd(MainActivity.this::beginDownload));
             }
         });
         rewardedAd.show(this, reward -> runOnUiThread(this::beginDownload));
