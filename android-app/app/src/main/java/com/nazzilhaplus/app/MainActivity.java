@@ -254,9 +254,9 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             refreshHistory();
         });
 
-        footerHowTo.setOnClickListener(v -> openUrl(SITE_URL + "/how-to-use"));
-        footerPrivacy.setOnClickListener(v -> openUrl(SITE_URL + "/privacy"));
-        footerAbout.setOnClickListener(v -> openUrl(SITE_URL + "/about"));
+        footerHowTo.setOnClickListener(v -> showHowToDialog());
+        footerPrivacy.setOnClickListener(v -> showPrivacyDialog());
+        footerAbout.setOnClickListener(v -> showAboutDialog());
     }
 
     private void showPopupMenu(View anchor) {
@@ -275,13 +275,72 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 else launchBillingFlow();
                 return true;
             }
-            if (id == R.id.menu_how_to)   { openUrl(SITE_URL + "/how-to-use"); return true; }
-            if (id == R.id.menu_privacy)  { openUrl(SITE_URL + "/privacy");    return true; }
-            if (id == R.id.menu_about)    { openUrl(SITE_URL + "/about");      return true; }
-            if (id == R.id.menu_blog)     { openUrl(SITE_URL + "/blog");       return true; }
+            if (id == R.id.menu_how_to)   { showHowToDialog();     return true; }
+            if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
+            if (id == R.id.menu_about)    { showAboutDialog();     return true; }
+            if (id == R.id.menu_blog)     { openUrl(SITE_URL);     return true; }
             return false;
         });
         popup.show();
+    }
+
+    private void showHowToDialog() {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("كيف تستخدم نزلها بلس؟")
+            .setMessage(
+                "1️⃣  افتح أي تطبيق (تيك توك، يوتيوب، إنستغرام...)\n\n" +
+                "2️⃣  اضغط على \"مشاركة\" ثم انسخ الرابط\n\n" +
+                "3️⃣  ارجع للتطبيق — سيُلصق الرابط تلقائياً\n\n" +
+                "4️⃣  اضغط \"جلب معلومات الفيديو\"\n\n" +
+                "5️⃣  اختر الجودة التي تريدها\n\n" +
+                "6️⃣  انتظر اكتمال التحميل وافتح الملف 🎉\n\n" +
+                "💡 المستخدمون المجانيون: تحميلان يومياً\n" +
+                "⭐ بريميوم: تحميل غير محدود وبدون إعلانات"
+            )
+            .setPositiveButton("فهمت", null)
+            .show();
+    }
+
+    private void showPrivacyDialog() {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("سياسة الخصوصية")
+            .setMessage(
+                "نزلها بلس — سياسة الخصوصية\n\n" +
+                "• لا نجمع بياناتك الشخصية ولا نشاركها مع أي طرف ثالث.\n\n" +
+                "• الروابط التي تدخلها تُرسل إلى خادمنا لمعالجتها فقط ولا تُحفظ.\n\n" +
+                "• سجل التحميلات محفوظ على جهازك فقط.\n\n" +
+                "• نستخدم Google AdMob لعرض الإعلانات، وقد يجمع AdMob بيانات لتخصيص الإعلانات وفق سياسة Google.\n\n" +
+                "• نستخدم Firebase للإشعارات وتحليل الأداء.\n\n" +
+                "• الاشتراك يُدار بالكامل عبر Google Play.\n\n" +
+                "• أنت مسؤول عن التحقق من حقوق المحتوى الذي تحمّله.\n\n" +
+                "للتواصل: " + SITE_URL
+            )
+            .setPositiveButton("حسناً", null)
+            .setNeutralButton("زيارة الموقع", (d, w) -> openUrl(SITE_URL))
+            .show();
+    }
+
+    private void showAboutDialog() {
+        String version = "2.0";
+        try {
+            version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception ignored) {}
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("عن نزلها بلس")
+            .setMessage(
+                "📱 نزلها بلس\n" +
+                "الإصدار: " + version + "\n\n" +
+                "تطبيق لتحميل الفيديوهات من أكثر من 50 منصة بضغطة واحدة.\n\n" +
+                "المنصات المدعومة:\n" +
+                "تيك توك • إنستغرام • يوتيوب • فيسبوك\n" +
+                "تويتر/X • سناب شات • ديلي موشن • فيميو\n" +
+                "بنترست • تويتش • ريديت • وغيرها\n\n" +
+                "🌐 " + SITE_URL + "\n\n" +
+                "© 2026 نزلها بلس. جميع الحقوق محفوظة."
+            )
+            .setPositiveButton("حسناً", null)
+            .setNeutralButton("زيارة الموقع", (d, w) -> openUrl(SITE_URL))
+            .show();
     }
 
     private void openUrl(String url) {
