@@ -96,6 +96,22 @@ Jobs expire after 30 minutes.
 
 ---
 
+## Multi-Language Support
+
+The app supports Arabic and English with a toggle button (`langBtn`).
+
+| File | Purpose |
+|------|---------|
+| `res/values/strings.xml` | English strings (default) |
+| `res/values-ar/strings.xml` | Arabic strings |
+| `res/debug/values/strings.xml` | Debug ad unit IDs override |
+
+Language is stored in SharedPreferences (`app_lang`: `"ar"` or `"en"`).
+`attachBaseContext()` applies the locale before the activity inflates views.
+`toggleLanguage()` flips between `ar` ↔ `en` and calls `recreate()`.
+
+---
+
 ## Android App Key Settings
 
 - **Package**: `com.nazzilhaplus.app`
