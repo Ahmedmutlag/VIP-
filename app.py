@@ -118,6 +118,24 @@ def _parse_youtube_api_response(data: dict) -> tuple:
     elif isinstance(videos, list):
         video_items = videos
 
+    # Collect audio items first to embed best audio URL in video formats
+    audio_items_tmp = []
+    if isinstance(audios, dict):
+        for label, a in audios.items():
+            if isinstance(a, list):
+                audio_items_tmp.extend(a)
+            elif isinstance(a, dict):
+                audio_items_tmp.append(a)
+    elif isinstance(audios, list):
+        audio_items_tmp = list(audios)
+
+    best_audio_url = ""
+    for a in audio_items_tmp:
+        a_url = (a.get("url") or "").strip()
+        if a_url:
+            best_audio_url = a_url
+            break
+
     seen_heights: set = set()
     for v in video_items:
         v_url = (v.get("url") or "").strip()
@@ -128,17 +146,20 @@ def _parse_youtube_api_response(data: dict) -> tuple:
         if height and height in seen_heights:
             continue
         seen_heights.add(height)
-        formats.append({
+        fmt = {
             "id": f"v{height or label}",
             "label": str(label),
             "url": v_url,
             "ext": "mp4",
             "type": "video",
             "height": height,
-        })
+        }
+        if best_audio_url:
+            fmt["audio_url"] = best_audio_url
+        formats.append(fmt)
 
     audio_added = False
-    audio_items = []
+    audio_items = audio_items_tmp
     if isinstance(audios, dict):
         for label, a in audios.items():
             if isinstance(a, list):
@@ -258,6 +279,14 @@ def _parse_smvd_response(data: dict) -> tuple:
     videos = first.get("videos") or []
     audios = first.get("audios") or []
 
+    # Pick best audio URL to embed in video formats
+    best_audio_url = ""
+    for a in audios:
+        a_url = (a.get("url") or "").strip()
+        if a_url:
+            best_audio_url = a_url
+            break
+
     seen_heights: set = set()
     for v in videos:
         v_url = (v.get("url") or "").strip()
@@ -273,14 +302,17 @@ def _parse_smvd_response(data: dict) -> tuple:
         seen_heights.add(height)
 
         label = label_raw if label_raw else (f"{height}p" if height else "فيديو")
-        formats.append({
+        fmt = {
             "id": f"v{height or label_raw}",
             "label": label,
             "url": v_url,
             "ext": "mp4",
             "type": "video",
             "height": height,
-        })
+        }
+        if best_audio_url:
+            fmt["audio_url"] = best_audio_url
+        formats.append(fmt)
 
     audio_added = False
     for a in audios:
@@ -2724,7 +2756,8 @@ def api_resolve():
 
     # Route CDN URLs through the right proxy.
     # - smvd.xyz URLs: already proxied by SMVD, send directly
-    # - YouTube: CDN URLs are IP-restricted; use merged-download (server-side yt-dlp)
+    # - Formats with audio_url: use direct-merge (ffmpeg, no cookies needed)
+    # - YouTube without audio_url: use merged-download (server-side yt-dlp fallback)
     # - Everything else: proxy-download adds platform-specific Referer headers
     import urllib.parse as _up
     for fmt in formats:
@@ -2733,9 +2766,18 @@ def api_resolve():
             continue
         if "smvd.xyz" in raw:
             continue
-        if "/api/proxy-download" in raw or "/api/merged-download" in raw or "/api/tiktok-download" in raw:
+        if "/api/proxy-download" in raw or "/api/merged-download" in raw or "/api/tiktok-download" in raw or "/api/direct-merge" in raw:
             continue
-        if platform == "YouTube":
+        audio_raw = fmt.get("audio_url", "")
+        if audio_raw and fmt.get("type") == "video":
+            # Both video and audio are proxied CDN URLs — merge server-side with ffmpeg
+            fmt["url"] = (
+                f"{SITE_URL}/api/direct-merge"
+                f"?v={_up.quote(raw, safe='')}"
+                f"&a={_up.quote(audio_raw, safe='')}"
+            )
+        elif platform == "YouTube":
+            # Fallback: no proxied audio URL, use yt-dlp merge (may need cookies)
             fmt["url"] = (
                 f"{SITE_URL}/api/merged-download"
                 f"?src={_up.quote(url, safe='')}"
@@ -2934,6 +2976,96 @@ def api_tiktok_redirect():
     except Exception as e:
         app.logger.error("tiktok-redirect error: %s", e)
         return jsonify({"error": "فشل استخراج الرابط"}), 500
+
+
+@app.route("/api/direct-merge", methods=["GET"])
+@limiter.limit("5 per minute")
+def api_direct_merge():
+    """Download proxied video+audio streams and merge with ffmpeg (no yt-dlp, no cookies).
+
+    Used when /api/resolve provides both a video URL and an audio_url from a
+    proxied RapidAPI source (SMVD, YouTube Media Downloader, etc.).
+    """
+    import tempfile, shutil
+    import requests as _req
+    import urllib.parse as _up
+
+    v_url = _up.unquote(request.args.get("v", "").strip())
+    a_url = _up.unquote(request.args.get("a", "").strip())
+
+    if not v_url or not a_url:
+        return jsonify({"error": "v و a مطلوبان"}), 400
+    if not _is_safe_url(v_url) or not _is_safe_url(a_url):
+        return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    app.logger.info("direct-merge: v=%s a=%s", v_url[:80], a_url[:80])
+
+    tmp_dir = tempfile.mkdtemp()
+    try:
+        v_path = os.path.join(tmp_dir, "video.mp4")
+        a_path = os.path.join(tmp_dir, "audio.m4a")
+        out_path = os.path.join(tmp_dir, "merged.mp4")
+
+        def _download(src_url: str, dest: str):
+            with _req.get(src_url, stream=True, timeout=60) as r:
+                r.raise_for_status()
+                with open(dest, "wb") as fh:
+                    for chunk in r.iter_content(65536):
+                        fh.write(chunk)
+
+        # Download both streams concurrently
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            fv = pool.submit(_download, v_url, v_path)
+            fa = pool.submit(_download, a_url, a_path)
+            fv.result(timeout=90)
+            fa.result(timeout=90)
+
+        ffmpeg = _FFMPEG_PATH or "ffmpeg"
+        result = subprocess.run(
+            [
+                ffmpeg, "-y",
+                "-i", v_path,
+                "-i", a_path,
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-movflags", "+faststart",
+                out_path,
+            ],
+            capture_output=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            app.logger.error("direct-merge ffmpeg error: %s", result.stderr[-500:])
+            return jsonify({"error": "فشل دمج الفيديو"}), 500
+
+        file_size = os.path.getsize(out_path)
+
+        def _stream_and_cleanup():
+            try:
+                with open(out_path, "rb") as fh:
+                    while True:
+                        chunk = fh.read(65536)
+                        if not chunk:
+                            break
+                        yield chunk
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        return Response(
+            _stream_and_cleanup(),
+            mimetype="video/mp4",
+            headers={
+                "Content-Disposition": 'attachment; filename="video.mp4"',
+                "Content-Length": str(file_size),
+                "Cache-Control": "no-store",
+            },
+        )
+
+    except Exception as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        app.logger.error("direct-merge error: %s", e)
+        return jsonify({"error": "فشل تحميل الفيديو"}), 500
 
 
 @app.route("/api/merged-download", methods=["GET"])
