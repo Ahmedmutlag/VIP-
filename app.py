@@ -53,7 +53,7 @@ def _call_youtube_api(video_id: str) -> dict:
             f"https://{YTDL_HOST}/v2/video/details",
             params={
                 "videoId": video_id,
-                "urlAccess": "normal",
+                "urlAccess": "proxied",
                 "videos": "auto",
                 "audios": "auto",
             },
