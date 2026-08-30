@@ -2540,7 +2540,7 @@ def _resolve_platform(url: str) -> str:
 
 
 @app.route("/api/resolve", methods=["POST"])
-@limiter.limit("30 per minute")
+@limiter.limit("120 per minute")
 def api_resolve():
     """Resolve a social-media URL into a list of downloadable formats.
 

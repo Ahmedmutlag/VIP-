@@ -437,6 +437,11 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 conn.getOutputStream().write(body.getBytes("UTF-8"));
 
                 int code = conn.getResponseCode();
+                if (code == 429) {
+                    runOnUiThread(() -> { setLoading(false); showError("طلبات كثيرة جداً — انتظر لحظة ثم حاول مجدداً"); });
+                    conn.disconnect();
+                    return;
+                }
                 if (code != 200) {
                     String errMsg = readErrorBody(conn);
                     runOnUiThread(() -> { setLoading(false); showError(errMsg); });
