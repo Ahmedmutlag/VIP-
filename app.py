@@ -2558,10 +2558,13 @@ def api_resolve():
     if not formats and platform == "YouTube":
         try:
             video_id = _extract_youtube_id(url)
+            app.logger.info("YouTube: extracted video_id=%s", video_id)
             if video_id:
                 yt_result = _call_youtube_api(video_id)
+                app.logger.info("YouTube API raw keys: %s", list(yt_result.keys())[:10])
                 if not yt_result.get("error"):
                     y_title, y_thumb, y_formats = _parse_youtube_api_response(yt_result)
+                    app.logger.info("YouTube API parsed: %d formats", len(y_formats))
                     if y_formats:
                         title = y_title or title
                         thumbnail = y_thumb or thumbnail
@@ -2578,8 +2581,10 @@ def api_resolve():
             video_id = _extract_youtube_id(url)
             if video_id:
                 yt2_result = _call_youtube2_api(video_id)
+                app.logger.info("YouTube2 API raw keys: %s", list(yt2_result.keys())[:10])
                 if not yt2_result.get("error"):
                     y_title, y_thumb, y_formats = _parse_smvd_response(yt2_result)
+                    app.logger.info("YouTube2 smvd-parse: %d formats", len(y_formats))
                     if y_formats:
                         title = y_title or title
                         thumbnail = y_thumb or thumbnail
@@ -2587,6 +2592,7 @@ def api_resolve():
                         app.logger.info("resolve: YouTube2 API returned %d formats", len(formats))
                     else:
                         y_title, y_thumb, y_formats = _parse_youtube_api_response(yt2_result)
+                        app.logger.info("YouTube2 yt-parse: %d formats", len(y_formats))
                         if y_formats:
                             title = y_title or title
                             thumbnail = y_thumb or thumbnail
