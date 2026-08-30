@@ -384,6 +384,27 @@ def auto_update_ytdlp():
 
 threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 
+# Short-lived store for direct-merge URL pairs keyed by short UUID.
+# Avoids putting very long YouTube/SMVD proxied URLs in the HTTP request line
+# which would exceed gunicorn's 4094-byte limit-request-line.
+_merge_jobs: dict = {}          # id → {"v": url, "a": url, "ts": float}
+_merge_jobs_lock = threading.Lock()
+
+def _store_merge_job(v_url: str, a_url: str) -> str:
+    job_id = uuid.uuid4().hex[:16]
+    with _merge_jobs_lock:
+        _merge_jobs[job_id] = {"v": v_url, "a": a_url, "ts": time.time()}
+        # Evict entries older than 30 minutes
+        cutoff = time.time() - 1800
+        stale = [k for k, val in _merge_jobs.items() if val["ts"] < cutoff]
+        for k in stale:
+            del _merge_jobs[k]
+    return job_id
+
+def _get_merge_job(job_id: str) -> dict:
+    with _merge_jobs_lock:
+        return _merge_jobs.get(job_id) or {}
+
 _server_start = time.time()
 _last_activity = time.time()
 
@@ -2761,12 +2782,10 @@ def api_resolve():
             continue
         audio_raw = fmt.get("audio_url", "")
         if audio_raw and fmt.get("type") == "video":
-            # Video-only DASH stream + separate audio → merge server-side with ffmpeg
-            fmt["url"] = (
-                f"{SITE_URL}/api/direct-merge"
-                f"?v={_up.quote(raw, safe='')}"
-                f"&a={_up.quote(audio_raw, safe='')}"
-            )
+            # Store the long proxied URLs server-side; pass only a short ID in the URL
+            # to avoid exceeding gunicorn's limit-request-line (4094 bytes).
+            job_id = _store_merge_job(raw, audio_raw)
+            fmt["url"] = f"{SITE_URL}/api/direct-merge?id={job_id}"
         elif "smvd.xyz" in raw:
             # Already proxied by SMVD (combined stream or audio-only) — pass directly
             pass
@@ -2984,13 +3003,21 @@ def api_direct_merge():
     import requests as _req
     import urllib.parse as _up
 
-    v_url = _up.unquote(request.args.get("v", "").strip())
-    a_url = _up.unquote(request.args.get("a", "").strip())
-
-    if not v_url or not a_url:
-        return jsonify({"error": "v و a مطلوبان"}), 400
-    if not _is_safe_url(v_url) or not _is_safe_url(a_url):
-        return jsonify({"error": "الرابط غير مسموح به"}), 400
+    # Prefer short job ID (avoids long URLs in request line)
+    job_id = request.args.get("id", "").strip()
+    if job_id:
+        job = _get_merge_job(job_id)
+        if not job:
+            return jsonify({"error": "الرابط انتهت صلاحيته، أعد البحث"}), 410
+        v_url = job["v"]
+        a_url = job["a"]
+    else:
+        v_url = _up.unquote(request.args.get("v", "").strip())
+        a_url = _up.unquote(request.args.get("a", "").strip())
+        if not v_url or not a_url:
+            return jsonify({"error": "id أو v+a مطلوب"}), 400
+        if not _is_safe_url(v_url) or not _is_safe_url(a_url):
+            return jsonify({"error": "الرابط غير مسموح به"}), 400
 
     app.logger.info("direct-merge: v=%s a=%s", v_url[:80], a_url[:80])
 
