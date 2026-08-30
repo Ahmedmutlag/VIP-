@@ -39,6 +39,9 @@ SMVD_HOST     = "social-media-video-downloader.p.rapidapi.com"
 # ===== RapidAPI — YouTube Media Downloader =====
 YTDL_HOST = "youtube-media-downloader.p.rapidapi.com"
 
+# ===== RapidAPI — YouTube Video And Shorts Downloader =====
+YTDL2_HOST = "youtube-video-and-shorts-downloader1.p.rapidapi.com"
+
 
 def _call_youtube_api(video_id: str) -> dict:
     """Call YouTube Media Downloader RapidAPI."""
@@ -56,6 +59,32 @@ def _call_youtube_api(video_id: str) -> dict:
             },
             headers={
                 "x-rapidapi-host": YTDL_HOST,
+                "x-rapidapi-key": RAPIDAPI_KEY,
+            },
+            timeout=30,
+        )
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _call_youtube2_api(video_id: str) -> dict:
+    """Call YouTube Video And Shorts Downloader RapidAPI (fallback)."""
+    if not RAPIDAPI_KEY:
+        return {"error": "no_key"}
+    try:
+        import requests as _req
+        import urllib.parse as _up
+        resp = _req.get(
+            f"https://{YTDL2_HOST}/youtube/v3/video/details",
+            params={
+                "videoId": video_id,
+                "urlAccess": "proxied",
+                "renderableFormats": "720p,highres",
+                "getTranscript": "false",
+            },
+            headers={
+                "x-rapidapi-host": YTDL2_HOST,
                 "x-rapidapi-key": RAPIDAPI_KEY,
             },
             timeout=30,
@@ -2540,6 +2569,30 @@ def api_resolve():
                     app.logger.warning("YouTube API error: %s", yt_result.get("error"))
         except Exception as e:
             app.logger.warning("YouTube API resolve failed: %s", e)
+
+    # ── 2b. YouTube Video And Shorts Downloader (second YouTube fallback) ─────
+    if not formats and platform == "YouTube":
+        try:
+            video_id = _extract_youtube_id(url)
+            if video_id:
+                yt2_result = _call_youtube2_api(video_id)
+                if not yt2_result.get("error"):
+                    y_title, y_thumb, y_formats = _parse_smvd_response(yt2_result)
+                    if y_formats:
+                        title = y_title or title
+                        thumbnail = y_thumb or thumbnail
+                        formats = y_formats
+                        app.logger.info("resolve: YouTube2 API returned %d formats", len(formats))
+                    else:
+                        y_title, y_thumb, y_formats = _parse_youtube_api_response(yt2_result)
+                        if y_formats:
+                            title = y_title or title
+                            thumbnail = y_thumb or thumbnail
+                            formats = y_formats
+                else:
+                    app.logger.warning("YouTube2 API error: %s", yt2_result.get("error"))
+        except Exception as e:
+            app.logger.warning("YouTube2 API resolve failed: %s", e)
 
     # ── 3. Fallback: yt-dlp ───────────────────────────────────────────────────
     if not formats:
