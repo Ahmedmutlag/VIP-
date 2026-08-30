@@ -160,14 +160,6 @@ def _parse_youtube_api_response(data: dict) -> tuple:
 
     audio_added = False
     audio_items = audio_items_tmp
-    if isinstance(audios, dict):
-        for label, a in audios.items():
-            if isinstance(a, list):
-                audio_items.extend(a)
-            elif isinstance(a, dict):
-                audio_items.append(a)
-    elif isinstance(audios, list):
-        audio_items = audios
 
     for a in audio_items:
         a_url = (a.get("url") or "").strip()
@@ -2755,8 +2747,9 @@ def api_resolve():
         return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
 
     # Route CDN URLs through the right proxy.
-    # - smvd.xyz URLs: already proxied by SMVD, send directly
-    # - Formats with audio_url: use direct-merge (ffmpeg, no cookies needed)
+    # - Formats with audio_url (video-only DASH + separate audio): direct-merge first
+    # - Already-routed URLs: skip
+    # - smvd.xyz URLs with no audio_url: already proxied by SMVD, send directly
     # - YouTube without audio_url: use merged-download (server-side yt-dlp fallback)
     # - Everything else: proxy-download adds platform-specific Referer headers
     import urllib.parse as _up
@@ -2764,18 +2757,19 @@ def api_resolve():
         raw = fmt.get("url", "")
         if not raw.startswith("http"):
             continue
-        if "smvd.xyz" in raw:
-            continue
         if "/api/proxy-download" in raw or "/api/merged-download" in raw or "/api/tiktok-download" in raw or "/api/direct-merge" in raw:
             continue
         audio_raw = fmt.get("audio_url", "")
         if audio_raw and fmt.get("type") == "video":
-            # Both video and audio are proxied CDN URLs — merge server-side with ffmpeg
+            # Video-only DASH stream + separate audio → merge server-side with ffmpeg
             fmt["url"] = (
                 f"{SITE_URL}/api/direct-merge"
                 f"?v={_up.quote(raw, safe='')}"
                 f"&a={_up.quote(audio_raw, safe='')}"
             )
+        elif "smvd.xyz" in raw:
+            # Already proxied by SMVD (combined stream or audio-only) — pass directly
+            pass
         elif platform == "YouTube":
             # Fallback: no proxied audio URL, use yt-dlp merge (may need cookies)
             fmt["url"] = (
