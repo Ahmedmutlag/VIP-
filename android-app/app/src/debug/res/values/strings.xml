@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    DEBUG ONLY — Google's official test ad unit IDs.
+    These always return a test ad (100% fill rate) so ads can be tested
+    without needing a real device registered in AdMob.
+    This file is automatically picked up in debug builds and ignored in release.
+-->
+<resources>
+    <string name="admob_rewarded_interstitial_id">ca-app-pub-3940256099942544/2309475514</string>
+    <string name="admob_interstitial_id">ca-app-pub-3940256099942544/1033173712</string>
+    <string name="admob_app_open_id">ca-app-pub-3940256099942544/9257395921</string>
+    <string name="admob_banner_id">ca-app-pub-3940256099942544/6300978111</string>
+</resources>
