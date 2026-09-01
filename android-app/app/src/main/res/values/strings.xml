@@ -3,10 +3,10 @@
     <string name="app_name">Nazzilha Plus</string>
     <string name="app_url">https://www.vip-dl.com</string>
     <string name="app_host">www.vip-dl.com</string>
-    <string name="admob_rewarded_interstitial_id">ca-app-pub-9098461798177099/6312354951</string>
-    <string name="admob_interstitial_id">ca-app-pub-9098461798177099/5454731529</string>
-    <string name="admob_app_open_id">ca-app-pub-9098461798177099/5349241587</string>
-    <string name="admob_banner_id">ca-app-pub-9098461798177099/2852599432</string>
+    <string name="unity_game_id">51210f24-48da-41c4-8df5-c907b5bb3954</string>
+    <string name="unity_banner_placement_id">Banner_Android</string>
+    <string name="unity_interstitial_placement_id">Interstitial_Android</string>
+    <string name="unity_rewarded_placement_id">Rewarded_Android</string>
 
     <!-- UI Strings -->
     <string name="app_header">⬇ Nazzilha Plus</string>

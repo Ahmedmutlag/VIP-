@@ -33,16 +33,15 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
-import com.google.android.gms.ads.AdError;
-import com.google.android.gms.ads.AdRequest;
-import com.google.android.gms.ads.AdView;
-import com.google.android.gms.ads.FullScreenContentCallback;
-import com.google.android.gms.ads.LoadAdError;
-import com.google.android.gms.ads.MobileAds;
-import com.google.android.gms.ads.interstitial.InterstitialAd;
-import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
-import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd;
-import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback;
+import android.widget.FrameLayout;
+import com.unity3d.ads.IUnityAdsInitializationListener;
+import com.unity3d.ads.IUnityAdsLoadListener;
+import com.unity3d.ads.IUnityAdsShowListener;
+import com.unity3d.ads.UnityAds;
+import com.unity3d.ads.UnityAdsShowOptions;
+import com.unity3d.services.banners.BannerErrorInfo;
+import com.unity3d.services.banners.BannerView;
+import com.unity3d.services.banners.UnityBannerSize;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.android.play.core.review.ReviewInfo;
 import com.google.android.play.core.review.ReviewManager;
@@ -98,14 +97,13 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private ImageView thumbnail;
     private TextView platformBadge, videoTitle, progressPercent, downloadFilename;
     private ProgressBar downloadProgress;
-    private AdView bannerAdView;
+    private FrameLayout bannerAdContainer;
     private TextView footerHowTo, footerPrivacy, footerAbout;
     private Button clearHistoryBtn;
 
     // ── Ads ──────────────────────────────────────────────────────────────────
-    private RewardedInterstitialAd rewardedAd;
-    private InterstitialAd interstitialAd;
-    private boolean rewardedAdLoading = false;
+    private boolean rewardedLoaded = false;
+    private boolean interstitialLoaded = false;
     private boolean isShowingAd = false;
 
     // ── Download state ───────────────────────────────────────────────────────
@@ -163,15 +161,19 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
 
         setupBilling();
 
-        MobileAds.initialize(this, status -> {
-            if (isPremiumActive()) {
-                bannerAdView.setVisibility(View.GONE);
-            } else {
-                bannerAdView.loadAd(new AdRequest.Builder().build());
-                loadInterstitialAd();
-                loadRewardedAd();
-            }
-        });
+        UnityAds.initialize(this, getString(R.string.unity_game_id), BuildConfig.DEBUG,
+            new IUnityAdsInitializationListener() {
+                @Override public void onInitializationComplete() {
+                    if (!isPremiumActive()) {
+                        loadBannerAd();
+                        loadInterstitialAd();
+                        loadRewardedAd();
+                    }
+                }
+                @Override public void onInitializationFailed(UnityAds.UnityAdsInitializationError error, String message) {
+                    Log.w(TAG, "Unity Ads init failed: " + message);
+                }
+            });
 
         FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
             if (token != null)
@@ -215,7 +217,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         progressPercent  = findViewById(R.id.progressPercent);
         downloadFilename = findViewById(R.id.downloadFilename);
         downloadProgress = findViewById(R.id.downloadProgress);
-        bannerAdView     = findViewById(R.id.bannerAd);
+        bannerAdContainer = findViewById(R.id.bannerAd);
         footerHowTo      = findViewById(R.id.footerHowTo);
         footerPrivacy    = findViewById(R.id.footerPrivacy);
         footerAbout      = findViewById(R.id.footerAbout);
@@ -309,7 +311,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 "• لا نجمع بياناتك الشخصية ولا نشاركها مع أي طرف ثالث.\n\n" +
                 "• الروابط التي تدخلها تُرسل إلى خادمنا لمعالجتها فقط ولا تُحفظ.\n\n" +
                 "• سجل التحميلات محفوظ على جهازك فقط.\n\n" +
-                "• نستخدم Google AdMob لعرض الإعلانات، وقد يجمع AdMob بيانات لتخصيص الإعلانات وفق سياسة Google.\n\n" +
+                "• نستخدم Unity Ads لعرض الإعلانات، وقد يجمع Unity بيانات لتخصيص الإعلانات وفق سياسة Unity Technologies.\n\n" +
                 "• نستخدم Firebase للإشعارات وتحليل الأداء.\n\n" +
                 "• الاشتراك يُدار بالكامل عبر Google Play.\n\n" +
                 "• أنت مسؤول عن التحقق من حقوق المحتوى الذي تحمّله.\n\n" +
@@ -634,7 +636,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         if (isPremiumActive()) {
             premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#16A34A"));
             if (premiumBtnTitle != null) premiumBtnTitle.setText("✅ اشتراكك نشط — تحميل بلا حدود وبدون إعلانات");
-            bannerAdView.setVisibility(View.GONE);
+            bannerAdContainer.setVisibility(View.GONE);
         } else {
             premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#F59E0B"));
             if (premiumBtnTitle != null) premiumBtnTitle.setText("⭐ بريميوم — تحميل بلا حدود شهرياً وبدون إعلانات");
@@ -888,79 +890,99 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  AdMob rewarded interstitial
+    //  Unity Ads
     // ══════════════════════════════════════════════════════════════════════════
 
+    private void loadBannerAd() {
+        BannerView banner = new BannerView(this,
+            getString(R.string.unity_banner_placement_id), UnityBannerSize.getDynamicSize());
+        banner.setListener(new BannerView.IListener() {
+            @Override public void onBannerLoaded(BannerView b) {
+                runOnUiThread(() -> {
+                    bannerAdContainer.removeAllViews();
+                    bannerAdContainer.addView(b);
+                    bannerAdContainer.setVisibility(View.VISIBLE);
+                });
+            }
+            @Override public void onBannerFailedToLoad(BannerView b, BannerErrorInfo e) {}
+            @Override public void onBannerClick(BannerView b) {}
+            @Override public void onBannerLeftApplication(BannerView b) {}
+        });
+        banner.load();
+    }
+
     private void loadInterstitialAd() {
-        InterstitialAd.load(this,
-            getString(R.string.admob_interstitial_id),
-            new AdRequest.Builder().build(),
-            new InterstitialAdLoadCallback() {
-                @Override public void onAdLoaded(@NonNull InterstitialAd ad) {
-                    interstitialAd = ad;
-                }
-                @Override public void onAdFailedToLoad(@NonNull LoadAdError e) {
-                    interstitialAd = null;
+        UnityAds.load(getString(R.string.unity_interstitial_placement_id),
+            new IUnityAdsLoadListener() {
+                @Override public void onUnityAdsAdLoaded(String id) { interstitialLoaded = true; }
+                @Override public void onUnityAdsFailedToLoad(String id, UnityAds.UnityAdsLoadError e, String msg) {
+                    interstitialLoaded = false;
                 }
             });
     }
 
     private void showInterstitialAd(Runnable afterAd) {
-        if (interstitialAd == null) {
+        if (!interstitialLoaded) {
             loadInterstitialAd();
             if (afterAd != null) afterAd.run();
             return;
         }
-        interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
-            @Override public void onAdDismissedFullScreenContent() {
-                interstitialAd = null;
-                loadInterstitialAd();
-                if (afterAd != null) afterAd.run();
-            }
-            @Override public void onAdFailedToShowFullScreenContent(@NonNull com.google.android.gms.ads.AdError e) {
-                interstitialAd = null;
-                loadInterstitialAd();
-                if (afterAd != null) afterAd.run();
-            }
-        });
-        interstitialAd.show(this);
+        interstitialLoaded = false;
+        UnityAds.show(this, getString(R.string.unity_interstitial_placement_id),
+            new UnityAdsShowOptions(), new IUnityAdsShowListener() {
+                @Override public void onUnityAdsShowFailure(String id, UnityAds.UnityAdsShowError e, String msg) {
+                    loadInterstitialAd();
+                    if (afterAd != null) runOnUiThread(afterAd);
+                }
+                @Override public void onUnityAdsShowStart(String id) {}
+                @Override public void onUnityAdsShowClick(String id) {}
+                @Override public void onUnityAdsShowComplete(String id, UnityAds.UnityAdsShowCompletionState state) {
+                    loadInterstitialAd();
+                    if (afterAd != null) runOnUiThread(afterAd);
+                }
+            });
     }
 
     private void loadRewardedAd() {
-        if (rewardedAdLoading) return;
-        rewardedAdLoading = true;
-        RewardedInterstitialAd.load(this,
-            getString(R.string.admob_rewarded_interstitial_id),
-            new AdRequest.Builder().build(),
-            new RewardedInterstitialAdLoadCallback() {
-                @Override public void onAdLoaded(@NonNull RewardedInterstitialAd ad) {
-                    rewardedAd = ad; rewardedAdLoading = false;
-                }
-                @Override public void onAdFailedToLoad(@NonNull LoadAdError e) {
-                    rewardedAd = null; rewardedAdLoading = false;
-                    Log.w(TAG, "Rewarded ad failed: " + e.getMessage());
+        if (rewardedLoaded) return;
+        UnityAds.load(getString(R.string.unity_rewarded_placement_id),
+            new IUnityAdsLoadListener() {
+                @Override public void onUnityAdsAdLoaded(String id) { rewardedLoaded = true; }
+                @Override public void onUnityAdsFailedToLoad(String id, UnityAds.UnityAdsLoadError e, String msg) {
+                    rewardedLoaded = false;
+                    Log.w(TAG, "Rewarded ad failed: " + msg);
                 }
             });
     }
 
     private void showRewardedAd() {
         if (isShowingAd) return;
-        if (rewardedAd == null) {
-            if (!rewardedAdLoading) loadRewardedAd();
+        if (!rewardedLoaded) {
+            loadRewardedAd();
             showInterstitialAd(this::beginDownload);
             return;
         }
         isShowingAd = true;
-        rewardedAd.setFullScreenContentCallback(new FullScreenContentCallback() {
-            @Override public void onAdDismissedFullScreenContent() {
-                rewardedAd = null; isShowingAd = false; loadRewardedAd();
-            }
-            @Override public void onAdFailedToShowFullScreenContent(@NonNull AdError e) {
-                rewardedAd = null; isShowingAd = false; loadRewardedAd();
-                runOnUiThread(() -> showInterstitialAd(MainActivity.this::beginDownload));
-            }
-        });
-        rewardedAd.show(this, reward -> runOnUiThread(this::beginDownload));
+        rewardedLoaded = false;
+        UnityAds.show(this, getString(R.string.unity_rewarded_placement_id),
+            new UnityAdsShowOptions(), new IUnityAdsShowListener() {
+                @Override public void onUnityAdsShowFailure(String id, UnityAds.UnityAdsShowError e, String msg) {
+                    isShowingAd = false;
+                    loadRewardedAd();
+                    runOnUiThread(() -> showInterstitialAd(MainActivity.this::beginDownload));
+                }
+                @Override public void onUnityAdsShowStart(String id) {}
+                @Override public void onUnityAdsShowClick(String id) {}
+                @Override public void onUnityAdsShowComplete(String id, UnityAds.UnityAdsShowCompletionState state) {
+                    isShowingAd = false;
+                    loadRewardedAd();
+                    if (state == UnityAds.UnityAdsShowCompletionState.COMPLETED) {
+                        runOnUiThread(MainActivity.this::beginDownload);
+                    } else {
+                        runOnUiThread(() -> showInterstitialAd(MainActivity.this::beginDownload));
+                    }
+                }
+            });
     }
 
     // ══════════════════════════════════════════════════════════════════════════

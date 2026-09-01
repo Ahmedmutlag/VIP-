@@ -22,10 +22,6 @@
         android:theme="@style/Theme.NazzilhaPlus"
         android:usesCleartextTraffic="false">
 
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-9098461798177099~6266035760"/>
-
         <activity
             android:name=".MainActivity"
             android:exported="true"
