@@ -13,7 +13,7 @@
     <string name="tagline">Free ✦ No Sign-up ✦ Fast</string>
     <string name="hero_title1">Save Content</string>
     <string name="hero_title2">With One Tap</string>
-    <string name="feat_platforms">🌐 50+ Platforms</string>
+    <string name="feat_platforms">🌐 40+ Platforms</string>
     <string name="feat_media">🎬 Video &amp; Audio</string>
     <string name="feat_quality">⚡ High Quality</string>
     <string name="stat_free_label">Free &amp; Safe</string>
@@ -29,7 +29,7 @@
     <string name="history_title">📋 Recent Downloads</string>
     <string name="btn_clear">Clear All</string>
     <string name="hint_paste_url">Paste any video link from the internet</string>
-    <string name="hint_platforms">50+ Supported Platforms</string>
+    <string name="hint_platforms">40+ Supported Platforms</string>
     <string name="footer_tagline">Save digital content with one tap</string>
     <string name="footer_how_to">How to Use</string>
     <string name="footer_privacy">Privacy Policy</string>

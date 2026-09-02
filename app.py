@@ -2805,7 +2805,7 @@ def api_resolve():
     return jsonify({
         "title": title[:200] if title else "",
         "thumbnail": thumbnail or "",
-        "platform": platform,
+        "platform": "Video" if platform == "YouTube" else platform,
         "formats": formats,
     })
 

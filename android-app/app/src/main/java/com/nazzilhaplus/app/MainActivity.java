@@ -117,7 +117,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         "facebook.com", "fb.watch",
         "pinterest.com", "pin.it",
         "twitter.com", "x.com",
-        "snapchat.com", "youtube.com", "youtu.be",
+        "snapchat.com",
         "dailymotion.com", "vimeo.com", "bilibili.com",
         "twitch.tv", "reddit.com"
     );
@@ -290,7 +290,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         new androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("كيف تستخدم نزلها بلس؟")
             .setMessage(
-                "1️⃣  افتح أي تطبيق (تيك توك، يوتيوب، إنستغرام...)\n\n" +
+                "1️⃣  افتح أي تطبيق (تيك توك، إنستغرام، فيسبوك...)\n\n" +
                 "2️⃣  اضغط على \"مشاركة\" ثم انسخ الرابط\n\n" +
                 "3️⃣  ارجع للتطبيق — سيُلصق الرابط تلقائياً\n\n" +
                 "4️⃣  اضغط \"جلب معلومات الفيديو\"\n\n" +
@@ -334,8 +334,8 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 "الإصدار: " + version + "\n\n" +
                 "تطبيق لتحميل الفيديوهات من أكثر من 50 منصة بضغطة واحدة.\n\n" +
                 "المنصات المدعومة:\n" +
-                "تيك توك • إنستغرام • يوتيوب • فيسبوك\n" +
-                "تويتر/X • سناب شات • ديلي موشن • فيميو\n" +
+                "تيك توك • إنستغرام • فيسبوك • تويتر/X\n" +
+                "سناب شات • ديلي موشن • فيميو • بيليبيلي\n" +
                 "بنترست • تويتش • ريديت • وغيرها\n\n" +
                 "🌐 " + SITE_URL + "\n\n" +
                 "© 2026 نزلها بلس. جميع الحقوق محفوظة."
