@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/menu_upgrade"  android:title="⭐ ترقية للبريميوم" />
-    <item android:id="@+id/menu_how_to"   android:title="كيف تستخدمه" />
-    <item android:id="@+id/menu_privacy"  android:title="سياسة الخصوصية" />
-    <item android:id="@+id/menu_about"    android:title="عن التطبيق" />
-    <item android:id="@+id/menu_blog"     android:title="المدونة" />
+    <item android:id="@+id/menu_upgrade"  android:title="@string/menu_upgrade_inactive" />
+    <item android:id="@+id/menu_how_to"   android:title="@string/menu_item_how_to" />
+    <item android:id="@+id/menu_privacy"  android:title="@string/menu_item_privacy" />
+    <item android:id="@+id/menu_about"    android:title="@string/menu_item_about" />
+    <item android:id="@+id/menu_blog"     android:title="@string/menu_item_blog" />
 </menu>

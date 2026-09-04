@@ -269,13 +269,15 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         inflater.inflate(R.menu.main_menu, popup.getMenu());
 
         // Show correct label for upgrade item based on premium status
-        String premiumLabel = isPremiumActive() ? "⭐ بريميوم — نشط ✅" : "⭐ بريميوم — تحميل بلا حدود";
+        String premiumLabel = isPremiumActive()
+                ? getString(R.string.menu_upgrade_active)
+                : getString(R.string.menu_upgrade_inactive);
         popup.getMenu().findItem(R.id.menu_upgrade).setTitle(premiumLabel);
 
         popup.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == R.id.menu_upgrade) {
-                if (isPremiumActive()) Toast.makeText(this, "✅ اشتراكك نشط", Toast.LENGTH_SHORT).show();
+                if (isPremiumActive()) Toast.makeText(this, getString(R.string.premium_active_toast), Toast.LENGTH_SHORT).show();
                 else launchBillingFlow();
                 return true;
             }
@@ -290,37 +292,18 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
 
     private void showHowToDialog() {
         new androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("كيف تستخدم نزلها بلس؟")
-            .setMessage(
-                "1️⃣  افتح أي تطبيق (تيك توك، إنستغرام، فيسبوك...)\n\n" +
-                "2️⃣  اضغط على \"مشاركة\" ثم انسخ الرابط\n\n" +
-                "3️⃣  ارجع للتطبيق — سيُلصق الرابط تلقائياً\n\n" +
-                "4️⃣  اضغط \"جلب معلومات الفيديو\"\n\n" +
-                "5️⃣  اختر الجودة التي تريدها\n\n" +
-                "6️⃣  انتظر اكتمال التحميل وافتح الملف 🎉\n\n" +
-                "💡 المستخدمون المجانيون: تحميلان يومياً\n" +
-                "⭐ بريميوم: تحميل غير محدود وبدون إعلانات"
-            )
-            .setPositiveButton("فهمت", null)
+            .setTitle(getString(R.string.how_to_title))
+            .setMessage(getString(R.string.how_to_message))
+            .setPositiveButton(getString(R.string.dialog_got_it), null)
             .show();
     }
 
     private void showPrivacyDialog() {
         new androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("سياسة الخصوصية")
-            .setMessage(
-                "نزلها بلس — سياسة الخصوصية\n\n" +
-                "• لا نجمع بياناتك الشخصية ولا نشاركها مع أي طرف ثالث.\n\n" +
-                "• الروابط التي تدخلها تُرسل إلى خادمنا لمعالجتها فقط ولا تُحفظ.\n\n" +
-                "• سجل التحميلات محفوظ على جهازك فقط.\n\n" +
-                "• نستخدم Unity Ads لعرض الإعلانات، وقد يجمع Unity بيانات لتخصيص الإعلانات وفق سياسة Unity Technologies.\n\n" +
-                "• نستخدم Firebase للإشعارات وتحليل الأداء.\n\n" +
-                "• الاشتراك يُدار بالكامل عبر Google Play.\n\n" +
-                "• أنت مسؤول عن التحقق من حقوق المحتوى الذي تحمّله.\n\n" +
-                "للتواصل: " + SITE_URL
-            )
-            .setPositiveButton("حسناً", null)
-            .setNeutralButton("زيارة الموقع", (d, w) -> openUrl(SITE_URL))
+            .setTitle(getString(R.string.privacy_dialog_title))
+            .setMessage(getString(R.string.privacy_message) + SITE_URL)
+            .setPositiveButton(getString(R.string.dialog_ok), null)
+            .setNeutralButton(getString(R.string.dialog_visit_site), (d, w) -> openUrl(SITE_URL))
             .show();
     }
 
@@ -330,20 +313,11 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
         } catch (Exception ignored) {}
         new androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("عن نزلها بلس")
-            .setMessage(
-                "📱 نزلها بلس\n" +
-                "الإصدار: " + version + "\n\n" +
-                "تطبيق لتحميل الفيديوهات من أكثر من 50 منصة بضغطة واحدة.\n\n" +
-                "المنصات المدعومة:\n" +
-                "تيك توك • إنستغرام • فيسبوك • تويتر/X\n" +
-                "سناب شات • ديلي موشن • فيميو • بيليبيلي\n" +
-                "بنترست • تويتش • ريديت • وغيرها\n\n" +
-                "🌐 " + SITE_URL + "\n\n" +
-                "© 2026 نزلها بلس. جميع الحقوق محفوظة."
-            )
-            .setPositiveButton("حسناً", null)
-            .setNeutralButton("زيارة الموقع", (d, w) -> openUrl(SITE_URL))
+            .setTitle(getString(R.string.about_title))
+            .setMessage(String.format(getString(R.string.about_message), version)
+                    + SITE_URL + getString(R.string.about_footer))
+            .setPositiveButton(getString(R.string.dialog_ok), null)
+            .setNeutralButton(getString(R.string.dialog_visit_site), (d, w) -> openUrl(SITE_URL))
             .show();
     }
 
@@ -351,7 +325,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (Exception e) {
-            Toast.makeText(this, "تعذّر فتح الرابط", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.open_url_error), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -611,14 +585,14 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             beginDownload();
         } else {
             new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("تجاوزت الحد اليومي")
-                .setMessage("استنفذت " + FREE_DAILY_LIMIT + " تحميلات مجانية اليوم.\nشاهد إعلاناً أو فعّل البريميوم للحصول على تحميل غير محدود.")
-                .setPositiveButton("شاهد الإعلان", (d, w) -> {
+                .setTitle(getString(R.string.limit_title))
+                .setMessage(String.format(getString(R.string.limit_message), FREE_DAILY_LIMIT))
+                .setPositiveButton(getString(R.string.btn_watch_ad), (d, w) -> {
                     saveHistory(title, platform);
                     showRewardedAd();
                 })
-                .setNeutralButton("⭐ بريميوم", (d, w) -> launchBillingFlow())
-                .setNegativeButton("إلغاء", null)
+                .setNeutralButton(getString(R.string.btn_premium), (d, w) -> launchBillingFlow())
+                .setNegativeButton(getString(R.string.btn_cancel), null)
                 .show();
         }
     }
@@ -637,11 +611,11 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private void refreshPremiumButton() {
         if (isPremiumActive()) {
             premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#16A34A"));
-            if (premiumBtnTitle != null) premiumBtnTitle.setText("✅ اشتراكك نشط — تحميل بلا حدود وبدون إعلانات");
+            if (premiumBtnTitle != null) premiumBtnTitle.setText(getString(R.string.premium_active_label));
             bannerAdContainer.setVisibility(View.GONE);
         } else {
             premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#F59E0B"));
-            if (premiumBtnTitle != null) premiumBtnTitle.setText("⭐ بريميوم — تحميل بلا حدود شهرياً وبدون إعلانات");
+            if (premiumBtnTitle != null) premiumBtnTitle.setText(getString(R.string.premium_btn_text));
         }
     }
 
