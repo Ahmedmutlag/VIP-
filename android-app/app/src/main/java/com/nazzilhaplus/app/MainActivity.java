@@ -1011,8 +1011,11 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private void doDownload(String url, String filename) {
         int notifId = filename.hashCode();
         NotificationManagerCompat nm = NotificationManagerCompat.from(this);
+        android.graphics.Bitmap appIcon = android.graphics.BitmapFactory.decodeResource(
+            getResources(), R.mipmap.ic_launcher);
         NotificationCompat.Builder nb = new NotificationCompat.Builder(this, NotificationReceiver.DOWNLOAD_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setLargeIcon(appIcon)
             .setContentTitle(filename)
             .setContentText("جاري التحميل...")
             .setProgress(100, 0, true)

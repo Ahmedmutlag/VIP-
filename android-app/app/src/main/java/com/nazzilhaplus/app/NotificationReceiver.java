@@ -37,8 +37,12 @@ public class NotificationReceiver extends BroadcastReceiver {
         PendingIntent pi = PendingIntent.getActivity(context, 0, openApp,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+        android.graphics.Bitmap appIcon = android.graphics.BitmapFactory.decodeResource(
+                context.getResources(), R.mipmap.ic_launcher);
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setLargeIcon(appIcon)
                 .setContentTitle("نزلها بلس ⬇️")
                 .setContentText(message)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(message))
