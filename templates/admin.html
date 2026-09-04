@@ -205,6 +205,9 @@ tr:hover td{background:rgba(0,200,255,.03)}
   <div class="nav-item" onclick="showPage('subscribers', this)">
     <span class="icon">🔑</span> المشتركون
   </div>
+  <div class="nav-item" onclick="showPage('android', this)">
+    <span class="icon">📱</span> مستخدمو التطبيق
+  </div>
   <div class="nav-item" onclick="showPage('system', this)">
     <span class="icon">🖥️</span> النظام
   </div>
@@ -445,6 +448,74 @@ tr:hover td{background:rgba(0,200,255,.03)}
     </div>
   </div>
 
+  <!-- ===== ANDROID USERS ===== -->
+  <div class="page" id="page-android">
+    <div class="page-header">
+      <h1>مستخدمو التطبيق</h1>
+      <p>الأجهزة المثبِّتة للتطبيق وإحصائيات التحميل</p>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">إجمالي الأجهزة</div>
+        <div class="kpi-value" id="and-total">—</div>
+        <div class="kpi-sub">منذ الإطلاق</div>
+        <div class="kpi-icon">📱</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-label">نشط اليوم</div>
+        <div class="kpi-value" id="and-active">—</div>
+        <div class="kpi-sub">فتحوا التطبيق اليوم</div>
+        <div class="kpi-icon">✅</div>
+      </div>
+      <div class="kpi-card purple">
+        <div class="kpi-label">أكثر الدول</div>
+        <div class="kpi-value" id="and-top-country">—</div>
+        <div class="kpi-sub" id="and-top-country-count">—</div>
+        <div class="kpi-icon">🌍</div>
+      </div>
+      <div class="kpi-card orange">
+        <div class="kpi-label">عدد الدول</div>
+        <div class="kpi-value" id="and-countries-count">—</div>
+        <div class="kpi-sub">دولة مختلفة</div>
+        <div class="kpi-icon">🗺️</div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">🌍 توزيع الدول</div>
+        <div class="donut-wrap"><canvas id="chart-countries"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">📊 إحصائيات الدول</div>
+        <div id="countries-list" style="padding:.5rem 0;max-height:220px;overflow-y:auto"></div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <h3>قائمة الأجهزة</h3>
+        <input class="form-input" style="width:200px;padding:.4rem .8rem" placeholder="بحث بالدولة أو المعرّف..." oninput="filterUsers(this.value)" id="user-search">
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>المعرّف</th>
+            <th>الدولة</th>
+            <th>الإصدار</th>
+            <th>آخر نشاط</th>
+            <th>أول ظهور</th>
+            <th>تحميلات اليوم</th>
+            <th>تحميلات الشهر</th>
+            <th>الإجمالي</th>
+          </tr></thead>
+          <tbody id="users-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== SYSTEM ===== -->
   <div class="page" id="page-system">
     <div class="page-header">
@@ -651,6 +722,7 @@ function showPage(name, el) {
   else if (name === 'visitors') loadVisitors();
   else if (name === 'downloads') loadDownloads();
   else if (name === 'subscribers') loadSubscribers();
+  else if (name === 'android') loadAndroidUsers();
   else if (name === 'system') { loadSystem(); renderPingNow(); }
   else if (name === 'settings') loadSettings();
 }
@@ -898,6 +970,78 @@ async function deleteCode(code) {
     showToast('✅ تم الحذف');
     loadSubscribers();
   } catch { showToast('❌ فشل الحذف', 'var(--red)'); }
+}
+
+// ===== Android Users =====
+let _allUsers = [];
+
+const COUNTRY_FLAGS = {
+  IQ:'🇮🇶',SA:'🇸🇦',AE:'🇦🇪',EG:'🇪🇬',KW:'🇰🇼',JO:'🇯🇴',LB:'🇱🇧',SY:'🇸🇾',PS:'🇵🇸',
+  YE:'🇾🇪',BH:'🇧🇭',QA:'🇶🇦',OM:'🇴🇲',SD:'🇸🇩',LY:'🇱🇾',TN:'🇹🇳',DZ:'🇩🇿',MA:'🇲🇦',
+  US:'🇺🇸',GB:'🇬🇧',DE:'🇩🇪',TR:'🇹🇷',IN:'🇮🇳',PK:'🇵🇰',FR:'🇫🇷',CA:'🇨🇦',AU:'🇦🇺',
+};
+function flag(code) { return COUNTRY_FLAGS[code] || '🏳️'; }
+
+async function loadAndroidUsers() {
+  const data = await fetch('/admin/api/android-users').then(r => r.json()).catch(() => ({}));
+  _allUsers = data.users || [];
+
+  document.getElementById('and-total').textContent = data.total ?? '—';
+  document.getElementById('and-active').textContent = data.active_today ?? '—';
+  document.getElementById('and-countries-count').textContent = (data.countries || []).length;
+
+  const top = (data.countries || [])[0];
+  if (top) {
+    document.getElementById('and-top-country').textContent = flag(top.code) + ' ' + top.code;
+    document.getElementById('and-top-country-count').textContent = top.count + ' جهاز';
+  }
+
+  // Donut chart for countries
+  const countries = (data.countries || []).slice(0, 8);
+  if (countries.length) {
+    const palettes = ['#00c8ff','#7c3aed','#22c55e','#f97316','#eab308','#ef4444','#ec4899','#06b6d4'];
+    makeDonut('chart-countries',
+      countries.map(c => flag(c.code) + ' ' + c.code),
+      countries.map(c => c.count),
+      palettes.slice(0, countries.length));
+  }
+
+  // Country list
+  const listEl = document.getElementById('countries-list');
+  listEl.innerHTML = (data.countries || []).map(c => `
+    <div class="stat-row">
+      <span class="stat-row-label">${flag(c.code)} ${c.code}</span>
+      <span class="stat-row-val">${c.count} جهاز</span>
+    </div>`).join('') || '<div style="color:var(--sub);padding:.5rem">لا توجد بيانات بعد</div>';
+
+  renderUsers(_allUsers);
+}
+
+function renderUsers(users) {
+  const tbody = document.getElementById('users-body');
+  if (!users.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--sub);padding:2rem">لا توجد بيانات بعد — انتظر حتى يفتح المستخدمون التطبيق</td></tr>';
+    return;
+  }
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td style="font-family:monospace;color:var(--accent);font-size:.85rem">${u.id}…</td>
+      <td>${flag(u.country)} <span style="font-size:.85rem">${u.country}</span></td>
+      <td><span class="badge badge-gray">${u.app_version || '—'}</span></td>
+      <td style="font-size:.8rem;color:${u.last_seen === new Date().toISOString().slice(0,10) ? 'var(--green)' : 'var(--sub)'}">${u.last_seen || '—'}</td>
+      <td style="font-size:.8rem;color:var(--sub)">${u.first_seen || '—'}</td>
+      <td style="text-align:center">${u.dl_today > 0 ? '<span class="badge badge-blue">' + u.dl_today + '</span>' : '<span style="color:var(--sub)">0</span>'}</td>
+      <td style="text-align:center">${u.dl_month > 0 ? '<span class="badge badge-green">' + u.dl_month + '</span>' : '<span style="color:var(--sub)">0</span>'}</td>
+      <td style="text-align:center;font-weight:700">${u.dl_total}</td>
+    </tr>`).join('');
+}
+
+function filterUsers(q) {
+  if (!q) { renderUsers(_allUsers); return; }
+  const lq = q.toLowerCase();
+  renderUsers(_allUsers.filter(u =>
+    (u.id || '').toLowerCase().includes(lq) ||
+    (u.country || '').toLowerCase().includes(lq)));
 }
 
 // ===== System =====

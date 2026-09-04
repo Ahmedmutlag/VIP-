@@ -509,7 +509,9 @@ RATINGS_FILE      = Path("data/ratings.json")
 STATS_FILE        = Path("data/stats.json")
 VISITORS_FILE     = Path("data/visitors.json")
 DOWNLOAD_LOG_FILE = Path("data/download_log.json")
-APP_INSTALLS_FILE = Path("data/app_installs.json")
+APP_INSTALLS_FILE  = Path("data/app_installs.json")
+APP_USERS_FILE     = Path("data/app_users.json")
+_app_users_lock    = threading.Lock()
 HOURLY_STATS_FILE = Path("data/hourly_stats.json")
 DAILY_STATS_FILE  = Path("data/daily_stats.json")
 SETTINGS_FILE     = Path("data/settings.json")
@@ -769,6 +771,64 @@ def record_download(platform, success, error_msg="", duration=0):
     daily = load_daily_stats()
     daily[today_str] = daily.get(today_str, 0) + 1
     save_daily_stats(daily)
+
+
+def _load_app_users() -> dict:
+    try:
+        if APP_USERS_FILE.exists():
+            return json.loads(APP_USERS_FILE.read_text())
+    except Exception:
+        pass
+    return {}
+
+def _save_app_users(data: dict):
+    try:
+        APP_USERS_FILE.write_text(json.dumps(data, ensure_ascii=False))
+    except Exception:
+        pass
+
+def _record_app_user(device_id: str, country: str, app_version: str):
+    if not device_id:
+        return
+    today = now().strftime("%Y-%m-%d")
+    month = now().strftime("%Y-%m")
+    with _app_users_lock:
+        users = _load_app_users()
+        u = users.get(device_id, {
+            "country": country or "??",
+            "first_seen": today,
+            "last_seen": today,
+            "app_version": app_version or "",
+            "dl_daily": {},
+            "dl_monthly": {},
+        })
+        u["last_seen"] = today
+        if country:
+            u["country"] = country.upper()
+        if app_version:
+            u["app_version"] = app_version
+        users[device_id] = u
+        _save_app_users(users)
+
+def _record_app_download(device_id: str, success: bool):
+    if not device_id:
+        return
+    today = now().strftime("%Y-%m-%d")
+    month = now().strftime("%Y-%m")
+    with _app_users_lock:
+        users = _load_app_users()
+        u = users.get(device_id)
+        if not u:
+            return
+        if success:
+            u["dl_daily"][today] = u["dl_daily"].get(today, 0) + 1
+            u["dl_monthly"][month] = u["dl_monthly"].get(month, 0) + 1
+            # keep only last 60 days of daily data
+            if len(u["dl_daily"]) > 60:
+                oldest = sorted(u["dl_daily"].keys())[0]
+                del u["dl_daily"][oldest]
+        users[device_id] = u
+        _save_app_users(users)
 
 
 _INSTAGRAM_COOKIE_FILE = None
@@ -1310,12 +1370,31 @@ def app_ping():
     device_id = (data.get("device_id") or "").strip()[:64]
     if not device_id:
         return jsonify({"ok": False}), 400
+    country     = (data.get("country") or "").strip()[:4].upper()
+    app_version = (data.get("app_version") or "").strip()[:20]
+
+    # legacy installs counter
     installs = json.loads(APP_INSTALLS_FILE.read_text()) if APP_INSTALLS_FILE.exists() else {"devices": [], "total": 0}
     if device_id not in installs["devices"]:
         installs["devices"].append(device_id)
         installs["total"] = len(installs["devices"])
         APP_INSTALLS_FILE.write_text(json.dumps(installs))
+
+    # rich per-user record
+    _record_app_user(device_id, country, app_version)
+
     return jsonify({"ok": True, "total": installs["total"]})
+
+
+@app.route("/api/analytics/download", methods=["POST"])
+@limiter.limit("60 per minute")
+def analytics_download():
+    data = request.get_json() or {}
+    device_id = (data.get("device_id") or "").strip()[:64]
+    success   = bool(data.get("success", True))
+    if device_id:
+        _record_app_download(device_id, success)
+    return jsonify({"ok": True})
 
 
 @app.route("/admin/api/app-installs")
@@ -1323,6 +1402,43 @@ def app_ping():
 def admin_app_installs():
     installs = json.loads(APP_INSTALLS_FILE.read_text()) if APP_INSTALLS_FILE.exists() else {"devices": [], "total": 0}
     return jsonify({"total": installs["total"]})
+
+
+@app.route("/admin/api/android-users")
+@requires_auth
+def admin_android_users():
+    users = _load_app_users()
+    today   = now().strftime("%Y-%m-%d")
+    month   = now().strftime("%Y-%m")
+    result  = []
+    country_counts: dict = {}
+    active_today = 0
+    for did, u in users.items():
+        dl_today = u.get("dl_daily", {}).get(today, 0)
+        dl_month = u.get("dl_monthly", {}).get(month, 0)
+        dl_total = sum(u.get("dl_daily", {}).values())
+        c = u.get("country", "??")
+        country_counts[c] = country_counts.get(c, 0) + 1
+        if u.get("last_seen") == today:
+            active_today += 1
+        result.append({
+            "id":          did[:8],
+            "country":     c,
+            "first_seen":  u.get("first_seen", ""),
+            "last_seen":   u.get("last_seen", ""),
+            "app_version": u.get("app_version", ""),
+            "dl_today":    dl_today,
+            "dl_month":    dl_month,
+            "dl_total":    dl_total,
+        })
+    result.sort(key=lambda x: x["last_seen"], reverse=True)
+    countries_list = sorted(country_counts.items(), key=lambda x: x[1], reverse=True)
+    return jsonify({
+        "total":         len(result),
+        "active_today":  active_today,
+        "countries":     [{"code": c, "count": n} for c, n in countries_list],
+        "users":         result,
+    })
 
 
 # ===== Admin Dashboard =====

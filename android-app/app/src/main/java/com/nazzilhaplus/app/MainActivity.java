@@ -187,6 +187,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     protected void onResume() {
         super.onResume();
         autoFillClipboard();
+        sendSessionPing();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1030,6 +1031,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
 
         nm.cancel(notifId);
         AppOpenAdManager.suppressAd = false;
+        sendDownloadEvent(ok);
         if (ok) {
             incrementDownloadCount();
             Uri fu = resultUri[0];
@@ -1227,6 +1229,89 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     // ══════════════════════════════════════════════════════════════════════════
     //  Utilities
     // ══════════════════════════════════════════════════════════════════════════
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Analytics
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private String getDeviceId() {
+        String id = getPrefs().getString("device_id", "");
+        if (id.isEmpty()) {
+            String raw = android.provider.Settings.Secure.getString(
+                getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+            try {
+                java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+                byte[] hash = md.digest((raw != null ? raw : java.util.UUID.randomUUID().toString()).getBytes("UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                for (byte b : hash) sb.append(String.format("%02x", b));
+                id = sb.toString();
+            } catch (Exception e) {
+                id = java.util.UUID.randomUUID().toString().replace("-", "");
+            }
+            getPrefs().edit().putString("device_id", id).apply();
+        }
+        return id;
+    }
+
+    private String getCountryCode() {
+        try {
+            android.telephony.TelephonyManager tm =
+                (android.telephony.TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+            if (tm != null) {
+                String net = tm.getNetworkCountryIso();
+                if (net != null && !net.isEmpty()) return net.toUpperCase();
+                String sim = tm.getSimCountryIso();
+                if (sim != null && !sim.isEmpty()) return sim.toUpperCase();
+            }
+        } catch (Exception ignored) {}
+        return "";
+    }
+
+    void sendSessionPing() {
+        long lastPing = getPrefs().getLong("last_ping_ms", 0);
+        if (System.currentTimeMillis() - lastPing < 4 * 60 * 60 * 1000L) return;
+        getPrefs().edit().putLong("last_ping_ms", System.currentTimeMillis()).apply();
+        String deviceId = getDeviceId();
+        String country  = getCountryCode();
+        String version  = "";
+        try { version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) {}
+        final String body = "{\"device_id\":" + org.json.JSONObject.quote(deviceId) +
+            ",\"country\":" + org.json.JSONObject.quote(country) +
+            ",\"app_version\":" + org.json.JSONObject.quote(version) + "}";
+        new Thread(() -> {
+            try {
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection)
+                    new java.net.URL(API_BASE + "/api/app-ping").openConnection();
+                c.setRequestMethod("POST");
+                c.setRequestProperty("Content-Type", "application/json");
+                c.setDoOutput(true);
+                c.setConnectTimeout(10_000);
+                c.setReadTimeout(10_000);
+                c.getOutputStream().write(body.getBytes("UTF-8"));
+                c.getResponseCode();
+                c.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
+    private void sendDownloadEvent(boolean success) {
+        final String body = "{\"device_id\":" + org.json.JSONObject.quote(getDeviceId()) +
+            ",\"success\":" + success + "}";
+        new Thread(() -> {
+            try {
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection)
+                    new java.net.URL(API_BASE + "/api/analytics/download").openConnection();
+                c.setRequestMethod("POST");
+                c.setRequestProperty("Content-Type", "application/json");
+                c.setDoOutput(true);
+                c.setConnectTimeout(10_000);
+                c.setReadTimeout(10_000);
+                c.getOutputStream().write(body.getBytes("UTF-8"));
+                c.getResponseCode();
+                c.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
+    }
 
     private SharedPreferences getPrefs() {
         return getSharedPreferences("nazzilha_prefs", MODE_PRIVATE);
