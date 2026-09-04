@@ -703,9 +703,10 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
                 .setProductList(products)
                 .build();
-        billingClient.queryProductDetailsAsync(params, (result, productDetailsList) -> {
+        billingClient.queryProductDetailsAsync(params, (result, queryResult) -> {
+            java.util.List<ProductDetails> productDetailsList = queryResult.getProductDetailsList();
             if (result.getResponseCode() != BillingClient.BillingResponseCode.OK
-                    || productDetailsList.isEmpty()) {
+                    || productDetailsList == null || productDetailsList.isEmpty()) {
                 runOnUiThread(() ->
                         Toast.makeText(this, "تعذر تحميل معلومات الاشتراك", Toast.LENGTH_SHORT).show());
                 return;
