@@ -285,6 +285,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
             if (id == R.id.menu_about)    { showAboutDialog();     return true; }
             if (id == R.id.menu_blog)     { openUrl(SITE_URL);     return true; }
+            if (id == R.id.menu_contact)  { openEmail();           return true; }
             return false;
         });
         popup.show();
@@ -324,6 +325,17 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private void openUrl(String url) {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (Exception e) {
+            Toast.makeText(this, getString(R.string.open_url_error), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void openEmail() {
+        Intent intent = new Intent(Intent.ACTION_SENDTO,
+                Uri.parse("mailto:ahmad.jassim1@hotmail.com"));
+        intent.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_name));
+        try {
+            startActivity(Intent.createChooser(intent, null));
         } catch (Exception e) {
             Toast.makeText(this, getString(R.string.open_url_error), Toast.LENGTH_SHORT).show();
         }

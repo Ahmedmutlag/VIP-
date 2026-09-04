@@ -43,6 +43,7 @@
     <string name="menu_item_privacy">سياسة الخصوصية</string>
     <string name="menu_item_about">عن التطبيق</string>
     <string name="menu_item_blog">المدونة</string>
+    <string name="menu_item_contact">✉ تواصل مع المالك</string>
 
     <!-- How to dialog -->
     <string name="how_to_title">كيف تستخدم نزلها بلس؟</string>

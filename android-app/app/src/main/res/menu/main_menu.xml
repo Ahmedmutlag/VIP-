@@ -5,4 +5,5 @@
     <item android:id="@+id/menu_privacy"  android:title="@string/menu_item_privacy" />
     <item android:id="@+id/menu_about"    android:title="@string/menu_item_about" />
     <item android:id="@+id/menu_blog"     android:title="@string/menu_item_blog" />
+    <item android:id="@+id/menu_contact"  android:title="@string/menu_item_contact" />
 </menu>
