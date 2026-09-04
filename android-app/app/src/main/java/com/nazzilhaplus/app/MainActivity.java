@@ -55,6 +55,7 @@ import com.android.billingclient.api.ProductDetails;
 import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
+import com.android.billingclient.api.PendingPurchasesParams;
 import com.android.billingclient.api.QueryPurchasesParams;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -651,7 +652,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private void setupBilling() {
         billingClient = BillingClient.newBuilder(this)
                 .setListener(this)
-                .enablePendingPurchases()
+                .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
                 .build();
         billingClient.startConnection(new BillingClientStateListener() {
             @Override
