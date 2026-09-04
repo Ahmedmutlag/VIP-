@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Existing colors (kept for compatibility) -->
     <color name="bg_dark">#0a0a0f</color>
     <color name="accent">#7c3aed</color>
     <color name="white">#FFFFFF</color>
+
+    <!-- New native-UI colors -->
+    <color name="primary">#7c3aed</color>
+    <color name="green">#22c55e</color>
+    <color name="gold">#f59e0b</color>
+    <color name="background">#ffffff</color>
+    <color name="text_gray">#666666</color>
 </resources>

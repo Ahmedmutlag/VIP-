@@ -1,6 +1,77 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">نزلها بلس</string>
+    <string name="app_name">Nazzilha Plus</string>
     <string name="app_url">https://www.vip-dl.com</string>
     <string name="app_host">www.vip-dl.com</string>
+    <string name="unity_game_id">51210f24-48da-41c4-8df5-c907b5bb3954</string>
+    <string name="unity_banner_placement_id">Banner_Android</string>
+    <string name="unity_interstitial_placement_id">Interstitial_Android</string>
+    <string name="unity_rewarded_placement_id">Rewarded_Android</string>
+
+    <!-- UI Strings -->
+    <string name="app_header">⬇ Nazzilha Plus</string>
+    <string name="tagline">Free ✦ No Sign-up ✦ Fast</string>
+    <string name="hero_title1">Save Content</string>
+    <string name="hero_title2">With One Tap</string>
+    <string name="feat_platforms">🌐 40+ Platforms</string>
+    <string name="feat_media">🎬 Video &amp; Audio</string>
+    <string name="feat_quality">⚡ High Quality</string>
+    <string name="stat_free_label">Free &amp; Safe</string>
+    <string name="stat_noreg_label">No Sign-up</string>
+    <string name="stat_noaccount">No Account Needed</string>
+    <string name="stat_fast_label">Instant</string>
+    <string name="stat_fast_sub">Fast Download</string>
+    <string name="premium_btn_text">⭐ Premium — Unlimited Monthly Downloads, Ad-Free</string>
+    <string name="url_hint">Paste video link here…</string>
+    <string name="btn_fetch">Fetch Video Info →</string>
+    <string name="quality_label">Choose Quality</string>
+    <string name="downloading_label">⬇  Downloading…</string>
+    <string name="history_title">📋 Recent Downloads</string>
+    <string name="btn_clear">Clear All</string>
+    <string name="hint_paste_url">Paste any video link from the internet</string>
+    <string name="hint_platforms">40+ Supported Platforms</string>
+    <string name="footer_tagline">Save digital content with one tap</string>
+    <string name="footer_how_to">How to Use</string>
+    <string name="footer_privacy">Privacy Policy</string>
+    <string name="footer_about">About</string>
+    <string name="footer_copyright">© 2026 Nazzilha Plus. All rights reserved.</string>
+
+    <!-- Menu items -->
+    <string name="menu_upgrade_inactive">⭐ Premium — Unlimited Downloads</string>
+    <string name="menu_upgrade_active">⭐ Premium — Active ✅</string>
+    <string name="menu_item_how_to">How to Use</string>
+    <string name="menu_item_privacy">Privacy Policy</string>
+    <string name="menu_item_about">About</string>
+    <string name="menu_item_blog">Blog</string>
+    <string name="menu_item_contact">✉ Contact Owner</string>
+
+    <!-- How to dialog -->
+    <string name="how_to_title">How to Use Nazzilha Plus?</string>
+    <string name="how_to_message">1️⃣  Open any app (TikTok, Instagram, Facebook…)\n\n2️⃣  Tap \"Share\" then copy the link\n\n3️⃣  Return to the app — the link will auto-paste\n\n4️⃣  Tap \"Fetch Video Info\"\n\n5️⃣  Choose your preferred quality\n\n6️⃣  Wait for the download and open the file 🎉\n\n💡 Free users: 2 downloads per day\n⭐ Premium: Unlimited downloads, ad-free</string>
+    <string name="dialog_got_it">Got it</string>
+
+    <!-- Privacy dialog -->
+    <string name="privacy_dialog_title">Privacy Policy</string>
+    <string name="privacy_message">Nazzilha Plus — Privacy Policy\n\n• We do not collect or share your personal data with any third party.\n\n• Links you enter are sent to our server for processing only and are not stored.\n\n• Your download history is stored on your device only.\n\n• We use Unity Ads for advertising; Unity may collect data to personalize ads per Unity Technologies\' policy.\n\n• We use Firebase for notifications and performance analytics.\n\n• Subscriptions are managed entirely through Google Play.\n\n• You are responsible for verifying the rights of the content you download.\n\nContact: </string>
+    <string name="dialog_ok">OK</string>
+    <string name="dialog_visit_site">Visit Website</string>
+
+    <!-- About dialog -->
+    <string name="about_title">About Nazzilha Plus</string>
+    <string name="about_message">📱 Nazzilha Plus\nVersion: %s\n\nAn app to download videos from 50+ platforms with one tap.\n\nSupported platforms:\nTikTok • Instagram • Facebook • Twitter/X\nSnapchat • Dailymotion • Vimeo • Bilibili\nPinterest • Twitch • Reddit • and more\n\n🌐 </string>
+    <string name="about_footer">\n\n© 2026 Nazzilha Plus. All rights reserved.</string>
+
+    <!-- Premium button states -->
+    <string name="premium_active_label">✅ Subscription Active — Unlimited Downloads, Ad-Free</string>
+
+    <!-- Toast / misc -->
+    <string name="premium_active_toast">✅ Your subscription is active</string>
+    <string name="open_url_error">Could not open link</string>
+
+    <!-- Daily limit dialog -->
+    <string name="limit_title">Daily Limit Reached</string>
+    <string name="limit_message">You\'ve used %d free downloads today.\nWatch an ad or activate Premium for unlimited downloads.</string>
+    <string name="btn_watch_ad">Watch Ad</string>
+    <string name="btn_premium">⭐ Premium</string>
+    <string name="btn_cancel">Cancel</string>
 </resources>

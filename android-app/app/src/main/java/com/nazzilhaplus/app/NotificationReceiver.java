@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat;
 public class NotificationReceiver extends BroadcastReceiver {
 
     static final String CHANNEL_ID = "daily_reminder";
+    static final String DOWNLOAD_CHANNEL_ID = "download_progress";
 
     private static final String[] MESSAGES = {
         "شفت فيديو عجبك اليوم؟ نزّله بنزلها بلس وخليه عندك! ⬇️",
@@ -36,8 +37,12 @@ public class NotificationReceiver extends BroadcastReceiver {
         PendingIntent pi = PendingIntent.getActivity(context, 0, openApp,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+        android.graphics.Bitmap appIcon = android.graphics.BitmapFactory.decodeResource(
+                context.getResources(), R.mipmap.ic_launcher);
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setLargeIcon(appIcon)
                 .setContentTitle("نزلها بلس ⬇️")
                 .setContentText(message)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(message))
@@ -67,21 +72,31 @@ public class NotificationReceiver extends BroadcastReceiver {
             cal.add(Calendar.DAY_OF_YEAR, 1);
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pi);
-        } else {
-            am.setRepeating(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(),
-                    AlarmManager.INTERVAL_DAY, pi);
-        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
+                am.set(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pi);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pi);
+            } else {
+                am.setRepeating(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(),
+                        AlarmManager.INTERVAL_DAY, pi);
+            }
+        } catch (Exception ignored) {}
     }
 
     static void createChannel(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID, "تذكير يومي", NotificationManager.IMPORTANCE_DEFAULT);
-            channel.setDescription("تذكير يومي لاستخدام التطبيق");
             NotificationManager nm = context.getSystemService(NotificationManager.class);
-            nm.createNotificationChannel(channel);
+
+            NotificationChannel reminder = new NotificationChannel(
+                    CHANNEL_ID, "تذكير يومي", NotificationManager.IMPORTANCE_DEFAULT);
+            reminder.setDescription("تذكير يومي لاستخدام التطبيق");
+            nm.createNotificationChannel(reminder);
+
+            NotificationChannel download = new NotificationChannel(
+                    DOWNLOAD_CHANNEL_ID, "تحميل الفيديوهات", NotificationManager.IMPORTANCE_LOW);
+            download.setDescription("تقدم تحميل الفيديوهات");
+            nm.createNotificationChannel(download);
         }
     }
 }
