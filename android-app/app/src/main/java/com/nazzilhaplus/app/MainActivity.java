@@ -34,6 +34,7 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import android.widget.FrameLayout;
+import com.nazzilhaplus.app.BuildConfig;
 import com.unity3d.ads.IUnityAdsInitializationListener;
 import com.unity3d.ads.IUnityAdsLoadListener;
 import com.unity3d.ads.IUnityAdsShowListener;
@@ -896,7 +897,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
 
     private void loadBannerAd() {
         BannerView banner = new BannerView(this,
-            getString(R.string.unity_banner_placement_id), UnityBannerSize.getDynamicSize());
+            getString(R.string.unity_banner_placement_id), new UnityBannerSize(320, 50));
         banner.setListener(new BannerView.IListener() {
             @Override public void onBannerLoaded(BannerView b) {
                 runOnUiThread(() -> {
@@ -905,6 +906,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                     bannerAdContainer.setVisibility(View.VISIBLE);
                 });
             }
+            @Override public void onBannerShown(BannerView b) {}
             @Override public void onBannerFailedToLoad(BannerView b, BannerErrorInfo e) {}
             @Override public void onBannerClick(BannerView b) {}
             @Override public void onBannerLeftApplication(BannerView b) {}
@@ -1234,7 +1236,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     //  Analytics
     // ══════════════════════════════════════════════════════════════════════════
 
-    private String getDeviceId() {
+    private String getOrCreateDeviceId() {
         String id = getPrefs().getString("device_id", "");
         if (id.isEmpty()) {
             String raw = android.provider.Settings.Secure.getString(
@@ -1271,7 +1273,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         long lastPing = getPrefs().getLong("last_ping_ms", 0);
         if (System.currentTimeMillis() - lastPing < 4 * 60 * 60 * 1000L) return;
         getPrefs().edit().putLong("last_ping_ms", System.currentTimeMillis()).apply();
-        String deviceId = getDeviceId();
+        String deviceId = getOrCreateDeviceId();
         String country  = getCountryCode();
         String version  = "";
         try { version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) {}
@@ -1295,7 +1297,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     }
 
     private void sendDownloadEvent(boolean success) {
-        final String body = "{\"device_id\":" + org.json.JSONObject.quote(getDeviceId()) +
+        final String body = "{\"device_id\":" + org.json.JSONObject.quote(getOrCreateDeviceId()) +
             ",\"success\":" + success + "}";
         new Thread(() -> {
             try {
