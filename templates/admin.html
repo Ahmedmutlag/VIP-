@@ -8,245 +8,209 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#07051a;--sidebar:#0d0b2a;--card:#12103a;--card2:#1a1845;
-  --accent:#00c8ff;--accent2:#7c3aed;--text:#e0e0ff;--sub:#9090b0;
+  --bg:#0a0818;--sb:#0f0d2a;--card:#15133a;--card2:#1c1a48;
+  --accent:#00c8ff;--purple:#7c3aed;--text:#dde0ff;--muted:#8888aa;
   --green:#22c55e;--red:#ef4444;--orange:#f97316;--yellow:#eab308;
-  --border:#1e1c4a;--radius:14px;
+  --border:#22204f;--r:12px;
 }
-body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;overflow-x:hidden}
+body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── Layout ── */
+.sidebar{width:220px;background:var(--sb);border-left:1px solid var(--border);position:fixed;right:0;top:0;height:100vh;z-index:200;display:flex;flex-direction:column;overflow-y:auto}
+.main{margin-right:220px;padding:1.5rem;min-height:100vh}
 
 /* ── Sidebar ── */
-.sidebar{width:230px;background:var(--sidebar);border-left:1px solid var(--border);display:flex;flex-direction:column;position:fixed;right:0;top:0;height:100vh;z-index:200;transition:.3s}
-.sidebar-logo{padding:1.4rem 1rem;text-align:center;border-bottom:1px solid var(--border)}
-.sidebar-logo h2{color:var(--accent);font-size:1.15rem;font-weight:700}
-.sidebar-logo span{color:var(--sub);font-size:.72rem;display:block;margin-top:.2rem}
-.nav-item{display:flex;align-items:center;gap:.65rem;padding:.78rem 1.2rem;cursor:pointer;color:var(--sub);transition:.2s;border-right:3px solid transparent;font-size:.88rem;user-select:none}
-.nav-item:hover{background:rgba(0,200,255,.06);color:var(--text)}
-.nav-item.active{background:rgba(0,200,255,.08);color:var(--accent);border-right-color:var(--accent)}
-.nav-item .icon{font-size:1.05rem;width:22px;text-align:center;flex-shrink:0}
-.sidebar-bottom{margin-top:auto;padding:1rem;border-top:1px solid var(--border)}
-.logout-btn{width:100%;padding:.65rem;background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3);border-radius:8px;cursor:pointer;font-size:.84rem;transition:.2s;font-family:inherit}
-.logout-btn:hover{background:rgba(239,68,68,.2)}
+.sb-logo{padding:1.2rem 1rem 1rem;border-bottom:1px solid var(--border);text-align:center}
+.sb-logo h2{color:var(--accent);font-size:1.05rem;font-weight:700}
+.sb-logo small{color:var(--muted);font-size:.7rem;display:block;margin-top:.2rem}
+.nav-item{display:flex;align-items:center;gap:.6rem;padding:.75rem 1.1rem;cursor:pointer;color:var(--muted);font-size:.87rem;transition:.15s;border-right:3px solid transparent}
+.nav-item:hover{background:rgba(0,200,255,.05);color:var(--text)}
+.nav-item.active{background:rgba(0,200,255,.07);color:var(--accent);border-right-color:var(--accent)}
+.nav-icon{font-size:1rem;flex-shrink:0;width:20px;text-align:center}
+.sb-foot{margin-top:auto;padding:.9rem;border-top:1px solid var(--border)}
+.logout-btn{width:100%;padding:.6rem;background:rgba(239,68,68,.08);color:var(--red);border:1px solid rgba(239,68,68,.25);border-radius:8px;cursor:pointer;font-size:.83rem;font-family:inherit;transition:.15s}
+.logout-btn:hover{background:rgba(239,68,68,.18)}
 
-/* ── Main ── */
-.main{margin-right:230px;flex:1;padding:1.5rem;min-height:100vh}
-.page{display:none}
-.page.active{display:block}
+/* ── Mobile topbar ── */
+.topbar{display:none;position:fixed;top:0;left:0;right:0;height:52px;background:var(--sb);border-bottom:1px solid var(--border);z-index:300;align-items:center;padding:0 1rem;gap:.8rem}
+.topbar-title{color:var(--accent);font-weight:700;font-size:.92rem;flex:1;text-align:center}
+.hamburger{background:none;border:none;color:var(--text);font-size:1.3rem;cursor:pointer;padding:.3rem;line-height:1;flex-shrink:0}
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:150}
+.sb-overlay.open{display:block}
 
-/* ── Page header ── */
-.page-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.8rem;margin-bottom:1.5rem}
-.page-header-left h1{font-size:1.35rem;color:var(--text)}
-.page-header-left p{color:var(--sub);font-size:.82rem;margin-top:.2rem}
-.refresh-btn{background:rgba(0,200,255,.1);color:var(--accent);border:1px solid rgba(0,200,255,.25);border-radius:8px;padding:.45rem .9rem;cursor:pointer;font-size:.8rem;font-family:inherit;transition:.2s;display:flex;align-items:center;gap:.4rem}
-.refresh-btn:hover{background:rgba(0,200,255,.18)}
+/* ── Pages ── */
+.page{display:none}.page.active{display:block}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.7rem;margin-bottom:1.4rem}
+.page-hdr h1{font-size:1.25rem;color:var(--text)}
+.page-hdr p{color:var(--muted);font-size:.8rem;margin-top:.15rem}
+.refresh-btn{display:inline-flex;align-items:center;gap:.4rem;background:rgba(0,200,255,.08);color:var(--accent);border:1px solid rgba(0,200,255,.22);border-radius:8px;padding:.4rem .85rem;cursor:pointer;font-size:.79rem;font-family:inherit;transition:.15s}
+.refresh-btn:hover{background:rgba(0,200,255,.16)}
 
-/* ── KPI Cards ── */
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:1rem;margin-bottom:1.5rem}
-.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.15rem 1.2rem 1.15rem 3.2rem;position:relative;overflow:hidden}
-.kpi-card::before{content:'';position:absolute;top:0;right:0;width:3px;height:100%;background:var(--accent)}
-.kpi-card.green::before{background:var(--green)}
-.kpi-card.purple::before{background:var(--accent2)}
-.kpi-card.orange::before{background:var(--orange)}
-.kpi-card.red::before{background:var(--red)}
-.kpi-card.yellow::before{background:var(--yellow)}
-.kpi-label{color:var(--sub);font-size:.78rem;margin-bottom:.35rem;line-height:1.3}
-.kpi-value{font-size:1.9rem;font-weight:700;color:var(--text);line-height:1;min-height:2.2rem}
-.kpi-sub{color:var(--sub);font-size:.74rem;margin-top:.35rem}
-.kpi-icon{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);font-size:1.7rem;opacity:.18}
+/* ── KPI grid ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.9rem;margin-bottom:1.3rem}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem 1.1rem 1rem;border-top:3px solid var(--accent);position:relative}
+.kpi.g{border-top-color:var(--green)}.kpi.p{border-top-color:var(--purple)}.kpi.o{border-top-color:var(--orange)}.kpi.y{border-top-color:var(--yellow)}.kpi.r{border-top-color:var(--red)}
+.kpi-ico{font-size:1.4rem;margin-bottom:.45rem;opacity:.75}
+.kpi-lbl{color:var(--muted);font-size:.75rem;margin-bottom:.3rem;line-height:1.3}
+.kpi-val{font-size:1.75rem;font-weight:700;color:var(--text);line-height:1}
+.kpi-sub{color:var(--muted);font-size:.72rem;margin-top:.3rem}
 
-/* ── Charts ── */
-.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
-.charts-grid.cols3{grid-template-columns:1fr 1fr 1fr}
-.chart-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem}
-.chart-card.full{grid-column:1/-1}
-.chart-title{font-size:.88rem;color:var(--sub);margin-bottom:.9rem;font-weight:600;display:flex;align-items:center;gap:.4rem}
-.chart-wrap{position:relative;height:220px}
-.chart-wrap-sm{position:relative;height:190px}
-.chart-wrap-lg{position:relative;height:280px}
-.donut-wrap{position:relative;height:200px;display:flex;align-items:center;justify-content:center}
+/* ── Grid layouts ── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.1rem}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.1rem}
+.full{grid-column:1/-1}
+
+/* ── Cards ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem;margin-bottom:1.1rem}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.9rem}
+.card-title{font-size:.87rem;font-weight:600;color:var(--muted)}
+.chart-box{position:relative;height:220px}
+.chart-box-lg{position:relative;height:270px}
+.chart-box-sm{position:relative;height:190px}
+.donut-box{position:relative;height:200px}
 
 /* ── Tables ── */
-.table-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:1.2rem}
-.table-header{padding:.9rem 1.2rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem}
-.table-header h3{font-size:.92rem;font-weight:600}
-.overflow-x{overflow-x:auto}
-table{width:100%;border-collapse:collapse;min-width:500px}
-th{padding:.65rem 1rem;text-align:right;color:var(--sub);font-size:.78rem;border-bottom:1px solid var(--border);font-weight:600;background:rgba(0,0,0,.2);white-space:nowrap}
-td{padding:.72rem 1rem;font-size:.83rem;border-bottom:1px solid rgba(30,28,74,.5);color:var(--text);vertical-align:middle}
+.tbl-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:1.1rem}
+.tbl-hdr{padding:.85rem 1.1rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem}
+.tbl-hdr h3{font-size:.88rem;font-weight:600}
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:420px}
+th{padding:.6rem .9rem;text-align:right;color:var(--muted);font-size:.76rem;border-bottom:1px solid var(--border);font-weight:600;background:rgba(0,0,0,.15);white-space:nowrap}
+td{padding:.68rem .9rem;font-size:.82rem;border-bottom:1px solid rgba(34,32,79,.4);color:var(--text);vertical-align:middle}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(0,200,255,.03)}
-.empty-row td{text-align:center;color:var(--sub);padding:2rem;font-size:.85rem}
+tr:hover td{background:rgba(0,200,255,.025)}
+.empty-row td{text-align:center;color:var(--muted);padding:2rem;font-size:.84rem}
 
 /* ── Badges ── */
-.badge{display:inline-block;padding:.18rem .55rem;border-radius:20px;font-size:.72rem;font-weight:600;white-space:nowrap}
-.badge-green{background:rgba(34,197,94,.15);color:var(--green)}
-.badge-red{background:rgba(239,68,68,.15);color:var(--red)}
-.badge-gray{background:rgba(144,144,176,.15);color:var(--sub)}
-.badge-blue{background:rgba(0,200,255,.15);color:var(--accent)}
-.badge-orange{background:rgba(249,115,22,.15);color:var(--orange)}
-.badge-yellow{background:rgba(234,179,8,.15);color:var(--yellow)}
-.badge-purple{background:rgba(124,58,237,.15);color:var(--accent2)}
+.b{display:inline-block;padding:.16rem .5rem;border-radius:20px;font-size:.71rem;font-weight:600;white-space:nowrap}
+.bg{background:rgba(34,197,94,.13);color:var(--green)}
+.br{background:rgba(239,68,68,.13);color:var(--red)}
+.bb{background:rgba(0,200,255,.13);color:var(--accent)}
+.bo{background:rgba(249,115,22,.13);color:var(--orange)}
+.by{background:rgba(234,179,8,.13);color:var(--yellow)}
+.bm{background:rgba(144,144,170,.13);color:var(--muted)}
+.bp{background:rgba(124,58,237,.13);color:var(--purple)}
 
 /* ── Buttons ── */
-.btn{padding:.5rem 1rem;border-radius:8px;border:none;cursor:pointer;font-size:.84rem;font-weight:600;transition:.2s;display:inline-flex;align-items:center;gap:.4rem;font-family:inherit;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.48rem .95rem;border-radius:8px;border:none;cursor:pointer;font-size:.83rem;font-weight:600;font-family:inherit;transition:.15s;white-space:nowrap;text-decoration:none}
 .btn:disabled{opacity:.5;cursor:not-allowed}
-.btn-primary{background:var(--accent);color:#000}
-.btn-primary:hover:not(:disabled){opacity:.85}
-.btn-danger{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.3)}
-.btn-danger:hover:not(:disabled){background:rgba(239,68,68,.22)}
-.btn-secondary{background:var(--card2);color:var(--text);border:1px solid var(--border)}
-.btn-secondary:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
-.btn-success{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.3)}
-.btn-success:hover:not(:disabled){background:rgba(34,197,94,.22)}
-.btn-warn{background:rgba(234,179,8,.12);color:var(--yellow);border:1px solid rgba(234,179,8,.3)}
-.btn-warn:hover:not(:disabled){background:rgba(234,179,8,.22)}
-.btn-sm{padding:.3rem .65rem;font-size:.75rem}
-.btn-group{display:flex;gap:.6rem;flex-wrap:wrap}
+.btn-pri{background:var(--accent);color:#000}.btn-pri:hover:not(:disabled){opacity:.85}
+.btn-sec{background:var(--card2);color:var(--text);border:1px solid var(--border)}.btn-sec:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.btn-red{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.28)}.btn-red:hover:not(:disabled){background:rgba(239,68,68,.2)}
+.btn-grn{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.28)}.btn-grn:hover:not(:disabled){background:rgba(34,197,94,.2)}
+.btn-warn{background:rgba(234,179,8,.1);color:var(--yellow);border:1px solid rgba(234,179,8,.28)}.btn-warn:hover:not(:disabled){background:rgba(234,179,8,.2)}
+.btn-sm{padding:.28rem .6rem;font-size:.73rem}
+.btn-row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
 
-/* ── Section cards / forms ── */
-.section-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem;margin-bottom:1.2rem}
-.section-title{font-size:.92rem;font-weight:700;margin-bottom:1rem;padding-bottom:.55rem;border-bottom:1px solid var(--border);color:var(--accent)}
-.form-group{margin-bottom:.9rem}
-.form-label{display:block;color:var(--sub);font-size:.78rem;margin-bottom:.35rem}
-.form-input{width:100%;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-size:.88rem;outline:none;transition:.2s;font-family:inherit}
-.form-input:focus{border-color:var(--accent)}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
-.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
+/* ── Section / Form ── */
+.sec{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.15rem;margin-bottom:1.1rem}
+.sec-title{font-size:.88rem;font-weight:700;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:.5rem;margin-bottom:.9rem}
+.fg{margin-bottom:.85rem}
+.fl{display:block;color:var(--muted);font-size:.76rem;margin-bottom:.3rem}
+.fi{width:100%;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:.55rem .85rem;color:var(--text);font-size:.87rem;outline:none;font-family:inherit;transition:.15s}
+.fi:focus{border-color:var(--accent)}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:.9rem}
 
-/* ── Status / System ── */
-.status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-bottom:1.2rem}
-.status-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem}
-.status-row{display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid rgba(30,28,74,.5);font-size:.84rem}
-.status-row:last-child{border-bottom:none}
-.status-label{color:var(--sub)}
-.status-val{color:var(--text);font-weight:600;text-align:left;direction:ltr}
-.online-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);margin-left:.4rem;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+/* ── Status grid ── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1rem;margin-bottom:1.1rem}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid rgba(34,32,79,.4);font-size:.83rem}
+.stat-row:last-child{border-bottom:none}
+.stat-lbl{color:var(--muted)}
+.stat-val{color:var(--text);font-weight:600;direction:ltr;text-align:left}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green);margin-left:.35rem;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
 
-/* ── Progress bar ── */
-.progress-wrap{margin-top:.4rem}
-.progress-bar{height:5px;background:var(--border);border-radius:3px;overflow:hidden}
-.progress-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:.6s}
+/* ── Country bar ── */
+.c-item{display:flex;align-items:center;gap:.6rem;padding:.4rem 0;border-bottom:1px solid rgba(34,32,79,.35);font-size:.82rem}
+.c-item:last-child{border-bottom:none}
+.c-flag{font-size:1.15rem;flex-shrink:0}
+.c-name{width:36px;color:var(--text)}
+.c-bar{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:0 .4rem}
+.c-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--purple));border-radius:2px}
+.c-cnt{color:var(--accent);font-weight:700;min-width:28px;text-align:left}
 
-/* ── Country rows ── */
-.country-item{display:flex;align-items:center;gap:.7rem;padding:.5rem 0;border-bottom:1px solid rgba(30,28,74,.4);font-size:.83rem}
-.country-item:last-child{border-bottom:none}
-.country-flag{font-size:1.2rem;flex-shrink:0}
-.country-name{flex:1;color:var(--text)}
-.country-count{color:var(--accent);font-weight:700;margin-left:auto;flex-shrink:0}
-.country-bar{flex:2;margin:0 .5rem}
+/* ── Progress ── */
+.prog-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:.3rem}
+.prog-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--purple));transition:.5s}
 
-/* ── Spinner ── */
-.spinner{display:inline-block;width:18px;height:18px;border:2px solid rgba(0,200,255,.25);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
-.spinner-lg{width:36px;height:36px;border-width:3px}
+/* ── Spinner / Loading ── */
+.spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(0,200,255,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .65s linear infinite;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loading-block{display:flex;align-items:center;justify-content:center;padding:2.5rem;gap:.7rem;color:var(--sub);font-size:.88rem}
+.loading{display:flex;align-items:center;justify-content:center;gap:.6rem;padding:2.5rem;color:var(--muted);font-size:.86rem}
 
 /* ── Toast ── */
-#toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(120px);background:var(--card2);border:1px solid var(--accent);color:var(--text);padding:.75rem 1.4rem;border-radius:10px;font-size:.88rem;z-index:9999;transition:.3s;opacity:0;pointer-events:none;text-align:center;max-width:90vw}
+#toast{position:fixed;bottom:1.8rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--card2);border:1px solid var(--accent);color:var(--text);padding:.7rem 1.3rem;border-radius:10px;font-size:.87rem;z-index:9999;transition:.28s;opacity:0;pointer-events:none;max-width:88vw;text-align:center}
 #toast.show{transform:translateX(-50%) translateY(0);opacity:1}
-#toast.error{border-color:var(--red)}
-#toast.success{border-color:var(--green)}
+#toast.err{border-color:var(--red)}
+#toast.ok{border-color:var(--green)}
 
 /* ── Modal ── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem}
-.modal-overlay.open{display:flex}
-.modal{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;width:100%;max-width:440px}
-.modal-title{font-size:1rem;font-weight:700;margin-bottom:1rem;color:var(--accent)}
-.modal-footer{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1.2rem;flex-wrap:wrap}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-bg.open{display:flex}
+.modal-box{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.4rem;width:100%;max-width:420px}
+.modal-title{font-size:.97rem;font-weight:700;color:var(--accent);margin-bottom:1rem}
+.modal-foot{display:flex;gap:.55rem;justify-content:flex-end;margin-top:1.1rem;flex-wrap:wrap}
 
-/* ── URL tester result ── */
-.url-result{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:.9rem;margin-top:.9rem;font-size:.82rem;display:none}
-.url-result.ok{border-color:var(--green)}
-.url-result.err{border-color:var(--red)}
-
-/* ── Delete button ── */
-.del-btn,.ext-btn{background:none;border:none;cursor:pointer;font-size:.95rem;padding:.2rem .4rem;border-radius:4px;opacity:.7;transition:.2s;font-family:inherit}
-.del-btn{color:var(--red)}
-.del-btn:hover{opacity:1;background:rgba(239,68,68,.12)}
-.ext-btn{color:var(--green)}
-.ext-btn:hover{opacity:1;background:rgba(34,197,94,.12)}
-
-/* ── Topbar (mobile) ── */
-.topbar{display:none;position:fixed;top:0;left:0;right:0;height:54px;background:var(--sidebar);border-bottom:1px solid var(--border);z-index:300;align-items:center;padding:0 1rem;justify-content:space-between}
-.topbar-title{color:var(--accent);font-weight:700;font-size:.95rem}
-.hamburger{background:none;border:none;color:var(--text);font-size:1.4rem;cursor:pointer;padding:.3rem;line-height:1}
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:150}
-.sidebar-overlay.open{display:block}
+/* ── URL test ── */
+.url-res{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:.85rem;margin-top:.85rem;font-size:.81rem;display:none}
+.url-res.ok{border-color:var(--green)}.url-res.err{border-color:var(--red)}
 
 /* ── Misc ── */
-.code-box{background:var(--card2);border:1px solid var(--green);border-radius:8px;padding:.8rem 1rem;font-family:monospace;font-size:.95rem;color:var(--green);word-break:break-all;margin-top:.8rem;display:none}
-.info-pill{display:inline-flex;align-items:center;gap:.4rem;background:rgba(0,200,255,.08);border:1px solid rgba(0,200,255,.2);border-radius:20px;padding:.2rem .75rem;font-size:.78rem;color:var(--accent)}
-.divider{height:1px;background:var(--border);margin:1rem 0}
-.no-data{text-align:center;padding:2rem;color:var(--sub);font-size:.85rem}
-a.btn{text-decoration:none}
+.code-box{background:var(--card2);border:1px solid var(--green);border-radius:8px;padding:.75rem 1rem;font-family:monospace;color:var(--green);word-break:break-all;margin-top:.75rem;display:none}
+.divider{height:1px;background:var(--border);margin:.9rem 0}
+.no-data{text-align:center;padding:1.8rem;color:var(--muted);font-size:.84rem}
+.del-btn,.ext-btn{background:none;border:none;cursor:pointer;font-size:.92rem;padding:.2rem .38rem;border-radius:4px;opacity:.65;transition:.15s}
+.del-btn{color:var(--red)}.del-btn:hover{opacity:1;background:rgba(239,68,68,.1)}
+.ext-btn{color:var(--green)}.ext-btn:hover{opacity:1;background:rgba(34,197,94,.1)}
 
 /* ── Responsive ── */
-@media(max-width:768px){
+@media(max-width:800px){
   .topbar{display:flex}
-  .sidebar{transform:translateX(100%);z-index:400}
+  .sidebar{transform:translateX(100%);transition:.25s}
   .sidebar.open{transform:translateX(0)}
-  .main{margin-right:0;padding:1rem;padding-top:68px}
-  .kpi-grid{grid-template-columns:1fr 1fr}
-  .charts-grid,.charts-grid.cols3{grid-template-columns:1fr}
-  .form-row,.form-row-3{grid-template-columns:1fr}
-  .status-grid{grid-template-columns:1fr}
-  .kpi-value{font-size:1.5rem}
-  #toast{bottom:1rem;width:92%}
-  .chart-wrap,.chart-wrap-sm{height:185px}
-  .chart-wrap-lg{height:220px}
+  .main{margin-right:0;padding:.85rem;padding-top:62px}
+  .kpi-row{grid-template-columns:1fr 1fr}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .fr{grid-template-columns:1fr}
+  .stat-grid{grid-template-columns:1fr}
+  .kpi-val{font-size:1.4rem}
+  #toast{bottom:.9rem;width:90%}
+  .chart-box{height:185px}.chart-box-lg{height:220px}
 }
-@media(min-width:769px) and (max-width:1100px){
-  .sidebar{width:195px}
-  .main{margin-right:195px}
-  .kpi-grid{grid-template-columns:1fr 1fr}
-  .charts-grid.cols3{grid-template-columns:1fr 1fr}
+@media(min-width:801px) and (max-width:1100px){
+  .sidebar{width:185px}.main{margin-right:185px}
+  .grid3{grid-template-columns:1fr 1fr}
+  .kpi-row{grid-template-columns:repeat(3,1fr)}
 }
 </style>
 </head>
 <body>
 
-<!-- Toast -->
 <div id="toast"></div>
 
-<!-- Topbar (mobile) -->
+<!-- Mobile topbar -->
 <div class="topbar">
-  <button class="hamburger" onclick="toggleSidebar()">☰</button>
+  <button class="hamburger" onclick="toggleSB()">☰</button>
   <span class="topbar-title">⚡ نزلها بلس</span>
-  <span></span>
+  <span style="width:32px"></span>
 </div>
-
-<!-- Sidebar overlay -->
-<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+<div class="sb-overlay" id="sb-overlay" onclick="closeSB()"></div>
 
 <!-- Sidebar -->
 <nav class="sidebar" id="sidebar">
-  <div class="sidebar-logo">
+  <div class="sb-logo">
     <h2>⚡ نزلها بلس</h2>
-    <span>لوحة التحكم الإدارية</span>
+    <small>لوحة التحكم</small>
   </div>
-  <div class="nav-item active" data-page="overview" onclick="showPage('overview',this)">
-    <span class="icon">📊</span> نظرة عامة
-  </div>
-  <div class="nav-item" data-page="downloads" onclick="showPage('downloads',this)">
-    <span class="icon">⬇️</span> التحميلات
-  </div>
-  <div class="nav-item" data-page="android" onclick="showPage('android',this)">
-    <span class="icon">📱</span> مستخدمو التطبيق
-  </div>
-  <div class="nav-item" data-page="visitors" onclick="showPage('visitors',this)">
-    <span class="icon">👥</span> الزوار
-  </div>
-  <div class="nav-item" data-page="subscriptions" onclick="showPage('subscriptions',this)">
-    <span class="icon">⭐</span> الاشتراكات
-  </div>
-  <div class="nav-item" data-page="server" onclick="showPage('server',this)">
-    <span class="icon">⚙️</span> السيرفر
-  </div>
-  <div class="nav-item" data-page="settings" onclick="showPage('settings',this)">
-    <span class="icon">🔧</span> الإعدادات
-  </div>
-  <div class="sidebar-bottom">
+  <div class="nav-item active" onclick="showPage('overview',this)"><span class="nav-icon">📊</span> نظرة عامة</div>
+  <div class="nav-item" onclick="showPage('downloads',this)"><span class="nav-icon">⬇️</span> التحميلات</div>
+  <div class="nav-item" onclick="showPage('android',this)"><span class="nav-icon">📱</span> مستخدمو التطبيق</div>
+  <div class="nav-item" onclick="showPage('visitors',this)"><span class="nav-icon">👥</span> الزوار</div>
+  <div class="nav-item" onclick="showPage('subscriptions',this)"><span class="nav-icon">⭐</span> الاشتراكات</div>
+  <div class="nav-item" onclick="showPage('server',this)"><span class="nav-icon">⚙️</span> السيرفر</div>
+  <div class="nav-item" onclick="showPage('settings',this)"><span class="nav-icon">🔧</span> الإعدادات</div>
+  <div class="sb-foot">
     <button class="logout-btn" onclick="location.href='/admin/logout'">🚪 تسجيل الخروج</button>
   </div>
 </nav>
@@ -254,1034 +218,584 @@ a.btn{text-decoration:none}
 <!-- Main -->
 <main class="main">
 
-<!-- ═══════════════ 1. OVERVIEW ═══════════════ -->
+<!-- ═══ 1. OVERVIEW ═══ -->
 <div class="page active" id="page-overview">
-  <div class="page-header">
-    <div class="page-header-left">
-      <h1>📊 نظرة عامة</h1>
-      <p id="ov-server-time">جاري التحميل…</p>
-    </div>
-    <button class="refresh-btn" onclick="loadOverview()"><span class="spinner" id="ov-spin" style="display:none"></span>🔄 تحديث</button>
+  <div class="page-hdr">
+    <div><h1>📊 نظرة عامة</h1><p id="ov-time">جاري التحميل…</p></div>
+    <button class="refresh-btn" onclick="loadOverview()"><span class="spin" id="ov-spin" style="display:none"></span> 🔄 تحديث</button>
   </div>
 
-  <div class="kpi-grid">
-    <div class="kpi-card green">
-      <div class="kpi-label">تحميلات اليوم</div>
-      <div class="kpi-value" id="ov-today-dl">—</div>
-      <div class="kpi-sub" id="ov-total-dl">الإجمالي: —</div>
-      <div class="kpi-icon">⬇️</div>
+  <div class="kpi-row">
+    <div class="kpi g"><div class="kpi-ico">⬇️</div><div class="kpi-lbl">تحميلات اليوم</div><div class="kpi-val" id="ov-today-dl">—</div><div class="kpi-sub" id="ov-total-dl">الإجمالي: —</div></div>
+    <div class="kpi"><div class="kpi-ico">👥</div><div class="kpi-lbl">زوار اليوم</div><div class="kpi-val" id="ov-today-vis">—</div><div class="kpi-sub" id="ov-week-vis">الأسبوع: —</div></div>
+    <div class="kpi p"><div class="kpi-ico">📱</div><div class="kpi-lbl">مستخدمو التطبيق النشطون</div><div class="kpi-val" id="ov-active-users">—</div><div class="kpi-sub" id="ov-total-users">الإجمالي: —</div></div>
+    <div class="kpi y"><div class="kpi-ico">⭐</div><div class="kpi-lbl">مشتركون نشطون</div><div class="kpi-val" id="ov-active-subs">—</div><div class="kpi-sub" id="ov-total-subs">الإجمالي: —</div></div>
+    <div class="kpi o"><div class="kpi-ico">❌</div><div class="kpi-lbl">تحميلات فاشلة</div><div class="kpi-val" id="ov-failed">—</div><div class="kpi-sub" id="ov-tasks-sub">مهام نشطة: —</div></div>
+    <div class="kpi"><div class="kpi-ico">⚡</div><div class="kpi-lbl">مهام نشطة</div><div class="kpi-val" id="ov-tasks">—</div><div class="kpi-sub" id="ov-storage">التخزين: —</div></div>
+  </div>
+
+  <div class="card full">
+    <div class="card-hdr"><span class="card-title">📈 التحميلات — آخر 30 يوم</span></div>
+    <div class="chart-box-lg"><canvas id="ov-chart-trend"></canvas></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🕐 التحميلات حسب الساعة</span></div>
+      <div class="chart-box"><canvas id="ov-chart-hourly"></canvas></div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">زوار اليوم</div>
-      <div class="kpi-value" id="ov-today-vis">—</div>
-      <div class="kpi-sub" id="ov-week-vis">الأسبوع: —</div>
-      <div class="kpi-icon">👥</div>
-    </div>
-    <div class="kpi-card purple">
-      <div class="kpi-label">مستخدمو التطبيق النشطون</div>
-      <div class="kpi-value" id="ov-active-users">—</div>
-      <div class="kpi-sub" id="ov-total-users">الإجمالي: —</div>
-      <div class="kpi-icon">📱</div>
-    </div>
-    <div class="kpi-card yellow">
-      <div class="kpi-label">مشتركون نشطون</div>
-      <div class="kpi-value" id="ov-active-subs">—</div>
-      <div class="kpi-sub" id="ov-total-subs">الإجمالي: —</div>
-      <div class="kpi-icon">⭐</div>
-    </div>
-    <div class="kpi-card orange">
-      <div class="kpi-label">تحميلات فاشلة</div>
-      <div class="kpi-value" id="ov-failed">—</div>
-      <div class="kpi-sub" id="ov-active-tasks">مهام نشطة: —</div>
-      <div class="kpi-icon">❌</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">مهام نشطة</div>
-      <div class="kpi-value" id="ov-tasks">—</div>
-      <div class="kpi-sub" id="ov-storage">التخزين: — MB</div>
-      <div class="kpi-icon">⚡</div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🎯 توزيع المنصات</span></div>
+      <div class="donut-box"><canvas id="ov-chart-platforms"></canvas></div>
     </div>
   </div>
 
-  <div class="charts-grid">
-    <div class="chart-card full">
-      <div class="chart-title">📈 التحميلات — آخر 30 يوم</div>
-      <div class="chart-wrap-lg"><canvas id="ov-chart-trend"></canvas></div>
-    </div>
-  </div>
-
-  <div class="charts-grid">
-    <div class="chart-card">
-      <div class="chart-title">🕐 التحميلات حسب الساعة</div>
-      <div class="chart-wrap"><canvas id="ov-chart-hourly"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">🎯 توزيع المنصات</div>
-      <div class="donut-wrap"><canvas id="ov-chart-platforms"></canvas></div>
-    </div>
-  </div>
-
-  <div class="charts-grid">
-    <div class="chart-card">
-      <div class="table-card" style="border:none;background:none;margin:0;border-radius:0">
-        <div class="table-header"><h3>⬇️ آخر التحميلات</h3></div>
-        <div class="overflow-x">
-          <table>
-            <thead><tr><th>المنصة</th><th>الحالة</th><th>المدة</th><th>الوقت</th></tr></thead>
-            <tbody id="ov-recent-dl-body"><tr class="empty-row"><td colspan="4">جاري التحميل…</td></tr></tbody>
-          </table>
-        </div>
+  <div class="grid2">
+    <div class="tbl-card">
+      <div class="tbl-hdr"><h3>⬇️ آخر التحميلات</h3></div>
+      <div class="tbl-scroll">
+        <table><thead><tr><th>المنصة</th><th>الحالة</th><th>المدة</th><th>الوقت</th></tr></thead>
+        <tbody id="ov-recent-body"><tr class="empty-row"><td colspan="4">جاري التحميل…</td></tr></tbody></table>
       </div>
     </div>
-    <div class="chart-card">
-      <div class="section-title" style="font-size:.88rem;margin-bottom:.8rem">⚠️ آخر الأخطاء</div>
-      <div id="ov-errors-list" style="max-height:280px;overflow-y:auto"><div class="no-data">جاري التحميل…</div></div>
-    </div>
-  </div>
-</div><!-- /overview -->
-
-
-<!-- ═══════════════ 2. DOWNLOADS ═══════════════ -->
-<div class="page" id="page-downloads">
-  <div class="page-header">
-    <div class="page-header-left">
-      <h1>⬇️ التحميلات</h1>
-      <p>إحصائيات ومتابعة التحميلات التفصيلية</p>
-    </div>
-    <button class="refresh-btn" onclick="loadDownloads()">🔄 تحديث</button>
-  </div>
-
-  <div class="kpi-grid">
-    <div class="kpi-card green">
-      <div class="kpi-label">تحميلات اليوم</div>
-      <div class="kpi-value" id="dl-today">—</div>
-      <div class="kpi-icon">📅</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">إجمالي التحميلات</div>
-      <div class="kpi-value" id="dl-total">—</div>
-      <div class="kpi-icon">✅</div>
-    </div>
-    <div class="kpi-card orange">
-      <div class="kpi-label">تحميلات فاشلة</div>
-      <div class="kpi-value" id="dl-failed">—</div>
-      <div class="kpi-icon">❌</div>
-    </div>
-    <div class="kpi-card purple">
-      <div class="kpi-label">مهام نشطة الآن</div>
-      <div class="kpi-value" id="dl-active">—</div>
-      <div class="kpi-icon">⚡</div>
-    </div>
-  </div>
-
-  <div class="charts-grid">
-    <div class="chart-card full">
-      <div class="chart-title">📈 التحميلات — آخر 30 يوم</div>
-      <div class="chart-wrap-lg"><canvas id="dl-chart-trend"></canvas></div>
-    </div>
-  </div>
-
-  <div class="charts-grid">
-    <div class="chart-card">
-      <div class="chart-title">🕐 التحميلات حسب الساعة</div>
-      <div class="chart-wrap"><canvas id="dl-chart-hourly"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">📊 المنصات</div>
-      <div class="chart-wrap"><canvas id="dl-chart-platforms-bar"></canvas></div>
-    </div>
-  </div>
-
-  <div class="table-card">
-    <div class="table-header">
-      <h3>⬇️ سجل آخر التحميلات</h3>
-      <span id="dl-count-badge" class="badge badge-blue">—</span>
-    </div>
-    <div class="overflow-x">
-      <table>
-        <thead><tr><th>المنصة</th><th>الحالة</th><th>المدة (ث)</th><th>الوقت</th></tr></thead>
-        <tbody id="dl-recent-body"><tr class="empty-row"><td colspan="4">جاري التحميل…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="table-card">
-    <div class="table-header"><h3>⚠️ آخر الأخطاء</h3></div>
-    <div class="overflow-x">
-      <table>
-        <thead><tr><th>المنصة</th><th>الخطأ</th><th>الوقت</th></tr></thead>
-        <tbody id="dl-errors-body"><tr class="empty-row"><td colspan="3">جاري التحميل…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-</div><!-- /downloads -->
-
-
-<!-- ═══════════════ 3. ANDROID USERS ═══════════════ -->
-<div class="page" id="page-android">
-  <div class="page-header">
-    <div class="page-header-left">
-      <h1>📱 مستخدمو التطبيق</h1>
-      <p>الأجهزة المثبِّتة للتطبيق وإحصائيات التحميل</p>
-    </div>
-    <button class="refresh-btn" onclick="loadAndroid()">🔄 تحديث</button>
-  </div>
-
-  <div class="kpi-grid">
-    <div class="kpi-card">
-      <div class="kpi-label">إجمالي الأجهزة</div>
-      <div class="kpi-value" id="and-total">—</div>
-      <div class="kpi-sub">منذ الإطلاق</div>
-      <div class="kpi-icon">📱</div>
-    </div>
-    <div class="kpi-card green">
-      <div class="kpi-label">نشطون اليوم</div>
-      <div class="kpi-value" id="and-active">—</div>
-      <div class="kpi-sub">فتحوا التطبيق اليوم</div>
-      <div class="kpi-icon">✅</div>
-    </div>
-    <div class="kpi-card orange">
-      <div class="kpi-label">تحميلات الشهر</div>
-      <div class="kpi-value" id="and-month-dl">—</div>
-      <div class="kpi-sub">إجمالي جميع الأجهزة</div>
-      <div class="kpi-icon">📅</div>
-    </div>
-    <div class="kpi-card purple">
-      <div class="kpi-label">أكثر دولة</div>
-      <div class="kpi-value" id="and-top-country">—</div>
-      <div class="kpi-sub" id="and-top-count">— جهاز</div>
-      <div class="kpi-icon">🌍</div>
-    </div>
-  </div>
-
-  <div class="charts-grid">
-    <div class="chart-card">
-      <div class="chart-title">🌍 توزيع الدول</div>
-      <div class="donut-wrap"><canvas id="and-chart-countries"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">📊 الدول حسب عدد الأجهزة</div>
-      <div id="and-countries-list" style="max-height:220px;overflow-y:auto;padding:.2rem 0">
-        <div class="no-data">جاري التحميل…</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="table-card">
-    <div class="table-header">
-      <h3>قائمة الأجهزة</h3>
-      <input class="form-input" style="width:210px;padding:.38rem .8rem" placeholder="بحث بالدولة أو المعرّف…" oninput="filterUsers(this.value)" id="user-search">
-    </div>
-    <div class="overflow-x">
-      <table>
-        <thead><tr>
-          <th>المعرّف</th>
-          <th>الدولة</th>
-          <th>الإصدار</th>
-          <th>آخر نشاط</th>
-          <th>أول ظهور</th>
-          <th>اليوم</th>
-          <th>الشهر</th>
-          <th>الإجمالي</th>
-        </tr></thead>
-        <tbody id="and-users-body"><tr class="empty-row"><td colspan="8">جاري التحميل…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-</div><!-- /android -->
-
-
-<!-- ═══════════════ 4. VISITORS ═══════════════ -->
-<div class="page" id="page-visitors">
-  <div class="page-header">
-    <div class="page-header-left">
-      <h1>👥 الزوار</h1>
-      <p>تحليل الزوار الجدد والعائدين</p>
-    </div>
-    <button class="refresh-btn" onclick="loadVisitors()">🔄 تحديث</button>
-  </div>
-
-  <div class="kpi-grid">
-    <div class="kpi-card">
-      <div class="kpi-label">زوار اليوم</div>
-      <div class="kpi-value" id="vis-today">—</div>
-      <div class="kpi-sub" id="vis-yesterday">أمس: —</div>
-      <div class="kpi-icon">📅</div>
-    </div>
-    <div class="kpi-card green">
-      <div class="kpi-label">زوار هذا الأسبوع</div>
-      <div class="kpi-value" id="vis-week">—</div>
-      <div class="kpi-icon">📆</div>
-    </div>
-    <div class="kpi-card purple">
-      <div class="kpi-label">زوار جدد (إجمالي)</div>
-      <div class="kpi-value" id="vis-new">—</div>
-      <div class="kpi-icon">🆕</div>
-    </div>
-    <div class="kpi-card orange">
-      <div class="kpi-label">زوار عائدون (إجمالي)</div>
-      <div class="kpi-value" id="vis-returning">—</div>
-      <div class="kpi-icon">🔄</div>
-    </div>
-    <div class="kpi-card yellow">
-      <div class="kpi-label">ساعة الذروة</div>
-      <div class="kpi-value" id="vis-peak">—</div>
-      <div class="kpi-icon">🕐</div>
-    </div>
-  </div>
-
-  <div class="charts-grid">
-    <div class="chart-card">
-      <div class="chart-title">📱 الأجهزة — موبايل مقابل ديسكتوب</div>
-      <div class="donut-wrap"><canvas id="vis-chart-device"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">🆚 جدد مقابل عائدون</div>
-      <div class="donut-wrap"><canvas id="vis-chart-new-ret"></canvas></div>
-    </div>
-  </div>
-
-  <div class="chart-card" style="margin-bottom:1.2rem">
-    <div class="chart-title">📈 الزوار — آخر 30 يوم</div>
-    <div class="chart-wrap-lg"><canvas id="vis-chart-trend"></canvas></div>
-  </div>
-</div><!-- /visitors -->
-
-
-<!-- ═══════════════ 5. SUBSCRIPTIONS ═══════════════ -->
-<div class="page" id="page-subscriptions">
-  <div class="page-header">
-    <div class="page-header-left">
-      <h1>⭐ الاشتراكات</h1>
-      <p>إدارة أكواد الاشتراك والمشتركين</p>
-    </div>
-    <div class="btn-group">
-      <a href="/admin/api/backup-codes" class="btn btn-secondary btn-sm">💾 نسخ احتياطي</a>
-      <button class="refresh-btn" onclick="loadSubscriptions()">🔄 تحديث</button>
-    </div>
-  </div>
-
-  <div class="kpi-grid">
-    <div class="kpi-card green">
-      <div class="kpi-label">نشط</div>
-      <div class="kpi-value" id="sub-active">—</div>
-      <div class="kpi-icon">✅</div>
-    </div>
-    <div class="kpi-card orange">
-      <div class="kpi-label">منتهي</div>
-      <div class="kpi-value" id="sub-expired">—</div>
-      <div class="kpi-icon">⏰</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">غير مستخدم</div>
-      <div class="kpi-value" id="sub-unused">—</div>
-      <div class="kpi-icon">🎫</div>
-    </div>
-    <div class="kpi-card purple">
-      <div class="kpi-label">الإجمالي</div>
-      <div class="kpi-value" id="sub-total">—</div>
-      <div class="kpi-icon">🔑</div>
-    </div>
-  </div>
-
-  <div class="section-card">
-    <div class="section-title">➕ إنشاء كود جديد</div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">ملاحظة / اسم المشترك</label>
-        <input class="form-input" id="new-note" type="text" placeholder="مثال: أحمد علي">
-      </div>
-      <div class="form-group">
-        <label class="form-label">مدة الاشتراك (أيام)</label>
-        <input class="form-input" id="new-days" type="number" value="30" min="1">
-      </div>
-    </div>
-    <button class="btn btn-primary" onclick="generateCode()">➕ إنشاء كود</button>
-    <div class="code-box" id="new-code-box"></div>
-  </div>
-
-  <div class="table-card">
-    <div class="table-header">
-      <h3>✅ المشتركون النشطون</h3>
-      <span id="sub-active-badge" class="badge badge-green">—</span>
-    </div>
-    <div class="overflow-x">
-      <table>
-        <thead><tr><th>الكود</th><th>الملاحظة</th><th>الأيام المتبقية</th><th>تاريخ الانتهاء</th><th>تمديد</th></tr></thead>
-        <tbody id="sub-active-body"><tr class="empty-row"><td colspan="5">جاري التحميل…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="table-card">
-    <div class="table-header">
-      <h3>🔑 جميع الأكواد</h3>
-      <input class="form-input" style="width:210px;padding:.38rem .8rem" placeholder="بحث…" oninput="filterCodes(this.value)" id="code-search">
-    </div>
-    <div class="overflow-x">
-      <table>
-        <thead><tr><th>الكود</th><th>الملاحظة</th><th>الحالة</th><th>الانتهاء</th><th>الأيام</th><th>إجراء</th></tr></thead>
-        <tbody id="sub-codes-body"><tr class="empty-row"><td colspan="6">جاري التحميل…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-</div><!-- /subscriptions -->
-
-
-<!-- ═══════════════ 6. SERVER ═══════════════ -->
-<div class="page" id="page-server">
-  <div class="page-header">
-    <div class="page-header-left">
-      <h1>⚙️ السيرفر</h1>
-      <p>حالة الخادم والأدوات والتشخيص</p>
-    </div>
-    <button class="refresh-btn" onclick="loadServer()">🔄 تحديث</button>
-  </div>
-
-  <div class="status-grid">
-    <div class="status-card">
-      <div class="section-title">🖥️ حالة السيرفر</div>
-      <div class="status-row"><span class="status-label">الحالة</span><span class="status-val"><span class="online-dot"></span>يعمل</span></div>
-      <div class="status-row"><span class="status-label">وقت التشغيل</span><span class="status-val" id="srv-uptime">—</span></div>
-      <div class="status-row"><span class="status-label">وقت السيرفر</span><span class="status-val" id="srv-time">—</span></div>
-      <div class="status-row"><span class="status-label">الملفات المؤقتة</span><span class="status-val" id="srv-files">—</span></div>
-      <div class="status-row"><span class="status-label">المساحة المستخدمة</span><span class="status-val" id="srv-storage">— MB</span></div>
-      <div class="status-row"><span class="status-label">مهام نشطة</span><span class="status-val" id="srv-tasks">—</span></div>
-    </div>
-
-    <div class="status-card">
-      <div class="section-title">🔧 yt-dlp</div>
-      <div class="status-row"><span class="status-label">الإصدار الحالي</span><span class="status-val" id="srv-ytdlp-ver">—</span></div>
-      <div class="status-row"><span class="status-label">آخر تحديث</span><span class="status-val" id="srv-ytdlp-upd">—</span></div>
-      <div class="status-row" id="srv-ytdlp-latest-row" style="display:none"><span class="status-label">أحدث إصدار</span><span class="status-val" id="srv-ytdlp-latest">—</span></div>
-      <div class="divider"></div>
-      <div class="btn-group">
-        <button class="btn btn-secondary btn-sm" onclick="checkYtdlpUpdate()">🔍 فحص التحديثات</button>
-        <button class="btn btn-warn btn-sm" id="srv-update-btn" onclick="updateYtdlp()" style="display:none">⬆️ تحديث yt-dlp</button>
-      </div>
-    </div>
-
-    <div class="status-card">
-      <div class="section-title">🛠️ إجراءات سريعة</div>
-      <div style="display:flex;flex-direction:column;gap:.7rem">
-        <button class="btn btn-danger" onclick="clearFiles()">🗑️ مسح الملفات المؤقتة</button>
-        <button class="btn btn-secondary" onclick="renderPing()">📡 اختبار Render Ping</button>
-        <a href="https://www.vip-dl.com" target="_blank" class="btn btn-secondary">🌐 فتح الموقع</a>
-        <a href="/admin/api/backup-codes" class="btn btn-secondary">💾 نسخ احتياطي للأكواد</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="section-card">
-    <div class="section-title">🔗 اختبار رابط</div>
-    <div style="display:flex;gap:.7rem;flex-wrap:wrap">
-      <input class="form-input" id="srv-test-url" placeholder="أدخل رابط للاختبار (TikTok, YouTube, Instagram…)" style="flex:1;min-width:200px">
-      <button class="btn btn-primary" onclick="testUrl()" id="srv-test-btn">🧪 اختبار</button>
-    </div>
-    <div class="url-result" id="srv-url-result"></div>
-  </div>
-
-  <div class="table-card">
-    <div class="table-header"><h3>⚠️ آخر الأخطاء</h3></div>
-    <div class="overflow-x">
-      <table>
-        <thead><tr><th>المنصة</th><th>الخطأ</th><th>الوقت</th></tr></thead>
-        <tbody id="srv-errors-body"><tr class="empty-row"><td colspan="3">جاري التحميل…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-</div><!-- /server -->
-
-
-<!-- ═══════════════ 7. SETTINGS ═══════════════ -->
-<div class="page" id="page-settings">
-  <div class="page-header">
-    <div class="page-header-left">
-      <h1>🔧 الإعدادات</h1>
-      <p>إعدادات الحساب والنظام</p>
-    </div>
-  </div>
-
-  <div class="section-card" style="max-width:480px">
-    <div class="section-title">🔑 تغيير كلمة المرور</div>
-    <div class="form-group">
-      <label class="form-label">كلمة المرور الحالية</label>
-      <input class="form-input" id="pw-current" type="password" placeholder="••••••••">
-    </div>
-    <div class="form-group">
-      <label class="form-label">كلمة المرور الجديدة</label>
-      <input class="form-input" id="pw-new" type="password" placeholder="••••••••">
-    </div>
-    <div class="form-group">
-      <label class="form-label">تأكيد كلمة المرور الجديدة</label>
-      <input class="form-input" id="pw-confirm" type="password" placeholder="••••••••">
-    </div>
-    <button class="btn btn-primary" onclick="changePassword()">💾 حفظ كلمة المرور</button>
-  </div>
-
-  <div class="section-card" style="max-width:480px">
-    <div class="section-title">🚪 تسجيل الخروج</div>
-    <p style="color:var(--sub);font-size:.85rem;margin-bottom:1rem">ستنتهي جلستك الحالية وتُعاد توجيهك لصفحة تسجيل الدخول.</p>
-    <button class="btn btn-danger" onclick="location.href='/admin/logout'">🚪 تسجيل الخروج</button>
-  </div>
-</div><!-- /settings -->
-
-</main><!-- /main -->
-
-<!-- Extend code modal -->
-<div class="modal-overlay" id="extend-modal">
-  <div class="modal">
-    <div class="modal-title">⏰ تمديد الاشتراك</div>
-    <input type="hidden" id="extend-code-val">
-    <div class="form-group">
-      <label class="form-label">عدد الأيام الإضافية</label>
-      <input class="form-input" id="extend-days" type="number" value="30" min="1">
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('extend-modal')">إلغاء</button>
-      <button class="btn btn-success" onclick="submitExtend()">✅ تمديد</button>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">⚠️ آخر الأخطاء</span></div>
+      <div id="ov-errors-list" style="max-height:260px;overflow-y:auto"><div class="loading"><span class="spin"></span> جاري التحميل…</div></div>
     </div>
   </div>
 </div>
 
-<!-- Confirm delete modal -->
-<div class="modal-overlay" id="delete-modal">
-  <div class="modal">
+<!-- ═══ 2. DOWNLOADS ═══ -->
+<div class="page" id="page-downloads">
+  <div class="page-hdr">
+    <div><h1>⬇️ التحميلات</h1><p>إحصائيات التحميل التفصيلية</p></div>
+    <button class="refresh-btn" onclick="loadDownloads()">🔄 تحديث</button>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi g"><div class="kpi-ico">📅</div><div class="kpi-lbl">تحميلات اليوم</div><div class="kpi-val" id="dl-today">—</div></div>
+    <div class="kpi"><div class="kpi-ico">✅</div><div class="kpi-lbl">الإجمالي</div><div class="kpi-val" id="dl-total">—</div></div>
+    <div class="kpi o"><div class="kpi-ico">❌</div><div class="kpi-lbl">فاشلة</div><div class="kpi-val" id="dl-failed">—</div></div>
+    <div class="kpi p"><div class="kpi-ico">⚡</div><div class="kpi-lbl">مهام نشطة</div><div class="kpi-val" id="dl-active">—</div></div>
+  </div>
+  <div class="card full">
+    <div class="card-hdr"><span class="card-title">📈 التحميلات — آخر 30 يوم</span></div>
+    <div class="chart-box-lg"><canvas id="dl-chart-trend"></canvas></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🕐 حسب الساعة</span></div>
+      <div class="chart-box"><canvas id="dl-chart-hourly"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📊 حسب المنصة</span></div>
+      <div class="chart-box"><canvas id="dl-chart-platforms-bar"></canvas></div>
+    </div>
+  </div>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>⬇️ سجل التحميلات</h3><span id="dl-count-badge" class="b bb">—</span></div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>المنصة</th><th>الحالة</th><th>المدة (ث)</th><th>الوقت</th></tr></thead>
+      <tbody id="dl-recent-body"><tr class="empty-row"><td colspan="4">جاري التحميل…</td></tr></tbody></table>
+    </div>
+  </div>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>⚠️ آخر الأخطاء</h3></div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>المنصة</th><th>الخطأ</th><th>الوقت</th></tr></thead>
+      <tbody id="dl-errors-body"><tr class="empty-row"><td colspan="3">جاري التحميل…</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 3. ANDROID ═══ -->
+<div class="page" id="page-android">
+  <div class="page-hdr">
+    <div><h1>📱 مستخدمو التطبيق</h1><p>الأجهزة وإحصائيات التحميل</p></div>
+    <button class="refresh-btn" onclick="loadAndroid()">🔄 تحديث</button>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-ico">📱</div><div class="kpi-lbl">إجمالي الأجهزة</div><div class="kpi-val" id="and-total">—</div><div class="kpi-sub">منذ الإطلاق</div></div>
+    <div class="kpi g"><div class="kpi-ico">✅</div><div class="kpi-lbl">نشطون اليوم</div><div class="kpi-val" id="and-active">—</div></div>
+    <div class="kpi o"><div class="kpi-ico">📅</div><div class="kpi-lbl">تحميلات الشهر</div><div class="kpi-val" id="and-month-dl">—</div></div>
+    <div class="kpi p"><div class="kpi-ico">🌍</div><div class="kpi-lbl">أكثر دولة</div><div class="kpi-val" id="and-top-country">—</div><div class="kpi-sub" id="and-top-count">—</div></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🌍 توزيع الدول</span></div>
+      <div class="donut-box"><canvas id="and-chart-countries"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📊 الدول حسب عدد الأجهزة</span></div>
+      <div id="and-countries-list" style="max-height:210px;overflow-y:auto"><div class="loading"><span class="spin"></span></div></div>
+    </div>
+  </div>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>قائمة الأجهزة</h3>
+      <input class="fi" style="width:190px;padding:.35rem .75rem" placeholder="بحث…" oninput="filterUsers(this.value)">
+    </div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>المعرّف</th><th>الدولة</th><th>الإصدار</th><th>آخر نشاط</th><th>أول ظهور</th><th>اليوم</th><th>الشهر</th><th>الإجمالي</th></tr></thead>
+      <tbody id="and-users-body"><tr class="empty-row"><td colspan="8">جاري التحميل…</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 4. VISITORS ═══ -->
+<div class="page" id="page-visitors">
+  <div class="page-hdr">
+    <div><h1>👥 الزوار</h1><p>تحليل الزوار والجلسات</p></div>
+    <button class="refresh-btn" onclick="loadVisitors()">🔄 تحديث</button>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-ico">📅</div><div class="kpi-lbl">زوار اليوم</div><div class="kpi-val" id="vis-today">—</div><div class="kpi-sub" id="vis-yesterday">أمس: —</div></div>
+    <div class="kpi g"><div class="kpi-ico">📆</div><div class="kpi-lbl">هذا الأسبوع</div><div class="kpi-val" id="vis-week">—</div></div>
+    <div class="kpi p"><div class="kpi-ico">🆕</div><div class="kpi-lbl">زوار جدد</div><div class="kpi-val" id="vis-new">—</div></div>
+    <div class="kpi o"><div class="kpi-ico">🔄</div><div class="kpi-lbl">عائدون</div><div class="kpi-val" id="vis-returning">—</div></div>
+    <div class="kpi y"><div class="kpi-ico">🕐</div><div class="kpi-lbl">ساعة الذروة</div><div class="kpi-val" id="vis-peak">—</div></div>
+  </div>
+  <div class="card full">
+    <div class="card-hdr"><span class="card-title">📈 الزوار — آخر 30 يوم</span></div>
+    <div class="chart-box-lg"><canvas id="vis-chart-trend"></canvas></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📱 الأجهزة</span></div>
+      <div class="donut-box"><canvas id="vis-chart-device"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🆚 جدد مقابل عائدون</span></div>
+      <div class="donut-box"><canvas id="vis-chart-new-ret"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 5. SUBSCRIPTIONS ═══ -->
+<div class="page" id="page-subscriptions">
+  <div class="page-hdr">
+    <div><h1>⭐ الاشتراكات</h1><p>إدارة الأكواد والمشتركين</p></div>
+    <div class="btn-row">
+      <a href="/admin/api/backup-codes" class="btn btn-sec btn-sm">💾 نسخ احتياطي</a>
+      <button class="refresh-btn" onclick="loadSubscriptions()">🔄 تحديث</button>
+    </div>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi g"><div class="kpi-ico">✅</div><div class="kpi-lbl">نشط</div><div class="kpi-val" id="sub-active">—</div></div>
+    <div class="kpi o"><div class="kpi-ico">⏰</div><div class="kpi-lbl">منتهي</div><div class="kpi-val" id="sub-expired">—</div></div>
+    <div class="kpi"><div class="kpi-ico">🎫</div><div class="kpi-lbl">غير مستخدم</div><div class="kpi-val" id="sub-unused">—</div></div>
+    <div class="kpi p"><div class="kpi-ico">🔑</div><div class="kpi-lbl">الإجمالي</div><div class="kpi-val" id="sub-total">—</div></div>
+  </div>
+  <div class="sec">
+    <div class="sec-title">➕ إنشاء كود جديد</div>
+    <div class="fr">
+      <div class="fg"><label class="fl">ملاحظة / اسم المشترك</label><input class="fi" id="new-note" type="text" placeholder="مثال: أحمد علي"></div>
+      <div class="fg"><label class="fl">مدة الاشتراك (أيام)</label><input class="fi" id="new-days" type="number" value="30" min="1"></div>
+    </div>
+    <button class="btn btn-pri" onclick="generateCode()">➕ إنشاء كود</button>
+    <div class="code-box" id="new-code-box"></div>
+  </div>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>✅ المشتركون النشطون</h3><span id="sub-active-badge" class="b bg">—</span></div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>الكود</th><th>الملاحظة</th><th>الأيام المتبقية</th><th>تاريخ الانتهاء</th><th>تمديد</th></tr></thead>
+      <tbody id="sub-active-body"><tr class="empty-row"><td colspan="5">جاري التحميل…</td></tr></tbody></table>
+    </div>
+  </div>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>🔑 جميع الأكواد</h3>
+      <input class="fi" style="width:190px;padding:.35rem .75rem" placeholder="بحث…" oninput="filterCodes(this.value)">
+    </div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>الكود</th><th>الملاحظة</th><th>الحالة</th><th>الانتهاء</th><th>الأيام</th><th>إجراء</th></tr></thead>
+      <tbody id="sub-codes-body"><tr class="empty-row"><td colspan="6">جاري التحميل…</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 6. SERVER ═══ -->
+<div class="page" id="page-server">
+  <div class="page-hdr">
+    <div><h1>⚙️ السيرفر</h1><p>حالة الخادم والأدوات</p></div>
+    <button class="refresh-btn" onclick="loadServer()">🔄 تحديث</button>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="sec-title" style="margin-bottom:.8rem">🖥️ حالة السيرفر</div>
+      <div class="stat-row"><span class="stat-lbl">الحالة</span><span class="stat-val"><span class="dot"></span>يعمل</span></div>
+      <div class="stat-row"><span class="stat-lbl">وقت التشغيل</span><span class="stat-val" id="srv-uptime">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">وقت السيرفر</span><span class="stat-val" id="srv-time">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">الملفات المؤقتة</span><span class="stat-val" id="srv-files">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">المساحة المستخدمة</span><span class="stat-val" id="srv-storage">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">مهام نشطة</span><span class="stat-val" id="srv-tasks">—</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="sec-title" style="margin-bottom:.8rem">🔧 yt-dlp</div>
+      <div class="stat-row"><span class="stat-lbl">الإصدار الحالي</span><span class="stat-val" id="srv-ytdlp-ver">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">آخر تحديث</span><span class="stat-val" id="srv-ytdlp-upd">—</span></div>
+      <div class="stat-row" id="srv-latest-row" style="display:none"><span class="stat-lbl">أحدث إصدار</span><span class="stat-val" id="srv-ytdlp-latest">—</span></div>
+      <div class="divider"></div>
+      <div class="btn-row">
+        <button class="btn btn-sec btn-sm" onclick="checkYtdlpUpdate()">🔍 فحص التحديثات</button>
+        <button class="btn btn-warn btn-sm" id="srv-update-btn" onclick="updateYtdlp()" style="display:none">⬆️ تحديث</button>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="sec-title" style="margin-bottom:.8rem">🛠️ إجراءات سريعة</div>
+      <div style="display:flex;flex-direction:column;gap:.65rem">
+        <button class="btn btn-red" onclick="clearFiles()">🗑️ مسح الملفات المؤقتة</button>
+        <button class="btn btn-sec" onclick="renderPing()">📡 اختبار Render Ping</button>
+        <a href="https://www.vip-dl.com" target="_blank" class="btn btn-sec">🌐 فتح الموقع</a>
+        <a href="/admin/api/backup-codes" class="btn btn-sec">💾 نسخ احتياطي</a>
+      </div>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-title">🔗 اختبار رابط</div>
+    <div style="display:flex;gap:.7rem;flex-wrap:wrap">
+      <input class="fi" id="srv-test-url" placeholder="أدخل رابطاً للاختبار…" style="flex:1;min-width:180px">
+      <button class="btn btn-pri" onclick="testUrl()" id="srv-test-btn">🧪 اختبار</button>
+    </div>
+    <div class="url-res" id="srv-url-result"></div>
+  </div>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>⚠️ آخر الأخطاء</h3></div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>المنصة</th><th>الخطأ</th><th>الوقت</th></tr></thead>
+      <tbody id="srv-errors-body"><tr class="empty-row"><td colspan="3">جاري التحميل…</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 7. SETTINGS ═══ -->
+<div class="page" id="page-settings">
+  <div class="page-hdr"><div><h1>🔧 الإعدادات</h1><p>إعدادات الحساب</p></div></div>
+  <div class="sec" style="max-width:440px">
+    <div class="sec-title">🔑 تغيير كلمة المرور</div>
+    <div class="fg"><label class="fl">كلمة المرور الحالية</label><input class="fi" id="pw-current" type="password" placeholder="••••••••"></div>
+    <div class="fg"><label class="fl">كلمة المرور الجديدة</label><input class="fi" id="pw-new" type="password" placeholder="••••••••"></div>
+    <div class="fg"><label class="fl">تأكيد كلمة المرور الجديدة</label><input class="fi" id="pw-confirm" type="password" placeholder="••••••••"></div>
+    <button class="btn btn-pri" onclick="changePassword()">💾 حفظ</button>
+  </div>
+  <div class="sec" style="max-width:440px">
+    <div class="sec-title">🚪 تسجيل الخروج</div>
+    <p style="color:var(--muted);font-size:.84rem;margin-bottom:.9rem">ستنتهي جلستك الحالية.</p>
+    <button class="btn btn-red" onclick="location.href='/admin/logout'">🚪 تسجيل الخروج</button>
+  </div>
+</div>
+
+</main>
+
+<!-- Modals -->
+<div class="modal-bg" id="extend-modal">
+  <div class="modal-box">
+    <div class="modal-title">⏰ تمديد الاشتراك</div>
+    <input type="hidden" id="extend-code-val">
+    <div class="fg"><label class="fl">عدد الأيام الإضافية</label><input class="fi" id="extend-days" type="number" value="30" min="1"></div>
+    <div class="modal-foot">
+      <button class="btn btn-sec" onclick="closeModal('extend-modal')">إلغاء</button>
+      <button class="btn btn-grn" onclick="submitExtend()">✅ تمديد</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="delete-modal">
+  <div class="modal-box">
     <div class="modal-title">🗑️ تأكيد الحذف</div>
-    <p style="color:var(--sub);font-size:.88rem;margin-bottom:.5rem">هل أنت متأكد من حذف الكود التالي؟</p>
-    <div style="background:var(--card2);border-radius:8px;padding:.7rem 1rem;font-family:monospace;color:var(--red);margin-bottom:.5rem" id="delete-code-display">—</div>
-    <p style="color:var(--red);font-size:.8rem">⚠️ لا يمكن التراجع عن هذا الإجراء.</p>
+    <p style="color:var(--muted);font-size:.86rem;margin-bottom:.5rem">هل أنت متأكد من حذف الكود التالي؟</p>
+    <div style="background:var(--card2);border-radius:8px;padding:.65rem .9rem;font-family:monospace;color:var(--red);margin-bottom:.5rem" id="delete-code-display">—</div>
+    <p style="color:var(--red);font-size:.78rem">⚠️ لا يمكن التراجع عن هذا الإجراء.</p>
     <input type="hidden" id="delete-code-val">
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('delete-modal')">إلغاء</button>
-      <button class="btn btn-danger" onclick="submitDelete()">🗑️ حذف</button>
+    <div class="modal-foot">
+      <button class="btn btn-sec" onclick="closeModal('delete-modal')">إلغاء</button>
+      <button class="btn btn-red" onclick="submitDelete()">🗑️ حذف</button>
     </div>
   </div>
 </div>
 
 <script>
 'use strict';
+const CHARTS={};
+let allUsers=[],allCodes=[],ovTimer=null;
 
-// ── Globals ──────────────────────────────────────────────────────────────────
-const CHARTS = {};
-let allUsers = [], allCodes = [], overviewTimer = null;
+const CF={IQ:'🇮🇶',SA:'🇸🇦',AE:'🇦🇪',US:'🇺🇸',GB:'🇬🇧',DE:'🇩🇪',FR:'🇫🇷',KW:'🇰🇼',QA:'🇶🇦',BH:'🇧🇭',JO:'🇯🇴',EG:'🇪🇬',TR:'🇹🇷'};
+const flag=c=>CF[c]||'🌍';
+const PC={TikTok:'#69C9D0',Instagram:'#E1306C',Facebook:'#1877F2',YouTube:'#FF0000',Twitter:'#1DA1F2',Snapchat:'#FFFC00',Pinterest:'#E60023',Other:'#6b7280'};
+const GS={color:'#8888aa',grid:{color:'rgba(34,32,79,.55)'},plugins:{legend:{display:false},tooltip:{backgroundColor:'#1c1a48',titleColor:'#dde0ff',bodyColor:'#8888aa',borderColor:'#22204f',borderWidth:1}}};
 
-const COUNTRY_FLAGS = {
-  IQ:'🇮🇶',SA:'🇸🇦',AE:'🇦🇪',US:'🇺🇸',GB:'🇬🇧',DE:'🇩🇪',FR:'🇫🇷',
-  KW:'🇰🇼',QA:'🇶🇦',BH:'🇧🇭',JO:'🇯🇴',EG:'🇪🇬',TR:'🇹🇷'
-};
-const FLAG = c => COUNTRY_FLAGS[c] || '🌍';
-
-const PLATFORM_COLORS = {
-  TikTok:'#69C9D0',Instagram:'#E1306C',Facebook:'#1877F2',YouTube:'#FF0000',
-  Twitter:'#1DA1F2',Snapchat:'#FFFC00',Pinterest:'#E60023',Other:'#6b7280'
-};
-
-const CHART_DEFAULTS = {
-  color:'#9090b0',
-  grid:{color:'rgba(30,28,74,.6)'},
-  plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1845',titleColor:'#e0e0ff',bodyColor:'#9090b0',borderColor:'#1e1c4a',borderWidth:1}},
-};
-
-// ── Navigation ────────────────────────────────────────────────────────────────
-const PAGE_LOADERS = {overview:'loadOverview',downloads:'loadDownloads',android:'loadAndroid',visitors:'loadVisitors',subscriptions:'loadSubscriptions',server:'loadServer'};
-const loaded = {};
-
-function showPage(id, el){
+// ── Nav ──
+const PL={overview:'loadOverview',downloads:'loadDownloads',android:'loadAndroid',visitors:'loadVisitors',subscriptions:'loadSubscriptions',server:'loadServer'};
+const LD={};
+function showPage(id,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(el) el.classList.add('active');
-  closeSidebar();
-  if(!loaded[id] && PAGE_LOADERS[id]){ loaded[id]=true; window[PAGE_LOADERS[id]](); }
-  if(id==='overview') resetOverviewTimer();
+  closeSB();
+  if(!LD[id]&&PL[id]){LD[id]=true;window[PL[id]]();}
+  if(id==='overview') resetOvTimer();
+}
+function resetOvTimer(){
+  if(ovTimer) clearInterval(ovTimer);
+  ovTimer=setInterval(()=>{if(document.getElementById('page-overview').classList.contains('active'))loadOverview();},60000);
 }
 
-function resetOverviewTimer(){
-  if(overviewTimer) clearInterval(overviewTimer);
-  overviewTimer = setInterval(()=>{ if(document.getElementById('page-overview').classList.contains('active')) loadOverview(); }, 60000);
-}
+// ── Sidebar mobile ──
+function toggleSB(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('sb-overlay').classList.toggle('open');}
+function closeSB(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
 
-// ── Sidebar mobile ────────────────────────────────────────────────────────────
-function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebar-overlay').classList.toggle('open'); }
-function closeSidebar(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
-
-// ── Toast ─────────────────────────────────────────────────────────────────────
-let toastTimer;
-function toast(msg, type=''){
+// ── Toast ──
+let tTimer;
+function toast(msg,type=''){
   const t=document.getElementById('toast');
-  t.textContent=msg; t.className='show '+(type||'');
-  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.className='',3200);
+  t.textContent=msg;t.className='show'+(type?' '+type:'');
+  clearTimeout(tTimer);tTimer=setTimeout(()=>t.className='',3200);
 }
 
-// ── Modal ─────────────────────────────────────────────────────────────────────
-function openModal(id){ document.getElementById(id).classList.add('open'); }
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+// ── Modal ──
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
 
-// ── Fetch helper ──────────────────────────────────────────────────────────────
-async function api(url, method='GET', body=null){
-  const opts={method, headers:{'Content-Type':'application/json'}};
-  if(body) opts.body=JSON.stringify(body);
-  const r=await fetch(url, opts);
-  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+// ── API ──
+async function api(url,method='GET',body=null){
+  const o={method,headers:{'Content-Type':'application/json'}};
+  if(body) o.body=JSON.stringify(body);
+  const r=await fetch(url,o);
+  if(!r.ok) throw new Error('HTTP '+r.status);
   return r.json();
 }
 
-// ── Chart helpers ─────────────────────────────────────────────────────────────
-function destroyChart(id){ if(CHARTS[id]){ CHARTS[id].destroy(); delete CHARTS[id]; } }
+// ── Charts ──
+function dc(id){if(CHARTS[id]){CHARTS[id].destroy();delete CHARTS[id];}}
 
-function makeLineChart(id, labels, data, label='تحميلات'){
-  destroyChart(id);
+function lineChart(id,labels,data,label='تحميلات'){
+  dc(id);
   const ctx=document.getElementById(id).getContext('2d');
-  const grad=ctx.createLinearGradient(0,0,0,300);
-  grad.addColorStop(0,'rgba(0,200,255,.25)');
-  grad.addColorStop(1,'rgba(0,200,255,0)');
-  CHARTS[id]=new Chart(ctx,{
-    type:'line',
-    data:{labels,datasets:[{label,data,borderColor:'#00c8ff',backgroundColor:grad,borderWidth:2,pointRadius:2,pointHoverRadius:4,tension:.4,fill:true}]},
-    options:{responsive:true,maintainAspectRatio:false,scales:{x:{ticks:{color:'#9090b0',font:{size:10},maxRotation:45},grid:CHART_DEFAULTS.grid},y:{ticks:{color:'#9090b0',font:{size:10}},grid:CHART_DEFAULTS.grid,beginAtZero:true}},plugins:CHART_DEFAULTS.plugins}
-  });
+  const g=ctx.createLinearGradient(0,0,0,300);
+  g.addColorStop(0,'rgba(0,200,255,.22)');g.addColorStop(1,'rgba(0,200,255,0)');
+  CHARTS[id]=new Chart(ctx,{type:'line',data:{labels,datasets:[{label,data,borderColor:'#00c8ff',backgroundColor:g,borderWidth:2,pointRadius:2,pointHoverRadius:4,tension:.4,fill:true}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{x:{ticks:{color:'#8888aa',font:{size:10},maxRotation:45},grid:GS.grid},y:{ticks:{color:'#8888aa',font:{size:10}},grid:GS.grid,beginAtZero:true}},plugins:GS.plugins}});
 }
 
-function makeBarChart(id, labels, data, colors=null){
-  destroyChart(id);
+function barChart(id,labels,data,colors=null){
+  dc(id);
   const ctx=document.getElementById(id).getContext('2d');
   const bg=colors||labels.map((_,i)=>['#00c8ff','#7c3aed','#22c55e','#f97316','#ef4444','#eab308','#1da1f2','#6b7280'][i%8]);
-  CHARTS[id]=new Chart(ctx,{
-    type:'bar',
-    data:{labels,datasets:[{data,backgroundColor:bg,borderRadius:4}]},
-    options:{responsive:true,maintainAspectRatio:false,scales:{x:{ticks:{color:'#9090b0',font:{size:10}},grid:CHART_DEFAULTS.grid},y:{ticks:{color:'#9090b0',font:{size:10}},grid:CHART_DEFAULTS.grid,beginAtZero:true}},plugins:CHART_DEFAULTS.plugins}
-  });
+  CHARTS[id]=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:bg,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{x:{ticks:{color:'#8888aa',font:{size:10}},grid:GS.grid},y:{ticks:{color:'#8888aa',font:{size:10}},grid:GS.grid,beginAtZero:true}},plugins:GS.plugins}});
 }
 
-function makeDonutChart(id, labels, data, colors){
-  destroyChart(id);
+function donutChart(id,labels,data,colors){
+  dc(id);
   const ctx=document.getElementById(id).getContext('2d');
-  CHARTS[id]=new Chart(ctx,{
-    type:'doughnut',
-    data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#12103a',borderWidth:2,hoverOffset:4}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:true,position:'bottom',labels:{color:'#9090b0',font:{size:11},boxWidth:12,padding:10}},tooltip:{backgroundColor:'#1a1845',titleColor:'#e0e0ff',bodyColor:'#9090b0',borderColor:'#1e1c4a',borderWidth:1}}}
-  });
+  CHARTS[id]=new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#15133a',borderWidth:2,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:true,position:'bottom',labels:{color:'#8888aa',font:{size:11},boxWidth:12,padding:10}},tooltip:{backgroundColor:'#1c1a48',titleColor:'#dde0ff',bodyColor:'#8888aa',borderColor:'#22204f',borderWidth:1}}}});
 }
 
-// ── Formatters ────────────────────────────────────────────────────────────────
-function fmt(n){ return n!=null ? Number(n).toLocaleString('ar') : '—'; }
-function fmtDate(s){ if(!s)return'—'; try{ return new Date(s).toLocaleString('ar-IQ',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return s; } }
-function fmtDateShort(s){ if(!s)return'—'; try{ return new Date(s).toLocaleDateString('ar-IQ',{month:'numeric',day:'numeric'}); }catch(e){ return s; } }
-function badgePlatform(p){
-  const c={TikTok:'badge-blue',Instagram:'badge-red',Facebook:'badge-blue',YouTube:'badge-red',Twitter:'badge-blue',Snapchat:'badge-yellow',Pinterest:'badge-red',Other:'badge-gray'};
-  return `<span class="badge ${c[p]||'badge-gray'}">${p||'—'}</span>`;
-}
-function badgeStatus(s){
-  if(s==='success'||s==='ok') return '<span class="badge badge-green">نجح</span>';
-  if(s==='failed'||s==='error') return '<span class="badge badge-red">فشل</span>';
-  return `<span class="badge badge-gray">${s||'—'}</span>`;
-}
+// ── Format ──
+function fmt(n){return n!=null?Number(n).toLocaleString('ar'):'—';}
+function fmtDate(s){if(!s)return'—';try{return new Date(s).toLocaleString('ar-IQ',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return s;}}
+function fmtShort(s){if(!s)return'—';try{return new Date(s).toLocaleDateString('ar-IQ',{month:'numeric',day:'numeric'});}catch(e){return s;}}
+function bPlatform(p){const c={TikTok:'bb',Instagram:'br',Facebook:'bb',YouTube:'br',Twitter:'bb',Snapchat:'by',Pinterest:'br',Other:'bm'};return`<span class="b ${c[p]||'bm'}">${p||'—'}</span>`;}
+function bStatus(s){if(s==='success'||s==='ok')return'<span class="b bg">نجح</span>';if(s==='failed'||s==='error')return'<span class="b br">فشل</span>';return`<span class="b bm">${s||'—'}</span>`;}
+function el(id){return document.getElementById(id);}
+function setText(id,v){const e=el(id);if(e)e.textContent=v;}
+function emptyRow(n){return`<tr class="empty-row"><td colspan="${n}">لا توجد بيانات</td></tr>`;}
 
-// ── 1. OVERVIEW ───────────────────────────────────────────────────────────────
+// ── 1. OVERVIEW ──
 async function loadOverview(){
-  setEl('ov-spin','','display','inline-block');
+  el('ov-spin').style.display='inline-block';
   try{
-    const [stats, trend, hourly, recent, visStats, subStats, andUsers] = await Promise.all([
-      api('/admin/api/stats'),
-      api('/admin/api/download-trend?days=30'),
-      api('/admin/api/hourly-stats'),
-      api('/admin/api/recent-downloads'),
-      api('/admin/api/visitor-stats'),
-      api('/admin/api/subscriber-stats'),
+    const [stats,trend,hourly,recent,vs,ss,au]=await Promise.all([
+      api('/admin/api/stats'),api('/admin/api/download-trend?days=30'),
+      api('/admin/api/hourly-stats'),api('/admin/api/recent-downloads'),
+      api('/admin/api/visitor-stats'),api('/admin/api/subscriber-stats'),
       api('/admin/api/android-users'),
     ]);
-
-    // KPIs
-    setEl('ov-today-dl', fmt(stats.today_downloads));
-    setEl('ov-total-dl', `الإجمالي: ${fmt(stats.total_downloads)}`);
-    setEl('ov-today-vis', fmt(visStats.today));
-    setEl('ov-week-vis', `الأسبوع: ${fmt(visStats.week)}`);
-    setEl('ov-active-users', fmt(andUsers.active_today));
-    setEl('ov-total-users', `الإجمالي: ${fmt(andUsers.total)}`);
-    setEl('ov-active-subs', fmt(subStats.active));
-    setEl('ov-total-subs', `الإجمالي: ${fmt(subStats.total)}`);
-    setEl('ov-failed', fmt(stats.failed_downloads));
-    setEl('ov-active-tasks', `مهام نشطة: ${fmt(stats.active_tasks)}`);
-    setEl('ov-tasks', fmt(stats.active_tasks));
-    setEl('ov-storage', `التخزين: ${stats.storage_mb||0} MB`);
-    setEl('ov-server-time', `وقت السيرفر: ${stats.server_time||'—'}`);
-
-    // Trend chart
-    if(trend && trend.length){
-      makeLineChart('ov-chart-trend', trend.map(d=>fmtDateShort(d.date)), trend.map(d=>d.count), 'التحميلات');
-    }
-    // Hourly chart
-    if(hourly && hourly.length){
-      makeBarChart('ov-chart-hourly', hourly.map(h=>`${h.hour}:00`), hourly.map(h=>h.count));
-    }
-    // Platform donut
-    if(stats.platform_counts){
-      const pc=stats.platform_counts;
-      const labs=Object.keys(pc).filter(k=>pc[k]>0);
-      const vals=labs.map(k=>pc[k]);
-      const cols=labs.map(k=>PLATFORM_COLORS[k]||'#6b7280');
-      makeDonutChart('ov-chart-platforms', labs, vals, cols);
-    }
-    // Recent downloads
-    renderRecentDL('ov-recent-dl-body', recent);
-    // Errors
-    renderErrors('ov-errors-list', stats.recent_errors, 'list');
-
-  }catch(e){ toast('خطأ في تحميل البيانات: '+e.message,'error'); }
-  setEl('ov-spin','','display','none');
+    setText('ov-time','وقت السيرفر: '+(stats.server_time||'—'));
+    setText('ov-today-dl',fmt(stats.today_downloads));
+    setText('ov-total-dl','الإجمالي: '+fmt(stats.total_downloads));
+    setText('ov-today-vis',fmt(vs.today));
+    setText('ov-week-vis','الأسبوع: '+fmt(vs.week));
+    setText('ov-active-users',fmt(au.active_today));
+    setText('ov-total-users','الإجمالي: '+fmt(au.total));
+    setText('ov-active-subs',fmt(ss.active));
+    setText('ov-total-subs','الإجمالي: '+fmt(ss.total));
+    setText('ov-failed',fmt(stats.failed_downloads));
+    setText('ov-tasks-sub','مهام نشطة: '+fmt(stats.active_tasks));
+    setText('ov-tasks',fmt(stats.active_tasks));
+    setText('ov-storage','التخزين: '+(stats.storage_mb||0)+' MB');
+    if(trend&&trend.length) lineChart('ov-chart-trend',trend.map(d=>fmtShort(d.date)),trend.map(d=>d.count));
+    if(hourly&&hourly.length) barChart('ov-chart-hourly',hourly.map(h=>h.hour+':00'),hourly.map(h=>h.count));
+    if(stats.platform_counts){const pc=stats.platform_counts;const labs=Object.keys(pc).filter(k=>pc[k]>0);donutChart('ov-chart-platforms',labs,labs.map(k=>pc[k]),labs.map(k=>PC[k]||'#6b7280'));}
+    renderRecentDL('ov-recent-body',recent);
+    renderErrorsList('ov-errors-list',stats.recent_errors);
+  }catch(e){toast('خطأ: '+e.message,'err');}
+  el('ov-spin').style.display='none';
 }
 
-function renderRecentDL(bodyId, data, max=10){
-  const tb=document.getElementById(bodyId);
-  if(!data||!data.length){ tb.innerHTML=emptyRow(4); return; }
-  tb.innerHTML=data.slice(0,max).map(r=>`
-    <tr>
-      <td>${badgePlatform(r.platform)}</td>
-      <td>${badgeStatus(r.status)}</td>
-      <td>${r.duration!=null?r.duration.toFixed(1)+'s':'—'}</td>
-      <td style="color:var(--sub);white-space:nowrap">${fmtDate(r.time)}</td>
-    </tr>`).join('');
+function renderRecentDL(id,data,max=10){
+  const tb=el(id);if(!tb)return;
+  if(!data||!data.length){tb.innerHTML=emptyRow(4);return;}
+  tb.innerHTML=data.slice(0,max).map(r=>`<tr><td>${bPlatform(r.platform)}</td><td>${bStatus(r.status)}</td><td>${r.duration!=null?r.duration.toFixed(1)+'s':'—'}</td><td style="color:var(--muted);white-space:nowrap">${fmtDate(r.time)}</td></tr>`).join('');
 }
 
-function renderErrors(containerId, errors, mode='table'){
-  const el=document.getElementById(containerId);
-  if(!errors||!errors.length){ el.innerHTML='<div class="no-data">لا توجد أخطاء 🎉</div>'; return; }
-  if(mode==='list'){
-    el.innerHTML=errors.slice(0,10).map(e=>`
-      <div style="padding:.6rem 0;border-bottom:1px solid rgba(30,28,74,.5)">
-        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem">
-          ${badgePlatform(e.platform)}
-          <span style="color:var(--sub);font-size:.75rem;margin-right:auto">${fmtDate(e.time)}</span>
-        </div>
-        <div style="color:var(--red);font-size:.8rem;word-break:break-word">${e.error||'—'}</div>
-      </div>`).join('');
-  }
+function renderErrorsList(id,errors){
+  const e=el(id);if(!e)return;
+  if(!errors||!errors.length){e.innerHTML='<div class="no-data">لا توجد أخطاء 🎉</div>';return;}
+  e.innerHTML=errors.slice(0,10).map(x=>`<div style="padding:.5rem 0;border-bottom:1px solid rgba(34,32,79,.4)"><div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.2rem">${bPlatform(x.platform)}<span style="color:var(--muted);font-size:.73rem;margin-right:auto">${fmtDate(x.time)}</span></div><div style="color:var(--red);font-size:.79rem;word-break:break-word">${x.error||'—'}</div></div>`).join('');
 }
 
-function renderErrorsTable(bodyId, errors){
-  const tb=document.getElementById(bodyId);
-  if(!errors||!errors.length){ tb.innerHTML=emptyRow(3); return; }
-  tb.innerHTML=errors.slice(0,20).map(e=>`
-    <tr>
-      <td>${badgePlatform(e.platform)}</td>
-      <td style="color:var(--red);font-size:.8rem;max-width:300px;word-break:break-word">${e.error||'—'}</td>
-      <td style="color:var(--sub);white-space:nowrap">${fmtDate(e.time)}</td>
-    </tr>`).join('');
+function renderErrorsTable(id,errors){
+  const tb=el(id);if(!tb)return;
+  if(!errors||!errors.length){tb.innerHTML=emptyRow(3);return;}
+  tb.innerHTML=errors.slice(0,20).map(x=>`<tr><td>${bPlatform(x.platform)}</td><td style="color:var(--red);font-size:.8rem;max-width:300px;word-break:break-word">${x.error||'—'}</td><td style="color:var(--muted);white-space:nowrap">${fmtDate(x.time)}</td></tr>`).join('');
 }
 
-function emptyRow(cols){ return `<tr class="empty-row"><td colspan="${cols}">لا توجد بيانات</td></tr>`; }
-function setEl(id, val, prop='textContent', v2=null){ const el=document.getElementById(id); if(!el)return; if(prop==='textContent')el.textContent=val; else el.style[prop]=v2; }
-
-// ── 2. DOWNLOADS ──────────────────────────────────────────────────────────────
+// ── 2. DOWNLOADS ──
 async function loadDownloads(){
   try{
-    const [stats, trend, hourly, recent] = await Promise.all([
-      api('/admin/api/stats'),
-      api('/admin/api/download-trend?days=30'),
-      api('/admin/api/hourly-stats'),
-      api('/admin/api/recent-downloads'),
-    ]);
-    setEl('dl-today', fmt(stats.today_downloads));
-    setEl('dl-total', fmt(stats.total_downloads));
-    setEl('dl-failed', fmt(stats.failed_downloads));
-    setEl('dl-active', fmt(stats.active_tasks));
-    setEl('dl-count-badge', recent ? recent.length+' سجل' : '—');
-
-    if(trend&&trend.length) makeLineChart('dl-chart-trend', trend.map(d=>fmtDateShort(d.date)), trend.map(d=>d.count));
-    if(hourly&&hourly.length) makeBarChart('dl-chart-hourly', hourly.map(h=>`${h.hour}:00`), hourly.map(h=>h.count));
-    if(stats.platform_counts){
-      const pc=stats.platform_counts;
-      const labs=Object.keys(pc).filter(k=>pc[k]>0);
-      makeBarChart('dl-chart-platforms-bar', labs, labs.map(k=>pc[k]), labs.map(k=>PLATFORM_COLORS[k]||'#6b7280'));
-    }
-    renderRecentDL('dl-recent-body', recent, 50);
-    renderErrorsTable('dl-errors-body', stats.recent_errors);
-  }catch(e){ toast('خطأ في التحميلات: '+e.message,'error'); }
+    const [stats,trend,hourly,recent]=await Promise.all([api('/admin/api/stats'),api('/admin/api/download-trend?days=30'),api('/admin/api/hourly-stats'),api('/admin/api/recent-downloads')]);
+    setText('dl-today',fmt(stats.today_downloads));setText('dl-total',fmt(stats.total_downloads));setText('dl-failed',fmt(stats.failed_downloads));setText('dl-active',fmt(stats.active_tasks));
+    const cb=el('dl-count-badge');if(cb)cb.textContent=(recent?recent.length:0)+' سجل';
+    if(trend&&trend.length) lineChart('dl-chart-trend',trend.map(d=>fmtShort(d.date)),trend.map(d=>d.count));
+    if(hourly&&hourly.length) barChart('dl-chart-hourly',hourly.map(h=>h.hour+':00'),hourly.map(h=>h.count));
+    if(stats.platform_counts){const pc=stats.platform_counts;const labs=Object.keys(pc).filter(k=>pc[k]>0);barChart('dl-chart-platforms-bar',labs,labs.map(k=>pc[k]),labs.map(k=>PC[k]||'#6b7280'));}
+    renderRecentDL('dl-recent-body',recent,50);renderErrorsTable('dl-errors-body',stats.recent_errors);
+  }catch(e){toast('خطأ: '+e.message,'err');}
 }
 
-// ── 3. ANDROID ────────────────────────────────────────────────────────────────
+// ── 3. ANDROID ──
 async function loadAndroid(){
   try{
-    const data = await api('/admin/api/android-users');
-    allUsers = data.users||[];
-    setEl('and-total', fmt(data.total));
-    setEl('and-active', fmt(data.active_today));
-    const monthTotal = allUsers.reduce((s,u)=>s+(u.dl_month||0),0);
-    setEl('and-month-dl', fmt(monthTotal));
+    const data=await api('/admin/api/android-users');
+    allUsers=data.users||[];
+    setText('and-total',fmt(data.total));setText('and-active',fmt(data.active_today));
+    setText('and-month-dl',fmt(allUsers.reduce((s,u)=>s+(u.dl_month||0),0)));
     if(data.countries&&data.countries.length){
-      const top=data.countries[0];
-      setEl('and-top-country', FLAG(top.code)+' '+top.code);
-      setEl('and-top-count', fmt(top.count)+' جهاز');
-      // Donut
-      const top6=data.countries.slice(0,6);
-      const rest=data.countries.slice(6).reduce((s,c)=>s+c.count,0);
-      const cLabels=top6.map(c=>FLAG(c.code)+' '+c.code);
-      const cData=top6.map(c=>c.count);
-      if(rest>0){ cLabels.push('أخرى'); cData.push(rest); }
-      makeDonutChart('and-chart-countries', cLabels, cData, ['#00c8ff','#7c3aed','#22c55e','#f97316','#ef4444','#eab308','#6b7280']);
-      // List
-      const list=document.getElementById('and-countries-list');
-      const max=data.countries[0].count||1;
-      list.innerHTML=data.countries.map(c=>`
-        <div class="country-item">
-          <span class="country-flag">${FLAG(c.code)}</span>
-          <span class="country-name">${c.code}</span>
-          <div class="country-bar"><div class="progress-bar"><div class="progress-fill" style="width:${(c.count/max*100).toFixed(1)}%"></div></div></div>
-          <span class="country-count">${fmt(c.count)}</span>
-        </div>`).join('');
+      const top=data.countries[0];setText('and-top-country',flag(top.code)+' '+top.code);setText('and-top-count',fmt(top.count)+' جهاز');
+      const t6=data.countries.slice(0,6);const rest=data.countries.slice(6).reduce((s,c)=>s+c.count,0);
+      const cl=t6.map(c=>flag(c.code)+' '+c.code);const cd=t6.map(c=>c.count);
+      if(rest>0){cl.push('أخرى');cd.push(rest);}
+      donutChart('and-chart-countries',cl,cd,['#00c8ff','#7c3aed','#22c55e','#f97316','#ef4444','#eab308','#6b7280']);
+      const list=el('and-countries-list');const mx=data.countries[0].count||1;
+      list.innerHTML=data.countries.map(c=>`<div class="c-item"><span class="c-flag">${flag(c.code)}</span><span class="c-name">${c.code}</span><div class="c-bar"><div class="c-fill" style="width:${(c.count/mx*100).toFixed(1)}%"></div></div><span class="c-cnt">${fmt(c.count)}</span></div>`).join('');
     }
     renderUsersTable(allUsers);
-  }catch(e){ toast('خطأ في بيانات التطبيق: '+e.message,'error'); }
+  }catch(e){toast('خطأ: '+e.message,'err');}
 }
 
 function renderUsersTable(users){
-  const tb=document.getElementById('and-users-body');
-  if(!users||!users.length){ tb.innerHTML=emptyRow(8); return; }
-  tb.innerHTML=users.map(u=>`
-    <tr>
-      <td style="font-family:monospace;font-size:.78rem;color:var(--sub)">${u.id||'—'}</td>
-      <td>${FLAG(u.country)} ${u.country||'—'}</td>
-      <td><span class="badge badge-gray">${u.app_version||'—'}</span></td>
-      <td style="color:var(--sub);white-space:nowrap">${fmtDate(u.last_seen)}</td>
-      <td style="color:var(--sub);white-space:nowrap">${fmtDate(u.first_seen)}</td>
-      <td>${fmt(u.dl_today)}</td>
-      <td>${fmt(u.dl_month)}</td>
-      <td style="color:var(--accent);font-weight:700">${fmt(u.dl_total)}</td>
-    </tr>`).join('');
+  const tb=el('and-users-body');if(!tb)return;
+  if(!users||!users.length){tb.innerHTML=emptyRow(8);return;}
+  tb.innerHTML=users.map(u=>`<tr><td style="font-family:monospace;font-size:.76rem;color:var(--muted)">${u.id||'—'}</td><td>${flag(u.country)} ${u.country||'—'}</td><td><span class="b bm">${u.app_version||'—'}</span></td><td style="color:var(--muted);white-space:nowrap">${fmtDate(u.last_seen)}</td><td style="color:var(--muted);white-space:nowrap">${fmtDate(u.first_seen)}</td><td>${fmt(u.dl_today)}</td><td>${fmt(u.dl_month)}</td><td style="color:var(--accent);font-weight:700">${fmt(u.dl_total)}</td></tr>`).join('');
 }
 
-function filterUsers(q){
-  q=q.toLowerCase();
-  renderUsersTable(q ? allUsers.filter(u=>(u.id||'').toLowerCase().includes(q)||(u.country||'').toLowerCase().includes(q)) : allUsers);
-}
+function filterUsers(q){q=q.toLowerCase();renderUsersTable(q?allUsers.filter(u=>(u.id||'').toLowerCase().includes(q)||(u.country||'').toLowerCase().includes(q)):allUsers);}
 
-// ── 4. VISITORS ───────────────────────────────────────────────────────────────
+// ── 4. VISITORS ──
 async function loadVisitors(){
   try{
-    const [vs, ds] = await Promise.all([
-      api('/admin/api/visitor-stats'),
-      api('/admin/api/visitor-device-stats'),
-    ]);
-    setEl('vis-today', fmt(vs.today));
-    setEl('vis-yesterday', `أمس: ${fmt(vs.yesterday)}`);
-    setEl('vis-week', fmt(vs.week));
-    setEl('vis-new', fmt(ds.new));
-    setEl('vis-returning', fmt(ds.returning));
-    setEl('vis-peak', ds.peak_hour!=null ? `${ds.peak_hour}:00` : '—');
-
-    makeDonutChart('vis-chart-device',['موبايل','ديسكتوب'],[ds.mobile||0,ds.desktop||0],['#00c8ff','#7c3aed']);
-    makeDonutChart('vis-chart-new-ret',['جدد','عائدون'],[ds.new||0,ds.returning||0],['#22c55e','#f97316']);
-    if(vs.days&&vs.days.length) makeLineChart('vis-chart-trend', vs.days.map(d=>fmtDateShort(d.date)), vs.days.map(d=>d.count), 'الزوار');
-  }catch(e){ toast('خطأ في بيانات الزوار: '+e.message,'error'); }
+    const [vs,ds]=await Promise.all([api('/admin/api/visitor-stats'),api('/admin/api/visitor-device-stats')]);
+    setText('vis-today',fmt(vs.today));setText('vis-yesterday','أمس: '+fmt(vs.yesterday));setText('vis-week',fmt(vs.week));
+    setText('vis-new',fmt(ds.new));setText('vis-returning',fmt(ds.returning));
+    setText('vis-peak',ds.peak_hour!=null?ds.peak_hour+':00':'—');
+    donutChart('vis-chart-device',['موبايل','ديسكتوب'],[ds.mobile||0,ds.desktop||0],['#00c8ff','#7c3aed']);
+    donutChart('vis-chart-new-ret',['جدد','عائدون'],[ds.new||0,ds.returning||0],['#22c55e','#f97316']);
+    if(vs.days&&vs.days.length) lineChart('vis-chart-trend',vs.days.map(d=>fmtShort(d.date)),vs.days.map(d=>d.count),'الزوار');
+  }catch(e){toast('خطأ: '+e.message,'err');}
 }
 
-// ── 5. SUBSCRIPTIONS ─────────────────────────────────────────────────────────
+// ── 5. SUBSCRIPTIONS ──
 async function loadSubscriptions(){
   try{
-    const [stats, active, codes] = await Promise.all([
-      api('/admin/api/subscriber-stats'),
-      api('/admin/api/subscriber-list'),
-      api('/admin/api/codes'),
-    ]);
-    setEl('sub-active', fmt(stats.active));
-    setEl('sub-expired', fmt(stats.expired));
-    setEl('sub-unused', fmt(stats.unused));
-    setEl('sub-total', fmt(stats.total));
-    setEl('sub-active-badge', (active?active.length:0)+' كود');
-
-    // Active subscribers table
-    const atb=document.getElementById('sub-active-body');
-    if(!active||!active.length){ atb.innerHTML=emptyRow(5); }
-    else{
-      atb.innerHTML=active.map(s=>{
-        const dl=s.days_left!=null?s.days_left:0;
-        const cls=dl<7?'badge-red':dl<30?'badge-orange':'badge-green';
-        return `<tr>
-          <td style="font-family:monospace">${s.code||'—'}</td>
-          <td style="color:var(--sub)">${s.note||'—'}</td>
-          <td><span class="badge ${cls}">${dl} يوم</span></td>
-          <td style="color:var(--sub)">${s.expires_at?fmtDateShort(s.expires_at):'—'}</td>
-          <td><button class="ext-btn" onclick="openExtend('${s.code}')">⏰</button></td>
-        </tr>`;
-      }).join('');
-    }
-
-    // All codes
-    allCodes = Array.isArray(codes) ? codes : [];
-    renderCodesTable(allCodes);
-  }catch(e){ toast('خطأ في الاشتراكات: '+e.message,'error'); }
+    const [ss,active,codes]=await Promise.all([api('/admin/api/subscriber-stats'),api('/admin/api/subscriber-list'),api('/admin/api/codes')]);
+    setText('sub-active',fmt(ss.active));setText('sub-expired',fmt(ss.expired));setText('sub-unused',fmt(ss.unused));setText('sub-total',fmt(ss.total));
+    const ab=el('sub-active-badge');if(ab)ab.textContent=(active?active.length:0)+' كود';
+    const atb=el('sub-active-body');
+    if(!active||!active.length){if(atb)atb.innerHTML=emptyRow(5);}
+    else{atb.innerHTML=active.map(s=>{const dl=s.days_left!=null?s.days_left:0;const c=dl<7?'br':dl<30?'bo':'bg';return`<tr><td style="font-family:monospace">${s.code||'—'}</td><td style="color:var(--muted)">${s.note||'—'}</td><td><span class="b ${c}">${dl} يوم</span></td><td style="color:var(--muted)">${s.expires_at?fmtShort(s.expires_at):'—'}</td><td><button class="ext-btn" onclick="openExtend('${s.code}')">⏰</button></td></tr>`;}).join('');}
+    allCodes=Array.isArray(codes)?codes:[];renderCodesTable(allCodes);
+  }catch(e){toast('خطأ: '+e.message,'err');}
 }
 
 function renderCodesTable(codes){
-  const tb=document.getElementById('sub-codes-body');
-  if(!codes||!codes.length){ tb.innerHTML=emptyRow(6); return; }
-  tb.innerHTML=codes.map(c=>{
-    const used=c.used||c.active;
-    const expired=c.expired;
-    let statusBadge;
-    if(expired) statusBadge='<span class="badge badge-red">منتهي</span>';
-    else if(used) statusBadge='<span class="badge badge-green">نشط</span>';
-    else statusBadge='<span class="badge badge-gray">غير مستخدم</span>';
-    const dl=c.days_left!=null?c.days_left:'—';
-    return `<tr>
-      <td style="font-family:monospace;font-size:.82rem">${c.code||'—'}</td>
-      <td style="color:var(--sub)">${c.note||'—'}</td>
-      <td>${statusBadge}</td>
-      <td style="color:var(--sub)">${c.expires_at?fmtDateShort(c.expires_at):'—'}</td>
-      <td>${dl!=='—'?dl+' يوم':'—'}</td>
-      <td style="white-space:nowrap">
-        <button class="ext-btn" onclick="openExtend('${c.code}')" title="تمديد">⏰</button>
-        <button class="del-btn" onclick="openDelete('${c.code}')" title="حذف">🗑️</button>
-      </td>
-    </tr>`;
-  }).join('');
+  const tb=el('sub-codes-body');if(!tb)return;
+  if(!codes||!codes.length){tb.innerHTML=emptyRow(6);return;}
+  tb.innerHTML=codes.map(c=>{const u=c.used||c.active;const exp=c.expired;const sb=exp?'<span class="b br">منتهي</span>':u?'<span class="b bg">نشط</span>':'<span class="b bm">غير مستخدم</span>';const dl=c.days_left!=null?c.days_left:'—';return`<tr><td style="font-family:monospace;font-size:.81rem">${c.code||'—'}</td><td style="color:var(--muted)">${c.note||'—'}</td><td>${sb}</td><td style="color:var(--muted)">${c.expires_at?fmtShort(c.expires_at):'—'}</td><td>${dl!=='—'?dl+' يوم':'—'}</td><td style="white-space:nowrap"><button class="ext-btn" onclick="openExtend('${c.code}')" title="تمديد">⏰</button><button class="del-btn" onclick="openDelete('${c.code}')" title="حذف">🗑️</button></td></tr>`;}).join('');
 }
 
-function filterCodes(q){
-  q=q.toLowerCase();
-  renderCodesTable(q ? allCodes.filter(c=>(c.code||'').toLowerCase().includes(q)||(c.note||'').toLowerCase().includes(q)) : allCodes);
-}
+function filterCodes(q){q=q.toLowerCase();renderCodesTable(q?allCodes.filter(c=>(c.code||'').toLowerCase().includes(q)||(c.note||'').toLowerCase().includes(q)):allCodes);}
 
 async function generateCode(){
-  const note=document.getElementById('new-note').value.trim();
-  const days=parseInt(document.getElementById('new-days').value)||30;
-  try{
-    const r=await api('/admin/api/generate-code','POST',{note,days});
-    const box=document.getElementById('new-code-box');
-    box.textContent=r.code||'—'; box.style.display='block';
-    toast('تم إنشاء الكود بنجاح ✅','success');
-    loaded['subscriptions']=false; loadSubscriptions();
-  }catch(e){ toast('فشل إنشاء الكود: '+e.message,'error'); }
+  const note=el('new-note').value.trim();const days=parseInt(el('new-days').value)||30;
+  try{const r=await api('/admin/api/generate-code','POST',{note,days});const b=el('new-code-box');b.textContent=r.code||'—';b.style.display='block';toast('تم إنشاء الكود ✅','ok');LD['subscriptions']=false;loadSubscriptions();}
+  catch(e){toast('فشل: '+e.message,'err');}
 }
 
-function openExtend(code){ document.getElementById('extend-code-val').value=code; openModal('extend-modal'); }
+function openExtend(code){el('extend-code-val').value=code;openModal('extend-modal');}
 async function submitExtend(){
-  const code=document.getElementById('extend-code-val').value;
-  const days=parseInt(document.getElementById('extend-days').value)||30;
-  try{
-    await api('/admin/api/extend-code','POST',{code,days});
-    closeModal('extend-modal');
-    toast('تم تمديد الاشتراك بنجاح ✅','success');
-    loaded['subscriptions']=false; loadSubscriptions();
-  }catch(e){ toast('فشل التمديد: '+e.message,'error'); }
+  const code=el('extend-code-val').value;const days=parseInt(el('extend-days').value)||30;
+  try{await api('/admin/api/extend-code','POST',{code,days});closeModal('extend-modal');toast('تم التمديد ✅','ok');LD['subscriptions']=false;loadSubscriptions();}
+  catch(e){toast('فشل: '+e.message,'err');}
 }
-
-function openDelete(code){
-  document.getElementById('delete-code-val').value=code;
-  document.getElementById('delete-code-display').textContent=code;
-  openModal('delete-modal');
-}
+function openDelete(code){el('delete-code-val').value=code;el('delete-code-display').textContent=code;openModal('delete-modal');}
 async function submitDelete(){
-  const code=document.getElementById('delete-code-val').value;
-  try{
-    await api('/admin/api/delete-code','POST',{code});
-    closeModal('delete-modal');
-    toast('تم حذف الكود ✅','success');
-    loaded['subscriptions']=false; loadSubscriptions();
-  }catch(e){ toast('فشل الحذف: '+e.message,'error'); }
+  const code=el('delete-code-val').value;
+  try{await api('/admin/api/delete-code','POST',{code});closeModal('delete-modal');toast('تم الحذف ✅','ok');LD['subscriptions']=false;loadSubscriptions();}
+  catch(e){toast('فشل: '+e.message,'err');}
 }
 
-// ── 6. SERVER ─────────────────────────────────────────────────────────────────
+// ── 6. SERVER ──
 async function loadServer(){
   try{
     const stats=await api('/admin/api/stats');
-    setEl('srv-uptime', stats.uptime||'—');
-    setEl('srv-time', stats.server_time||'—');
-    setEl('srv-files', fmt(stats.temp_files)+' ملف');
-    setEl('srv-storage', (stats.storage_mb||0)+' MB');
-    setEl('srv-tasks', fmt(stats.active_tasks));
-    setEl('srv-ytdlp-ver', stats.ytdlp_version||'—');
-    setEl('srv-ytdlp-upd', stats.ytdlp_updated||'—');
-    renderErrorsTable('srv-errors-body', stats.recent_errors);
-  }catch(e){ toast('خطأ في بيانات السيرفر: '+e.message,'error'); }
+    setText('srv-uptime',stats.uptime||'—');setText('srv-time',stats.server_time||'—');
+    setText('srv-files',fmt(stats.temp_files)+' ملف');setText('srv-storage',(stats.storage_mb||0)+' MB');
+    setText('srv-tasks',fmt(stats.active_tasks));setText('srv-ytdlp-ver',stats.ytdlp_version||'—');setText('srv-ytdlp-upd',stats.ytdlp_updated||'—');
+    renderErrorsTable('srv-errors-body',stats.recent_errors);
+  }catch(e){toast('خطأ: '+e.message,'err');}
 }
 
 async function checkYtdlpUpdate(){
-  try{
-    toast('جاري الفحص…');
-    const r=await api('/admin/api/check-updates');
-    const row=document.getElementById('srv-ytdlp-latest-row');
-    const latEl=document.getElementById('srv-ytdlp-latest');
-    const updBtn=document.getElementById('srv-update-btn');
-    latEl.textContent=r.latest||'—'; row.style.display='flex';
-    if(r.needs_update){ updBtn.style.display='inline-flex'; toast('يوجد تحديث جديد: '+r.latest,''); }
-    else{ updBtn.style.display='none'; toast('أنت على أحدث إصدار ✅','success'); }
-  }catch(e){ toast('فشل الفحص: '+e.message,'error'); }
+  try{toast('جاري الفحص…');const r=await api('/admin/api/check-updates');const lr=el('srv-latest-row');const lv=el('srv-ytdlp-latest');const ub=el('srv-update-btn');lv.textContent=r.latest||'—';lr.style.display='flex';if(r.needs_update){ub.style.display='inline-flex';toast('يوجد تحديث: '+r.latest);}else{ub.style.display='none';toast('أحدث إصدار ✅','ok');}}
+  catch(e){toast('فشل: '+e.message,'err');}
 }
-
 async function updateYtdlp(){
-  if(!confirm('هل تريد تحديث yt-dlp؟')) return;
-  try{
-    toast('جاري التحديث…');
-    await api('/admin/api/update-ytdlp','POST');
-    toast('تم تحديث yt-dlp بنجاح ✅','success');
-    loadServer();
-  }catch(e){ toast('فشل التحديث: '+e.message,'error'); }
+  if(!confirm('هل تريد تحديث yt-dlp؟'))return;
+  try{toast('جاري التحديث…');await api('/admin/api/update-ytdlp','POST');toast('تم التحديث ✅','ok');loadServer();}
+  catch(e){toast('فشل: '+e.message,'err');}
 }
-
 async function clearFiles(){
-  if(!confirm('هل تريد مسح الملفات المؤقتة؟')) return;
-  try{
-    const r=await api('/admin/api/clear-files','POST');
-    toast(r.message||'تم المسح ✅','success');
-    loadServer();
-  }catch(e){ toast('فشل المسح: '+e.message,'error'); }
+  if(!confirm('هل تريد مسح الملفات المؤقتة؟'))return;
+  try{const r=await api('/admin/api/clear-files','POST');toast(r.message||'تم المسح ✅','ok');loadServer();}
+  catch(e){toast('فشل: '+e.message,'err');}
 }
-
 async function renderPing(){
-  try{
-    toast('جاري الاختبار…');
-    const r=await api('/admin/api/render-ping');
-    toast(r.ok?'Render يعمل بشكل طبيعي ✅':'استجابة غير متوقعة','');
-  }catch(e){ toast('فشل الاختبار: '+e.message,'error'); }
+  try{toast('جاري الاختبار…');const r=await api('/admin/api/render-ping');toast(r.ok?'Render يعمل ✅':'استجابة غير متوقعة');}
+  catch(e){toast('فشل: '+e.message,'err');}
 }
-
 async function testUrl(){
-  const url=document.getElementById('srv-test-url').value.trim();
-  if(!url){ toast('أدخل رابطاً أولاً','error'); return; }
-  const btn=document.getElementById('srv-test-btn');
-  const res=document.getElementById('srv-url-result');
-  btn.disabled=true; btn.textContent='⏳ جاري الاختبار…'; res.style.display='none';
+  const url=el('srv-test-url').value.trim();if(!url){toast('أدخل رابطاً','err');return;}
+  const btn=el('srv-test-btn');const res=el('srv-url-result');
+  btn.disabled=true;btn.textContent='⏳ جاري…';res.style.display='none';
   try{
-    const r=await api('/admin/api/test-url','POST',{url});
-    res.style.display='block';
-    if(r.ok){
-      res.className='url-result ok';
-      const fmts=(r.formats||[]).map(f=>`<span class="badge badge-blue" style="margin:.1rem">${f.quality||f.ext||'—'}</span>`).join(' ');
-      res.innerHTML=`<div style="color:var(--green);font-weight:700;margin-bottom:.4rem">✅ نجح</div><div>${fmts||'لا توجد صيغ'}</div>`;
-    }else{
-      res.className='url-result err';
-      res.innerHTML=`<div style="color:var(--red);font-weight:700;margin-bottom:.4rem">❌ فشل</div><div style="color:var(--sub);font-size:.8rem">${r.error||'خطأ غير معروف'}</div>`;
-    }
-  }catch(e){
-    res.style.display='block'; res.className='url-result err';
-    res.innerHTML=`<div style="color:var(--red)">❌ خطأ: ${e.message}</div>`;
-  }
-  btn.disabled=false; btn.textContent='🧪 اختبار';
+    const r=await api('/admin/api/test-url','POST',{url});res.style.display='block';
+    if(r.ok){res.className='url-res ok';const fs=(r.formats||[]).map(f=>`<span class="b bb" style="margin:.1rem">${f.quality||f.ext||'—'}</span>`).join(' ');res.innerHTML=`<div style="color:var(--green);font-weight:700;margin-bottom:.3rem">✅ نجح</div><div>${fs||'لا توجد صيغ'}</div>`;}
+    else{res.className='url-res err';res.innerHTML=`<div style="color:var(--red);font-weight:700;margin-bottom:.3rem">❌ فشل</div><div style="color:var(--muted);font-size:.79rem">${r.error||'خطأ'}</div>`;}
+  }catch(e){res.style.display='block';res.className='url-res err';res.innerHTML=`<div style="color:var(--red)">❌ ${e.message}</div>`;}
+  btn.disabled=false;btn.textContent='🧪 اختبار';
 }
 
-// ── 7. SETTINGS ───────────────────────────────────────────────────────────────
+// ── 7. SETTINGS ──
 async function changePassword(){
-  const cur=document.getElementById('pw-current').value;
-  const nw=document.getElementById('pw-new').value;
-  const cf=document.getElementById('pw-confirm').value;
-  if(!cur||!nw||!cf){ toast('يرجى ملء جميع الحقول','error'); return; }
-  if(nw!==cf){ toast('كلمتا المرور غير متطابقتين','error'); return; }
-  try{
-    await api('/admin/api/change-password','POST',{current:cur,new:nw});
-    toast('تم تغيير كلمة المرور بنجاح ✅','success');
-    document.getElementById('pw-current').value='';
-    document.getElementById('pw-new').value='';
-    document.getElementById('pw-confirm').value='';
-  }catch(e){ toast('فشل التغيير: '+e.message,'error'); }
+  const cur=el('pw-current').value;const nw=el('pw-new').value;const cf=el('pw-confirm').value;
+  if(!cur||!nw||!cf){toast('يرجى ملء جميع الحقول','err');return;}
+  if(nw!==cf){toast('كلمتا المرور غير متطابقتين','err');return;}
+  try{await api('/admin/api/change-password','POST',{current:cur,new:nw});toast('تم تغيير كلمة المرور ✅','ok');el('pw-current').value='';el('pw-new').value='';el('pw-confirm').value='';}
+  catch(e){toast('فشل: '+e.message,'err');}
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded',()=>{
-  loadOverview();
-  resetOverviewTimer();
-});
+// ── Init ──
+window.addEventListener('DOMContentLoaded',()=>{loadOverview();resetOvTimer();});
 </script>
 </body>
 </html>
