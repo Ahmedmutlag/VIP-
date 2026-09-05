@@ -1394,8 +1394,10 @@ def analytics_download():
     data = request.get_json() or {}
     device_id = (data.get("device_id") or "").strip()[:64]
     success   = bool(data.get("success", True))
+    platform  = (data.get("platform") or "Other").strip()[:32]
     if device_id:
         _record_app_download(device_id, success)
+    record_download(platform, success)
     return jsonify({"ok": True})
 
 

@@ -110,6 +110,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     // ── Download state ───────────────────────────────────────────────────────
     private String pendingDlUrl;
     private String pendingDlFilename;
+    private String pendingPlatform = "Other";
     private boolean downloadPending = false;
 
     private static final List<String> VIDEO_DOMAINS = Arrays.asList(
@@ -590,6 +591,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private void onFormatPicked(String dlUrl, String filename, String title, String platform) {
         pendingDlUrl      = dlUrl;
         pendingDlFilename = filename;
+        pendingPlatform   = platform.isEmpty() ? "Other" : platform;
         downloadPending   = true;
 
         if (isPremiumActive() || canDownloadFree()) {
@@ -1285,7 +1287,8 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
 
     private void sendDownloadEvent(boolean success) {
         final String body = "{\"device_id\":" + org.json.JSONObject.quote(getOrCreateDeviceId()) +
-            ",\"success\":" + success + "}";
+            ",\"success\":" + success +
+            ",\"platform\":" + org.json.JSONObject.quote(pendingPlatform) + "}";
         new Thread(() -> {
             try {
                 java.net.HttpURLConnection c = (java.net.HttpURLConnection)
