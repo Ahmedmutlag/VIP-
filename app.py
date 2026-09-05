@@ -712,14 +712,16 @@ SERVER_START = now()
 
 # ===== Live Stats =====
 _saved = load_stats_file()
+_today_str = now().date().isoformat()
+_daily_on_start = load_daily_stats()
 stats = {
     "total_downloads": _saved.get("total_downloads", 0),
-    "today_downloads": 0,
+    "today_downloads": _daily_on_start.get(_today_str, 0),
     "failed_downloads": _saved.get("failed_downloads", 0),
     "platform_counts": _saved.get("platform_counts", {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Snapchat": 0, "Other": 0}),
     "recent_errors": [],
     "ytdlp_updated": "لم يتم بعد",
-    "last_reset_date": now().date().isoformat(),
+    "last_reset_date": _today_str,
 }
 
 stats_lock = threading.Lock()
