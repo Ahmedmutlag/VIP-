@@ -67,7 +67,10 @@ body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:var(--bg);color:v
 .chart-box{position:relative;height:220px}
 .chart-box-lg{position:relative;height:270px}
 .chart-box-sm{position:relative;height:190px}
+.chart-box .no-data,.chart-box-lg .no-data,.chart-box-sm .no-data{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
 .donut-box{position:relative;height:200px}
+.donut-box canvas{position:absolute;inset:0}
+.donut-box .no-data{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
 
 /* ── Tables ── */
 .tbl-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:1.1rem}
@@ -176,7 +179,9 @@ tr:hover td{background:rgba(0,200,255,.025)}
   .stat-grid{grid-template-columns:1fr}
   .kpi-val{font-size:1.4rem}
   #toast{bottom:.9rem;width:90%}
-  .chart-box{height:185px}.chart-box-lg{height:220px}
+  .chart-box{height:175px}.chart-box-lg{height:210px}
+  .donut-box{height:170px}
+  .chart-box-sm{height:155px}
 }
 @media(min-width:801px) and (max-width:1100px){
   .sidebar{width:185px}.main{margin-right:185px}
@@ -624,8 +629,10 @@ async function loadOverview(){
     setText('ov-tasks',fmt(stats.active_tasks));
     setText('ov-storage','التخزين: '+(stats.storage_mb||0)+' MB');
     if(trend&&trend.length) lineChart('ov-chart-trend',trend.map(d=>fmtShort(d.date)),trend.map(d=>d.count));
+    else{const c=el('ov-chart-trend');if(c)c.closest('.chart-box-lg').innerHTML='<div class="no-data">لا توجد بيانات بعد</div>';}
     if(hourly&&hourly.length) barChart('ov-chart-hourly',hourly.map(h=>h.hour+':00'),hourly.map(h=>h.count));
-    if(stats.platform_counts){const pc=stats.platform_counts;const labs=Object.keys(pc).filter(k=>pc[k]>0);donutChart('ov-chart-platforms',labs,labs.map(k=>pc[k]),labs.map(k=>PC[k]||'#6b7280'));}
+    else{const c=el('ov-chart-hourly');if(c)c.closest('.chart-box').innerHTML='<div class="no-data">لا توجد بيانات بعد</div>';}
+    if(stats.platform_counts){const pc=stats.platform_counts;const labs=Object.keys(pc).filter(k=>pc[k]>0);if(labs.length)donutChart('ov-chart-platforms',labs,labs.map(k=>pc[k]),labs.map(k=>PC[k]||'#6b7280'));else{const cb=el('ov-chart-platforms');if(cb)cb.closest('.donut-box').innerHTML='<div class="no-data">لا توجد بيانات بعد</div>';}}
     renderRecentDL('ov-recent-body',recent);
     renderErrorsList('ov-errors-list',stats.recent_errors);
   }catch(e){toast('خطأ: '+e.message,'err');}
@@ -670,14 +677,19 @@ async function loadAndroid(){
     allUsers=data.users||[];
     setText('and-total',fmt(data.total));setText('and-active',fmt(data.active_today));
     setText('and-month-dl',fmt(allUsers.reduce((s,u)=>s+(u.dl_month||0),0)));
+    const cList=el('and-countries-list');
+    const cBox=el('and-chart-countries');
     if(data.countries&&data.countries.length){
       const top=data.countries[0];setText('and-top-country',flag(top.code)+' '+top.code);setText('and-top-count',fmt(top.count)+' جهاز');
       const t6=data.countries.slice(0,6);const rest=data.countries.slice(6).reduce((s,c)=>s+c.count,0);
       const cl=t6.map(c=>flag(c.code)+' '+c.code);const cd=t6.map(c=>c.count);
       if(rest>0){cl.push('أخرى');cd.push(rest);}
       donutChart('and-chart-countries',cl,cd,['#00c8ff','#7c3aed','#22c55e','#f97316','#ef4444','#eab308','#6b7280']);
-      const list=el('and-countries-list');const mx=data.countries[0].count||1;
-      list.innerHTML=data.countries.map(c=>`<div class="c-item"><span class="c-flag">${flag(c.code)}</span><span class="c-name">${c.code}</span><div class="c-bar"><div class="c-fill" style="width:${(c.count/mx*100).toFixed(1)}%"></div></div><span class="c-cnt">${fmt(c.count)}</span></div>`).join('');
+      const mx=data.countries[0].count||1;
+      cList.innerHTML=data.countries.map(c=>`<div class="c-item"><span class="c-flag">${flag(c.code)}</span><span class="c-name">${c.code}</span><div class="c-bar"><div class="c-fill" style="width:${(c.count/mx*100).toFixed(1)}%"></div></div><span class="c-cnt">${fmt(c.count)}</span></div>`).join('');
+    } else {
+      if(cBox) cBox.closest('.donut-box').innerHTML='<div class="no-data">لا توجد بيانات بعد</div>';
+      if(cList) cList.innerHTML='<div class="no-data">لا توجد بيانات بعد</div>';
     }
     renderUsersTable(allUsers);
   }catch(e){toast('خطأ: '+e.message,'err');}
