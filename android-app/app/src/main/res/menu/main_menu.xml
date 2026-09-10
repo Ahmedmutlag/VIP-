@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@+id/menu_upgrade"  android:title="@string/menu_upgrade_inactive" />
+    <item android:id="@+id/menu_theme"    android:title="@string/menu_item_theme" />
     <item android:id="@+id/menu_how_to"   android:title="@string/menu_item_how_to" />
     <item android:id="@+id/menu_privacy"  android:title="@string/menu_item_privacy" />
     <item android:id="@+id/menu_about"    android:title="@string/menu_item_about" />

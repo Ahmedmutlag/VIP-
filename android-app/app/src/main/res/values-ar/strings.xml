@@ -39,6 +39,7 @@
     <!-- Menu items -->
     <string name="menu_upgrade_inactive">⭐ ترقية للبريميوم</string>
     <string name="menu_upgrade_active">⭐ بريميوم — نشط ✅</string>
+    <string name="menu_item_theme">🎨 الثيمات</string>
     <string name="menu_item_how_to">كيف تستخدمه</string>
     <string name="menu_item_privacy">سياسة الخصوصية</string>
     <string name="menu_item_about">عن التطبيق</string>

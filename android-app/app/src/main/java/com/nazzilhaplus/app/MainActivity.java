@@ -9,6 +9,8 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.drawable.GradientDrawable;
+import android.content.res.ColorStateList;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
@@ -101,6 +103,8 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private FrameLayout bannerAdContainer;
     private TextView footerHowTo, footerPrivacy, footerAbout;
     private Button clearHistoryBtn;
+    private LinearLayout rootLayout, headerBar, heroSection, statsBar;
+    private LinearLayout urlInputCard, urlInputField, footerSection;
 
     // ── Ads ──────────────────────────────────────────────────────────────────
     private boolean rewardedLoaded = false;
@@ -155,6 +159,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         setContentView(R.layout.activity_main);
 
         bindViews();
+        applyAppTheme();
         setupListeners();
         showDisclaimerIfNeeded();
         NotificationReceiver.createChannel(this);
@@ -224,6 +229,13 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         footerHowTo      = findViewById(R.id.footerHowTo);
         footerPrivacy    = findViewById(R.id.footerPrivacy);
         footerAbout      = findViewById(R.id.footerAbout);
+        rootLayout       = findViewById(R.id.rootLayout);
+        headerBar        = findViewById(R.id.headerBar);
+        heroSection      = findViewById(R.id.heroSection);
+        statsBar         = findViewById(R.id.statsBar);
+        urlInputCard     = findViewById(R.id.urlInputCard);
+        urlInputField    = findViewById(R.id.urlInputField);
+        footerSection    = findViewById(R.id.footerSection);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -282,6 +294,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 else launchBillingFlow();
                 return true;
             }
+            if (id == R.id.menu_theme)    { showThemePicker();     return true; }
             if (id == R.id.menu_how_to)   { showHowToDialog();     return true; }
             if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
             if (id == R.id.menu_about)    { showAboutDialog();     return true; }
@@ -290,6 +303,125 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             return false;
         });
         popup.show();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Theme system
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private AppTheme currentTheme() {
+        return AppTheme.fromId(getPrefs().getString(AppTheme.PREF_KEY, "purple"));
+    }
+
+    private void applyAppTheme() {
+        AppTheme t = currentTheme();
+
+        // Window colors
+        getWindow().setStatusBarColor(t.headerColor);
+        getWindow().setNavigationBarColor(t.bgColor);
+
+        // Structural backgrounds
+        if (rootLayout   != null) rootLayout.setBackgroundColor(t.bgColor);
+        if (headerBar    != null) headerBar.setBackgroundColor(t.headerColor);
+        if (heroSection  != null) {
+            GradientDrawable hero = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{t.heroStartColor, t.heroEndColor});
+            heroSection.setBackground(hero);
+        }
+        if (statsBar     != null) statsBar.setBackground(makeCard(t.cardBgColor, 16));
+        if (urlInputCard != null) urlInputCard.setBackground(makeCard(t.cardBgColor, 16));
+        if (urlInputField!= null) {
+            GradientDrawable inputBg = new GradientDrawable();
+            inputBg.setColor(t.inputBgColor);
+            inputBg.setCornerRadius((float) dp(12));
+            inputBg.setStroke(dp(1), t.inputBorderColor);
+            urlInputField.setBackground(inputBg);
+        }
+        if (resultCard   != null) resultCard.setBackground(makeCard(t.cardBgColor, 16));
+        if (progressSection != null) progressSection.setBackground(makeCard(t.cardBgColor, 16));
+        if (historySection  != null) historySection.setBackground(makeCard(t.cardBgColor, 16));
+        if (footerSection   != null) footerSection.setBackgroundColor(t.footerBgColor);
+
+        // Fetch button
+        if (fetchBtn != null) {
+            GradientDrawable btn = new GradientDrawable();
+            btn.setColor(t.accentColor);
+            btn.setCornerRadius((float) dp(12));
+            fetchBtn.setBackground(btn);
+        }
+
+        // Progress bar
+        if (downloadProgress != null) {
+            downloadProgress.setProgressTintList(ColorStateList.valueOf(t.accentColor));
+            downloadProgress.setProgressBackgroundTintList(ColorStateList.valueOf(t.progressTrackColor));
+        }
+        if (progressPercent != null) progressPercent.setTextColor(t.accentColor);
+
+        // Loading spinner
+        if (loadingSpinner != null)
+            loadingSpinner.setIndeterminateTintList(ColorStateList.valueOf(t.accentColor));
+
+        // Platform badge chip
+        if (platformBadge != null) {
+            GradientDrawable chip = new GradientDrawable();
+            chip.setColor(t.chipBgColor);
+            chip.setCornerRadius((float) dp(24));
+            chip.setStroke(dp(1), t.chipBorderColor);
+            platformBadge.setBackground(chip);
+            platformBadge.setTextColor(t.accentColor);
+        }
+
+        // Traverse all text views and remap colors
+        if (rootLayout != null) applyTextTheme(rootLayout, t);
+    }
+
+    private void applyTextTheme(android.view.View v, AppTheme t) {
+        if (v instanceof TextView) {
+            TextView tv = (TextView) v;
+            int c = tv.getCurrentTextColor();
+            if (c == 0xFF1F1F2E || c == 0xFF374151) {
+                tv.setTextColor(t.textPrimaryColor);
+            } else if (c == 0xFF6B7280 || c == 0xFF9CA3AF) {
+                tv.setTextColor(t.textSecondaryColor);
+            } else if (c == 0xFF7C3AED || c == 0xFF6D28D9 || c == 0xFFA78BFA) {
+                tv.setTextColor(t.accentColor);
+            } else if (c == 0xFFC4B5FD) {
+                tv.setTextColor(t.chipBorderColor);
+            }
+        }
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) applyTextTheme(vg.getChildAt(i), t);
+        }
+    }
+
+    private GradientDrawable makeCard(int color, int radiusDp) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius((float) dp(radiusDp));
+        return d;
+    }
+
+    private void showThemePicker() {
+        String[] names = new String[AppTheme.ALL.length];
+        for (int i = 0; i < AppTheme.ALL.length; i++) names[i] = AppTheme.ALL[i].name;
+
+        String current = getPrefs().getString(AppTheme.PREF_KEY, "purple");
+        int checked = 0;
+        for (int i = 0; i < AppTheme.ALL.length; i++) {
+            if (AppTheme.ALL[i].id.equals(current)) { checked = i; break; }
+        }
+
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("🎨 اختر الثيم")
+            .setSingleChoiceItems(names, checked, (dialog, which) -> {
+                getPrefs().edit().putString(AppTheme.PREF_KEY, AppTheme.ALL[which].id).apply();
+                dialog.dismiss();
+                recreate();
+            })
+            .setNegativeButton("إلغاء", null)
+            .show();
     }
 
     private void showHowToDialog() {
@@ -540,7 +672,12 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
 
                 LinearLayout row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setBackground(getDrawable(R.drawable.format_btn_bg));
+                AppTheme ct = currentTheme();
+                GradientDrawable fmtBg = new GradientDrawable();
+                fmtBg.setColor(ct.cardBgColor);
+                fmtBg.setCornerRadius((float) dp(10));
+                fmtBg.setStroke(dp(1), ct.dividerColor);
+                row.setBackground(fmtBg);
                 row.setPadding(dp(16), dp(12), dp(16), dp(12));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -558,7 +695,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 TextView labelTv = new TextView(this);
                 labelTv.setText(label);
                 labelTv.setTextSize(14);
-                labelTv.setTextColor(0xFF1F1F2E);
+                labelTv.setTextColor(ct.textPrimaryColor);
                 labelTv.setTypeface(labelTv.getTypeface(), android.graphics.Typeface.BOLD);
                 LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
                     0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
@@ -567,7 +704,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 TextView extTv = new TextView(this);
                 extTv.setText(ext.toUpperCase());
                 extTv.setTextSize(11);
-                extTv.setTextColor(0xFF9CA3AF);
+                extTv.setTextColor(ct.textSecondaryColor);
 
                 row.addView(emojiTv);
                 row.addView(labelTv);
@@ -852,14 +989,14 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 TextView tv = new TextView(this);
                 tv.setText(title.isEmpty() ? "فيديو" : title);
                 tv.setTextSize(13);
-                tv.setTextColor(0xFF1F1F2E);
+                tv.setTextColor(currentTheme().textPrimaryColor);
                 tv.setMaxLines(1);
                 tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
 
                 TextView plat = new TextView(this);
                 plat.setText(platform);
                 plat.setTextSize(11);
-                plat.setTextColor(0xFF9CA3AF);
+                plat.setTextColor(currentTheme().textSecondaryColor);
 
                 info.addView(tv);
                 info.addView(plat);
@@ -873,7 +1010,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                     LinearLayout.LayoutParams dp1 = new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT, 1);
                     div.setLayoutParams(dp1);
-                    div.setBackgroundColor(0xFFF3F4F6);
+                    div.setBackgroundColor(currentTheme().dividerColor);
                     historyList.addView(div);
                 }
             }

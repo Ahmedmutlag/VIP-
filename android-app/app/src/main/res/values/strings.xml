@@ -39,6 +39,7 @@
     <!-- Menu items -->
     <string name="menu_upgrade_inactive">⭐ Premium — Unlimited Downloads</string>
     <string name="menu_upgrade_active">⭐ Premium — Active ✅</string>
+    <string name="menu_item_theme">🎨 Themes</string>
     <string name="menu_item_how_to">How to Use</string>
     <string name="menu_item_privacy">Privacy Policy</string>
     <string name="menu_item_about">About</string>
