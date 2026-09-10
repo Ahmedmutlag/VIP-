@@ -17,6 +17,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -287,6 +288,12 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 : getString(R.string.menu_upgrade_inactive);
         popup.getMenu().findItem(R.id.menu_upgrade).setTitle(premiumLabel);
 
+        // Show correct bubble label based on running state
+        boolean bubbleRunning = BubbleService.isRunning(this);
+        popup.getMenu().findItem(R.id.menu_bubble).setTitle(
+                bubbleRunning ? getString(R.string.menu_item_bubble_on)
+                              : getString(R.string.menu_item_bubble_off));
+
         popup.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == R.id.menu_upgrade) {
@@ -294,6 +301,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 else launchBillingFlow();
                 return true;
             }
+            if (id == R.id.menu_bubble)   { toggleBubble();        return true; }
             if (id == R.id.menu_theme)    { showThemePicker();     return true; }
             if (id == R.id.menu_how_to)   { showHowToDialog();     return true; }
             if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
@@ -303,6 +311,36 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             return false;
         });
         popup.show();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Floating Bubble
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private static final int REQ_OVERLAY = 5001;
+
+    private void toggleBubble() {
+        if (BubbleService.isRunning(this)) {
+            BubbleService.stop(this);
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            startActivityForResult(intent, REQ_OVERLAY);
+        } else {
+            BubbleService.start(this);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_OVERLAY) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                BubbleService.start(this);
+            }
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
