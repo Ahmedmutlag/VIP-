@@ -414,6 +414,9 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 CORS(app, origins=["https://www.vip-dl.com", "https://vip-dl.com"])
 Compress(app)
 app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # 1 MB
+app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 @app.before_request
 def track_activity():
@@ -469,8 +472,19 @@ def is_locked(ip):
         return True, mins
     return False, 0
 
+_MAX_TRACKED_IPS = 10_000
+
 def record_failed_login(ip):
     if ip not in login_attempts:
+        if len(login_attempts) >= _MAX_TRACKED_IPS:
+            # Evict the oldest unlocked entry to keep memory bounded
+            oldest = min(
+                (k for k, v in login_attempts.items() if not v.get("locked_until")),
+                key=lambda k: login_attempts[k].get("_ts", 0),
+                default=None,
+            )
+            if oldest:
+                login_attempts.pop(oldest, None)
         login_attempts[ip] = {"count": 0, "locked_until": None, "_ts": time.time()}
     login_attempts[ip]["count"] += 1
     if login_attempts[ip]["count"] >= 5:
@@ -703,9 +717,15 @@ def save_codes(data):
         pass
 
 config = load_config()
-if "admin_pass" in config:
+# config.json stores passwords changed at runtime (e.g. via the admin panel).
+# It takes precedence only when the env var is absent, so Render env vars
+# always win — a tampered config.json cannot override a Render-set credential.
+if "admin_pass" in config and not os.environ.get("ADMIN_PASS"):
     ADMIN_PASS = config["admin_pass"]
-if "admin_user" in config:
+elif "admin_pass" in config and os.environ.get("ADMIN_PASS"):
+    # Env var is set but config.json also has one — use env var and clean up
+    app.logger.warning("SECURITY: ADMIN_PASS is set via env var; ignoring config.json value")
+if "admin_user" in config and not os.environ.get("ADMIN_USER"):
     ADMIN_USER = config["admin_user"]
 
 SERVER_START = now()
@@ -888,6 +908,7 @@ def detect_platform(url):
 
 # ===== Admin Auth =====
 def _is_safe_url(url: str) -> bool:
+    """Return True only if the URL is a public http(s) host with no internal addresses."""
     try:
         import ipaddress
         from urllib.parse import urlparse
@@ -908,6 +929,29 @@ def _is_safe_url(url: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def _safe_proxy_get(url: str, **kwargs) -> "requests.Response":
+    """requests.get wrapper that validates every redirect hop to prevent SSRF."""
+    import requests as _r
+    kwargs.setdefault("timeout", 30)
+    kwargs["allow_redirects"] = False
+    resp = _r.get(url, **kwargs)
+    hops = 0
+    while resp.is_redirect and hops < 10:
+        dest = resp.headers.get("Location", "")
+        if not dest:
+            break
+        # Resolve relative redirects
+        if dest.startswith("/"):
+            from urllib.parse import urlparse as _up
+            p = _up(resp.url)
+            dest = f"{p.scheme}://{p.netloc}{dest}"
+        if not _is_safe_url(dest):
+            raise ValueError(f"Redirect to blocked destination: {dest[:120]}")
+        resp = _r.get(dest, **kwargs)
+        hops += 1
+    return resp
 
 
 def verify_password(stored, provided):
@@ -1597,49 +1641,108 @@ def admin_logout():
     return redirect("/admin/login")
 
 
-@app.route("/admin/emergency")
+_EMERG_CSS = ("*{box-sizing:border-box;margin:0;padding:0}"
+    "body{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;"
+    "min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}"
+    ".card{background:#16161f;border:1px solid #2a2a3a;border-radius:20px;"
+    "padding:2rem;width:100%;max-width:400px}"
+    "h2{margin-bottom:.8rem}p{color:#8888aa;font-size:.9rem;margin-bottom:1rem}"
+    "input{width:100%;background:#111118;border:1.5px solid #2a2a3a;border-radius:10px;"
+    "padding:.8rem 1rem;color:#f0f0f8;font-family:inherit;font-size:1rem;outline:none;margin-bottom:.8rem}"
+    ".btn{width:100%;padding:.9rem;background:linear-gradient(135deg,#7c3aed,#a855f7);"
+    "color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer}"
+    ".err{color:#f87171;font-size:.85rem;margin-bottom:.8rem}")
+_EMERG_FONT = '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">'
+
+
+@app.route("/admin/emergency", methods=["GET", "POST"])
 @limiter.limit("5 per hour")
 def admin_emergency():
-    # WARNING: avoid passing secrets in URL query params (logged by proxies/servers).
-    # Prefer sending secret in the JSON request body instead.
-    secret = (request.get_json(silent=True) or {}).get("secret") or request.args.get("secret", "")
-    new_pass = (request.get_json(silent=True) or {}).get("new_pass") or request.args.get("new_pass", "")
-
     if not RESET_SECRET:
         return Response("<h2 style='font-family:sans-serif;color:red'>RESET_SECRET غير مضبوط في المتغيرات</h2>", mimetype="text/html")
 
-    if secret != RESET_SECRET:
+    if request.method == "GET":
+        # Step 1: show form — no secrets in URL
         return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>إعادة تعيين طارئة</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
-<style>*{{box-sizing:border-box;margin:0;padding:0}}body{{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}}.card{{background:#16161f;border:1px solid #2a2a3a;border-radius:20px;padding:2rem;width:100%;max-width:400px}}h2{{margin-bottom:.8rem}}p{{color:#8888aa;font-size:.9rem;margin-bottom:1rem}}input{{width:100%;background:#111118;border:1.5px solid #2a2a3a;border-radius:10px;padding:.8rem 1rem;color:#f0f0f8;font-family:inherit;font-size:1rem;outline:none;margin-bottom:.8rem}}.btn{{width:100%;padding:.9rem;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer}}</style>
-</head><body><div class="card">
+<title>إعادة تعيين طارئة</title>{_EMERG_FONT}
+<style>{_EMERG_CSS}</style></head><body><div class="card">
 <h2>🔑 إعادة تعيين طارئة</h2>
-<p>أدخل الكلمة السرية وكلمة السر الجديدة</p>
-<input id="s" type="password" placeholder="الكلمة السرية" />
-<input id="p" type="password" placeholder="كلمة السر الجديدة" />
-<button class="btn" onclick="go()">إعادة التعيين</button>
-<script>
-function go(){{
-  const s=document.getElementById('s').value;
-  const p=document.getElementById('p').value;
-  if(!s||!p){{alert('أدخل جميع الحقول');return;}}
-  window.location='/admin/emergency?secret='+encodeURIComponent(s)+'&new_pass='+encodeURIComponent(p);
-}}
-</script>
-</div></body></html>""", mimetype="text/html")
+<p>أدخل الكلمة السرية لمتابعة</p>
+<form method="POST" action="/admin/emergency">
+<input name="secret" type="password" placeholder="الكلمة السرية" required autocomplete="off" />
+<button class="btn" type="submit">متابعة</button>
+</form></div></body></html>""", mimetype="text/html")
 
-    global ADMIN_PASS
-    if new_pass and len(new_pass) >= 6:
+    # POST — read only from form body, never from query string
+    secret = request.form.get("secret", "").strip()
+    new_pass = request.form.get("new_pass", "").strip()
+    tok = request.form.get("tok", "").strip()
+
+    # Step 2: verify secret, issue session token, show new-password form
+    if secret and not new_pass:
+        if secret != RESET_SECRET:
+            return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إعادة تعيين طارئة</title>{_EMERG_FONT}
+<style>{_EMERG_CSS}</style></head><body><div class="card">
+<h2>🔑 إعادة تعيين طارئة</h2>
+<p class="err">❌ الكلمة السرية غير صحيحة</p>
+<form method="POST" action="/admin/emergency">
+<input name="secret" type="password" placeholder="الكلمة السرية" required autocomplete="off" />
+<button class="btn" type="submit">متابعة</button>
+</form></div></body></html>""", mimetype="text/html")
+        # Issue a one-time session token — secret never touches HTML again
+        import secrets as _sec
+        tok = _sec.token_urlsafe(32)
+        session["_emerg_tok"] = tok
+        session["_emerg_exp"] = (now() + timedelta(minutes=10)).isoformat()
+        return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إعادة تعيين طارئة</title>{_EMERG_FONT}
+<style>{_EMERG_CSS.replace('#8888aa','#10b981')}</style></head><body><div class="card">
+<h2>🔑 إعادة تعيين طارئة</h2>
+<p>✅ الكلمة السرية صحيحة — أدخل كلمة السر الجديدة</p>
+<form method="POST" action="/admin/emergency">
+<input type="hidden" name="tok" value="{tok}" />
+<input name="new_pass" type="password" placeholder="كلمة السر الجديدة (6 أحرف على الأقل)" required />
+<button class="btn" type="submit">حفظ كلمة السر الجديدة</button>
+</form></div></body></html>""", mimetype="text/html")
+
+    # Step 3: verify session token, save new password
+    if tok and new_pass:
+        stored_tok = session.get("_emerg_tok", "")
+        try:
+            exp_dt = datetime.fromisoformat(session.get("_emerg_exp", ""))
+        except Exception:
+            exp_dt = now()
+        if not stored_tok or tok != stored_tok or now() > exp_dt:
+            return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><title>خطأ</title>{_EMERG_FONT}
+<style>{_EMERG_CSS}</style></head><body><div class="card">
+<p class="err">❌ انتهت صلاحية الجلسة، أعد العملية من البداية</p>
+<a href="/admin/emergency" style="color:#a855f7">إعادة المحاولة</a>
+</div></body></html>""", mimetype="text/html")
+        if len(new_pass) < 6:
+            return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><title>خطأ</title>{_EMERG_FONT}
+<style>{_EMERG_CSS}</style></head><body><div class="card">
+<p class="err">❌ كلمة السر يجب أن تكون 6 أحرف على الأقل</p>
+<form method="POST" action="/admin/emergency">
+<input type="hidden" name="tok" value="{tok}" />
+<input name="new_pass" type="password" placeholder="كلمة السر الجديدة" required />
+<button class="btn" type="submit">حفظ</button>
+</form></div></body></html>""", mimetype="text/html")
+        global ADMIN_PASS
         ADMIN_PASS = generate_password_hash(new_pass)
         cfg = load_config()
         cfg["admin_pass"] = ADMIN_PASS
         save_config(cfg)
+        session.pop("_emerg_tok", None)
+        session.pop("_emerg_exp", None)
         session["admin_logged_in"] = True
         return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
-<head><meta charset="UTF-8"><title>تم</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
+<head><meta charset="UTF-8"><title>تم</title>{_EMERG_FONT}
 <style>body{{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:1rem}}</style>
 </head><body>
 <div style="font-size:3rem">✅</div>
@@ -1647,24 +1750,7 @@ function go(){{
 <a href="/admin" style="color:#a855f7;font-size:1rem">الذهاب للوحة التحكم</a>
 </body></html>""", mimetype="text/html")
 
-    return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>إعادة تعيين طارئة</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
-<style>*{{box-sizing:border-box;margin:0;padding:0}}body{{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}}.card{{background:#16161f;border:1px solid #2a2a3a;border-radius:20px;padding:2rem;width:100%;max-width:400px}}h2{{margin-bottom:.8rem}}p{{color:#10b981;font-size:.9rem;margin-bottom:1rem}}input{{width:100%;background:#111118;border:1.5px solid #2a2a3a;border-radius:10px;padding:.8rem 1rem;color:#f0f0f8;font-family:inherit;font-size:1rem;outline:none;margin-bottom:.8rem}}.btn{{width:100%;padding:.9rem;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer}}</style>
-</head><body><div class="card">
-<h2>🔑 إعادة تعيين طارئة</h2>
-<p>✅ الكلمة السرية صحيحة — أدخل كلمة السر الجديدة</p>
-<input id="p" type="password" placeholder="كلمة السر الجديدة (6 أحرف على الأقل)" />
-<button class="btn" onclick="go()">حفظ كلمة السر الجديدة</button>
-<script>
-function go(){{
-  const p=document.getElementById('p').value;
-  if(p.length<6){{alert('6 أحرف على الأقل');return;}}
-  window.location='/admin/emergency?secret='+encodeURIComponent({json.dumps(secret)})+'&new_pass='+encodeURIComponent(p);
-}}
-</script>
-</div></body></html>""", mimetype="text/html")
+    return redirect("/admin/emergency")
 
 
 def send_reset_email(token):
@@ -2288,9 +2374,13 @@ def proxy_thumbnail():
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=8) as r:
             data = r.read()
-            content_type = r.headers.get("Content-Type", "image/jpeg")
-        resp = Response(data, content_type=content_type)
+            ct = r.headers.get("Content-Type", "image/jpeg")
+            # Only allow image content types from thumbnail proxy
+            if not ct.startswith("image/"):
+                ct = "image/jpeg"
+        resp = Response(data, content_type=ct)
         resp.headers["Cache-Control"] = "public, max-age=3600"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
         return resp
     except Exception:
         return "", 502
@@ -3044,12 +3134,12 @@ def api_tiktok_download():
         headers.update({k: v for k, v in cdn_headers.items() if k.lower() not in ("accept-encoding",)})
 
     try:
-        resp = _req.get(cdn_url, headers=headers, stream=True, timeout=30, allow_redirects=True)
+        resp = _safe_proxy_get(cdn_url, headers=headers, stream=True)
         app.logger.info("tiktok-download: CDN status=%s length=%s",
                         resp.status_code, resp.headers.get("Content-Length", "?"))
         resp.raise_for_status()
 
-        content_type = resp.headers.get("Content-Type", f"video/{ext}")
+        safe_content_type = f"video/{ext}" if ext != "mp3" else "audio/mpeg"
         content_length = resp.headers.get("Content-Length")
 
         def _stream():
@@ -3058,8 +3148,9 @@ def api_tiktok_download():
                     yield chunk
 
         out_headers = {
-            "Content-Type": content_type,
+            "Content-Type": safe_content_type,
             "Content-Disposition": f'attachment; filename="video.{ext}"',
+            "X-Content-Type-Options": "nosniff",
         }
         if content_length:
             out_headers["Content-Length"] = content_length
@@ -3164,7 +3255,7 @@ def api_direct_merge():
         out_path = os.path.join(tmp_dir, "merged.mp4")
 
         def _download(src_url: str, dest: str):
-            with _req.get(src_url, stream=True, timeout=60) as r:
+            with _safe_proxy_get(src_url, stream=True, timeout=60) as r:
                 r.raise_for_status()
                 with open(dest, "wb") as fh:
                     for chunk in r.iter_content(65536):
@@ -3348,14 +3439,14 @@ def api_proxy_download():
 
     app.logger.info("proxy-download: fetching %s", cdn_url[:120])
     try:
-        resp = requests.get(cdn_url, headers=headers, stream=True, timeout=30, allow_redirects=True)
+        resp = _safe_proxy_get(cdn_url, headers=headers, stream=True)
         app.logger.info("proxy-download: CDN status=%s content-type=%s length=%s",
                         resp.status_code,
                         resp.headers.get("Content-Type", "?"),
                         resp.headers.get("Content-Length", "?"))
         resp.raise_for_status()
 
-        content_type = resp.headers.get("Content-Type", f"video/{ext}")
+        safe_content_type = f"video/{ext}" if ext != "mp3" else "audio/mpeg"
         content_length = resp.headers.get("Content-Length")
 
         def _stream():
@@ -3364,8 +3455,9 @@ def api_proxy_download():
                     yield chunk
 
         out_headers = {
-            "Content-Type": content_type,
+            "Content-Type": safe_content_type,
             "Content-Disposition": f'attachment; filename="video.{ext}"',
+            "X-Content-Type-Options": "nosniff",
         }
         if content_length:
             out_headers["Content-Length"] = content_length

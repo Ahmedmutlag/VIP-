@@ -870,7 +870,12 @@ public class BubbleService extends Service {
     private String readBody(InputStream is) throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         byte[] buf = new byte[8192]; int n;
-        while ((n = is.read(buf)) != -1) baos.write(buf, 0, n);
+        int total = 0;
+        while ((n = is.read(buf)) != -1) {
+            total += n;
+            if (total > 512 * 1024) throw new IOException("Response too large");
+            baos.write(buf, 0, n);
+        }
         return baos.toString("UTF-8");
     }
 

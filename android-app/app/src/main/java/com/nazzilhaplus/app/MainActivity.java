@@ -168,6 +168,9 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         super.onResume();
         autoFillClipboard();
         sendSessionPing();
+        if (billingClient != null && billingClient.isReady()) {
+            checkExistingSubscription();
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
