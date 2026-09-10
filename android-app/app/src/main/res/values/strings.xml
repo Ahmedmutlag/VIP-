@@ -3,11 +3,6 @@
     <string name="app_name">Nazzilha Plus</string>
     <string name="app_url">https://www.vip-dl.com</string>
     <string name="app_host">www.vip-dl.com</string>
-    <string name="unity_game_id">51210f24-48da-41c4-8df5-c907b5bb3954</string>
-    <string name="unity_banner_placement_id">Banner_Android</string>
-    <string name="unity_interstitial_placement_id">Interstitial_Android</string>
-    <string name="unity_rewarded_placement_id">Rewarded_Android</string>
-
     <!-- UI Strings -->
     <string name="app_header">⬇ Nazzilha Plus</string>
     <string name="tagline">Free ✦ No Sign-up ✦ Fast</string>
@@ -50,12 +45,12 @@
 
     <!-- How to dialog -->
     <string name="how_to_title">How to Use Nazzilha Plus?</string>
-    <string name="how_to_message">1️⃣  Open any app (TikTok, Instagram, Facebook…)\n\n2️⃣  Tap \"Share\" then copy the link\n\n3️⃣  Return to the app — the link will auto-paste\n\n4️⃣  Tap \"Fetch Video Info\"\n\n5️⃣  Choose your preferred quality\n\n6️⃣  Wait for the download and open the file 🎉\n\n💡 Free users: 2 downloads per day\n⭐ Premium: Unlimited downloads, ad-free</string>
+    <string name="how_to_message">1️⃣  Open any app (TikTok, Instagram, Facebook…)\n\n2️⃣  Tap \"Share\" then copy the link\n\n3️⃣  Return to the app — the link will auto-paste\n\n4️⃣  Tap \"Fetch Video Info\"\n\n5️⃣  Choose your preferred quality\n\n6️⃣  Wait for the download and open the file 🎉\n\n💡 Free users: 3 downloads per day, no ads\n⭐ Premium: Unlimited downloads</string>
     <string name="dialog_got_it">Got it</string>
 
     <!-- Privacy dialog -->
     <string name="privacy_dialog_title">Privacy Policy</string>
-    <string name="privacy_message">Nazzilha Plus — Privacy Policy\n\n• We do not collect or share your personal data with any third party.\n\n• Links you enter are sent to our server for processing only and are not stored.\n\n• Your download history is stored on your device only.\n\n• We use Unity Ads for advertising; Unity may collect data to personalize ads per Unity Technologies\' policy.\n\n• We use Firebase for notifications and performance analytics.\n\n• Subscriptions are managed entirely through Google Play.\n\n• You are responsible for verifying the rights of the content you download.\n\nContact: </string>
+    <string name="privacy_message">Nazzilha Plus — Privacy Policy\n\n• We do not collect or share your personal data with any third party.\n\n• Links you enter are sent to our server for processing only and are not stored.\n\n• Your download history is stored on your device only.\n\n• We use Firebase for notifications and performance analytics.\n\n• Subscriptions are managed entirely through Google Play.\n\n• You are responsible for verifying the rights of the content you download.\n\nContact: </string>
     <string name="dialog_ok">OK</string>
     <string name="dialog_visit_site">Visit Website</string>
 
@@ -73,8 +68,7 @@
 
     <!-- Daily limit dialog -->
     <string name="limit_title">Daily Limit Reached</string>
-    <string name="limit_message">You\'ve used %d free downloads today.\nWatch an ad or activate Premium for unlimited downloads.</string>
-    <string name="btn_watch_ad">Watch Ad</string>
-    <string name="btn_premium">⭐ Premium</string>
+    <string name="limit_message">You\'ve used your %d free downloads for today.\nUpgrade to Premium for unlimited downloads.</string>
+    <string name="btn_premium">⭐ Go Premium</string>
     <string name="btn_cancel">Cancel</string>
 </resources>

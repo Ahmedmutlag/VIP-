@@ -721,11 +721,5 @@
 
     </ScrollView>
 
-    <!-- ══ Banner Ad ════════════════════════════════════════════════════════ -->
-    <FrameLayout
-        android:id="@+id/bannerAd"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center" />
 
 </LinearLayout>

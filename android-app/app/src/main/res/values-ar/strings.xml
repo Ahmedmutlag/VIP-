@@ -3,11 +3,6 @@
     <string name="app_name">نزلها بلس</string>
     <string name="app_url">https://www.vip-dl.com</string>
     <string name="app_host">www.vip-dl.com</string>
-    <string name="admob_rewarded_interstitial_id">ca-app-pub-9098461798177099/6312354951</string>
-    <string name="admob_interstitial_id">ca-app-pub-9098461798177099/5454731529</string>
-    <string name="admob_app_open_id">ca-app-pub-9098461798177099/5349241587</string>
-    <string name="admob_banner_id">ca-app-pub-9098461798177099/2852599432</string>
-
     <!-- UI Strings -->
     <string name="app_header">⬇ نزلها بلس</string>
     <string name="tagline">مجاني ✦ بدون تسجيل ✦ سريع</string>
@@ -50,12 +45,12 @@
 
     <!-- How to dialog -->
     <string name="how_to_title">كيف تستخدم نزلها بلس؟</string>
-    <string name="how_to_message">1️⃣  افتح أي تطبيق (تيك توك، إنستغرام، فيسبوك...)\n\n2️⃣  اضغط على \"مشاركة\" ثم انسخ الرابط\n\n3️⃣  ارجع للتطبيق — سيُلصق الرابط تلقائياً\n\n4️⃣  اضغط \"جلب معلومات الفيديو\"\n\n5️⃣  اختر الجودة التي تريدها\n\n6️⃣  انتظر اكتمال التحميل وافتح الملف 🎉\n\n💡 المستخدمون المجانيون: تحميلان يومياً\n⭐ بريميوم: تحميل غير محدود وبدون إعلانات</string>
+    <string name="how_to_message">1️⃣  افتح أي تطبيق (تيك توك، إنستغرام، فيسبوك...)\n\n2️⃣  اضغط على \"مشاركة\" ثم انسخ الرابط\n\n3️⃣  ارجع للتطبيق — سيُلصق الرابط تلقائياً\n\n4️⃣  اضغط \"جلب معلومات الفيديو\"\n\n5️⃣  اختر الجودة التي تريدها\n\n6️⃣  انتظر اكتمال التحميل وافتح الملف 🎉\n\n💡 المستخدمون المجانيون: 3 تحميلات يومياً بدون إعلانات\n⭐ بريميوم: تحميل غير محدود</string>
     <string name="dialog_got_it">فهمت</string>
 
     <!-- Privacy dialog -->
     <string name="privacy_dialog_title">سياسة الخصوصية</string>
-    <string name="privacy_message">نزلها بلس — سياسة الخصوصية\n\n• لا نجمع بياناتك الشخصية ولا نشاركها مع أي طرف ثالث.\n\n• الروابط التي تدخلها تُرسل إلى خادمنا لمعالجتها فقط ولا تُحفظ.\n\n• سجل التحميلات محفوظ على جهازك فقط.\n\n• نستخدم Unity Ads لعرض الإعلانات، وقد يجمع Unity بيانات لتخصيص الإعلانات وفق سياسة Unity Technologies.\n\n• نستخدم Firebase للإشعارات وتحليل الأداء.\n\n• الاشتراك يُدار بالكامل عبر Google Play.\n\n• أنت مسؤول عن التحقق من حقوق المحتوى الذي تحمّله.\n\nللتواصل: </string>
+    <string name="privacy_message">نزلها بلس — سياسة الخصوصية\n\n• لا نجمع بياناتك الشخصية ولا نشاركها مع أي طرف ثالث.\n\n• الروابط التي تدخلها تُرسل إلى خادمنا لمعالجتها فقط ولا تُحفظ.\n\n• سجل التحميلات محفوظ على جهازك فقط.\n\n• نستخدم Firebase للإشعارات وتحليل الأداء.\n\n• الاشتراك يُدار بالكامل عبر Google Play.\n\n• أنت مسؤول عن التحقق من حقوق المحتوى الذي تحمّله.\n\nللتواصل: </string>
     <string name="dialog_ok">حسناً</string>
     <string name="dialog_visit_site">زيارة الموقع</string>
 
@@ -73,8 +68,7 @@
 
     <!-- Daily limit dialog -->
     <string name="limit_title">تجاوزت الحد اليومي</string>
-    <string name="limit_message">استنفذت %d تحميلات مجانية اليوم.\nشاهد إعلاناً أو فعّل البريميوم للحصول على تحميل غير محدود.</string>
-    <string name="btn_watch_ad">شاهد الإعلان</string>
-    <string name="btn_premium">⭐ بريميوم</string>
+    <string name="limit_message">استنفذت %d تحميلات مجانية لهذا اليوم.\nفعّل البريميوم للحصول على تحميل غير محدود.</string>
+    <string name="btn_premium">⭐ اشترك بريميوم</string>
     <string name="btn_cancel">إلغاء</string>
 </resources>
