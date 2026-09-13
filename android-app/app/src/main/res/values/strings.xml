@@ -62,6 +62,14 @@
     <!-- Premium button states -->
     <string name="premium_active_label">✅ Subscription Active — Unlimited Downloads</string>
 
+    <!-- Download folder -->
+    <string name="menu_item_folder">📁 Download Folder</string>
+    <string name="folder_saved">Folder saved</string>
+
+    <!-- Notifications -->
+    <string name="notif_done_title">Download complete</string>
+    <string name="notif_fail_title">Download failed</string>
+
     <!-- Occasion banners -->
     <string name="occasion_ramadan">🌙 Ramadan Kareem! Wishing you a blessed and peaceful month.</string>
     <string name="occasion_eid">🎉 Eid Mubarak! May joy and blessings surround you.</string>

@@ -283,6 +283,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 return true;
             }
             if (id == R.id.menu_bubble)   { toggleBubble();        return true; }
+            if (id == R.id.menu_folder)   { pickDownloadFolder();  return true; }
             if (id == R.id.menu_how_to)   { showHowToDialog();     return true; }
             if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
             if (id == R.id.menu_about)    { showAboutDialog();     return true; }
@@ -298,6 +299,18 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     // ══════════════════════════════════════════════════════════════════════════
 
     private static final int REQ_OVERLAY = 5001;
+    private static final int REQ_FOLDER  = 5002;
+
+    // Bubble progress bridge (read by BubbleService)
+    public static volatile int bubbleDownloadPct = -1;
+
+    private void pickDownloadFolder() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION |
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION |
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        startActivityForResult(intent, REQ_FOLDER);
+    }
 
     private void toggleBubble() {
         if (BubbleService.isRunning(this)) {
@@ -319,6 +332,15 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         if (requestCode == REQ_OVERLAY) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
                 BubbleService.start(this);
+            }
+        }
+        if (requestCode == REQ_FOLDER && resultCode == RESULT_OK && data != null) {
+            Uri treeUri = data.getData();
+            if (treeUri != null) {
+                getContentResolver().takePersistableUriPermission(treeUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                getPrefs().edit().putString("dl_folder_uri", treeUri.toString()).apply();
+                Toast.makeText(this, "📁 " + getString(R.string.folder_saved), Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -1062,9 +1084,11 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             return;
         }
         showProgressSection(true, name);
+        bubbleDownloadPct = 0;
         new Thread(() -> {
             AppOpenAdManager.suppressAd = true;
             doDownload(url, name);
+            bubbleDownloadPct = -1;
         }).start();
     }
 
@@ -1094,11 +1118,13 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         if (ok) {
             incrementDownloadCount();
             Uri fu = resultUri[0];
+            sendCompletionNotification(nm, filename, fu, notifId + 10000);
             if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> {
                 showProgressSection(false, null);
                 showSuccessDialog(fu, filename);
             });
         } else {
+            sendFailureNotification(nm, filename, notifId + 10000);
             if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> { showProgressSection(false, null); showError("فشل التحميل، حاول مجدداً"); });
         }
     }
@@ -1161,7 +1187,19 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
 
     private boolean downloadFileSystem(String url, String filename, int notifId,
             NotificationCompat.Builder nb, NotificationManagerCompat nm, Uri[] out) {
-        File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "NazzilhaPlus");
+        // Use user-chosen folder if available, else default Downloads/NazzilhaPlus
+        String folderUriStr = getPrefs().getString("dl_folder_uri", null);
+        File dir;
+        if (folderUriStr != null) {
+            try {
+                androidx.documentfile.provider.DocumentFile tree =
+                    androidx.documentfile.provider.DocumentFile.fromTreeUri(this, Uri.parse(folderUriStr));
+                if (tree != null && tree.canWrite()) {
+                    return downloadToDocumentFile(url, filename, notifId, nb, nm, out, tree);
+                }
+            } catch (Exception ignored) {}
+        }
+        dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "NazzilhaPlus");
         dir.mkdirs();
         File file = new File(dir, filename);
         for (int attempt = 0; attempt < 5; attempt++) {
@@ -1201,6 +1239,75 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             }
         }
         return false;
+    }
+
+    private boolean downloadToDocumentFile(String url, String filename, int notifId,
+            NotificationCompat.Builder nb, NotificationManagerCompat nm, Uri[] out,
+            androidx.documentfile.provider.DocumentFile tree) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            try {
+                androidx.documentfile.provider.DocumentFile existing = tree.findFile(filename);
+                if (existing != null && !existing.delete()) existing = null;
+                androidx.documentfile.provider.DocumentFile docFile = tree.createFile(mimeFor(filename), filename);
+                if (docFile == null) break;
+                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                conn.setConnectTimeout(30_000); conn.setReadTimeout(60_000); conn.connect();
+                if (conn.getResponseCode() != 200) break;
+                long total = conn.getContentLengthLong();
+                try (InputStream in = conn.getInputStream();
+                     OutputStream os = getContentResolver().openOutputStream(docFile.getUri())) {
+                    if (os == null) break;
+                    byte[] buf = new byte[8192]; int read; long done = 0;
+                    while ((read = in.read(buf)) != -1) {
+                        os.write(buf, 0, read); done += read;
+                        if (total > 0) {
+                            int pct = (int)(done * 100L / total);
+                            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> updateProgress(pct));
+                            nb.setProgress(100, pct, false).setContentText(pct + "%");
+                            try { nm.notify(notifId, nb.build()); } catch (Exception ig) {}
+                        }
+                    }
+                }
+                out[0] = docFile.getUri();
+                return true;
+            } catch (Exception e) {
+                Log.e(TAG, "docfile attempt " + attempt + ": " + e.getMessage());
+                if (attempt < 4) try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ig) {}
+            }
+        }
+        return false;
+    }
+
+    private void sendCompletionNotification(NotificationManagerCompat nm, String filename, Uri fileUri, int id) {
+        try {
+            android.app.PendingIntent openIntent = null;
+            if (fileUri != null) {
+                Intent view = new Intent(Intent.ACTION_VIEW);
+                view.setDataAndType(fileUri, mimeFor(filename));
+                view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                openIntent = android.app.PendingIntent.getActivity(this, id, view,
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+            }
+            NotificationCompat.Builder nb = new NotificationCompat.Builder(this, NotificationReceiver.DOWNLOAD_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setContentTitle("✅ " + getString(R.string.notif_done_title))
+                .setContentText(filename)
+                .setAutoCancel(true);
+            if (openIntent != null) nb.setContentIntent(openIntent);
+            nm.notify(id, nb.build());
+        } catch (Exception ignored) {}
+    }
+
+    private void sendFailureNotification(NotificationManagerCompat nm, String filename, int id) {
+        try {
+            NotificationCompat.Builder nb = new NotificationCompat.Builder(this, NotificationReceiver.DOWNLOAD_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_notify_error)
+                .setContentTitle("❌ " + getString(R.string.notif_fail_title))
+                .setContentText(filename)
+                .setAutoCancel(true);
+            nm.notify(id, nb.build());
+        } catch (Exception ignored) {}
     }
 
     private void showSuccessDialog(Uri fileUri, String filename) {
@@ -1258,6 +1365,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private void updateProgress(int pct) {
         int prev = lastReportedPct.getAndUpdate(p -> Math.max(p, pct));
         if (pct <= prev) return; // never go backwards
+        bubbleDownloadPct = pct;
         downloadProgress.setProgress(pct);
         progressPercent.setText(pct + "%");
     }

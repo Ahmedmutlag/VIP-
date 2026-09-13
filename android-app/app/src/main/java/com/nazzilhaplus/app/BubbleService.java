@@ -88,7 +88,9 @@ public class BubbleService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if (progressHandler != null) { progressHandler.removeCallbacksAndMessages(null); progressHandler = null; }
         safeRemove(bubbleRoot);
+        safeRemove(dismissTarget);
         safeRemove(panelRoot);
     }
 
@@ -176,6 +178,37 @@ public class BubbleService extends Service {
 
         bubbleRoot.setOnTouchListener(new DragTap(lp));
         wm.addView(bubbleRoot, lp);
+        startProgressPolling();
+    }
+
+    private android.os.Handler progressHandler;
+
+    private void startProgressPolling() {
+        progressHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        Runnable poll = new Runnable() {
+            @Override public void run() {
+                int pct = MainActivity.bubbleDownloadPct;
+                if (badgeView != null) {
+                    if (pct >= 0) {
+                        badgeView.setTextSize(8);
+                        badgeView.setText(pct + "%");
+                        badgeView.setVisibility(View.VISIBLE);
+                        // Resize badge to fit text
+                        android.view.ViewGroup.LayoutParams lp = badgeView.getLayoutParams();
+                        lp.width = dp(28); lp.height = dp(18);
+                        badgeView.setLayoutParams(lp);
+                    } else if (badgeView.getText().toString().contains("%")) {
+                        badgeView.setText("");
+                        badgeView.setVisibility(View.GONE);
+                        android.view.ViewGroup.LayoutParams lp = badgeView.getLayoutParams();
+                        lp.width = dp(14); lp.height = dp(14);
+                        badgeView.setLayoutParams(lp);
+                    }
+                }
+                if (progressHandler != null) progressHandler.postDelayed(this, 500);
+            }
+        };
+        progressHandler.post(poll);
     }
 
     private class DragTap implements View.OnTouchListener {
