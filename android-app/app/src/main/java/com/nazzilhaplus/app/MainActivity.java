@@ -106,6 +106,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private String pendingDlFilename;
     private String pendingPlatform = "Other";
     private boolean downloadPending = false;
+    private final java.util.concurrent.atomic.AtomicInteger lastReportedPct = new java.util.concurrent.atomic.AtomicInteger(0);
 
     private static final List<String> VIDEO_DOMAINS = Arrays.asList(
         "tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
@@ -1247,6 +1248,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private void showProgressSection(boolean on, String filename) {
         progressSection.setVisibility(on ? View.VISIBLE : View.GONE);
         if (on) {
+            lastReportedPct.set(0);
             downloadProgress.setProgress(0);
             progressPercent.setText("0%");
             if (filename != null) downloadFilename.setText(filename);
@@ -1254,6 +1256,8 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     }
 
     private void updateProgress(int pct) {
+        int prev = lastReportedPct.getAndUpdate(p -> Math.max(p, pct));
+        if (pct <= prev) return; // never go backwards
         downloadProgress.setProgress(pct);
         progressPercent.setText(pct + "%");
     }
