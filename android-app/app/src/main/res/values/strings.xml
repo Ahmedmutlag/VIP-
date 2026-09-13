@@ -64,6 +64,7 @@
 
     <!-- Download folder -->
     <string name="menu_item_folder">📁 Download Folder</string>
+    <string name="menu_item_files">📂 My Files</string>
     <string name="folder_saved">Folder saved</string>
 
     <!-- Notifications -->

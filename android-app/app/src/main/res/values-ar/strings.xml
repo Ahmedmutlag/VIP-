@@ -64,6 +64,7 @@
 
     <!-- Download folder -->
     <string name="menu_item_folder">📁 مجلد التحميل</string>
+    <string name="menu_item_files">📂 ملفاتي</string>
     <string name="folder_saved">تم حفظ المجلد</string>
 
     <!-- Notifications -->

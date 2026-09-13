@@ -159,6 +159,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
 
         setupBilling();
         fetchOccasion();
+        handleIncomingIntent(getIntent());
 
         FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
             if (token != null)
@@ -166,6 +167,36 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         });
 
         refreshHistory();
+    }
+
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(android.content.Intent intent) {
+        if (intent == null) return;
+        if (!android.content.Intent.ACTION_SEND.equals(intent.getAction())) return;
+        if (!"text/plain".equals(intent.getType())) return;
+        String text = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
+        if (text == null || text.isEmpty()) return;
+        String url = extractFirstUrl(text);
+        if (url == null) return;
+        if (urlInput != null) {
+            urlInput.setText(url);
+            urlInput.setSelection(url.length());
+            detectedUrl = url;
+        }
+    }
+
+    private String extractFirstUrl(String text) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+            .compile("https?://[\\w\\-._~:/?#\\[\\]@!$&'()*+,;=%]+")
+            .matcher(text);
+        if (m.find()) return m.group();
+        return text.trim().startsWith("http") ? text.trim() : null;
     }
 
     @Override
@@ -284,6 +315,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             }
             if (id == R.id.menu_bubble)   { toggleBubble();        return true; }
             if (id == R.id.menu_folder)   { pickDownloadFolder();  return true; }
+            if (id == R.id.menu_files)    { startActivity(new android.content.Intent(this, FileBrowserActivity.class)); return true; }
             if (id == R.id.menu_how_to)   { showHowToDialog();     return true; }
             if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
             if (id == R.id.menu_about)    { showAboutDialog();     return true; }
