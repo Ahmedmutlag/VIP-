@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F5F3FF">
+    android:background="#0a0a0f">
 
     <!-- ══ Header ══════════════════════════════════════════════════════════ -->
     <LinearLayout
@@ -13,7 +13,7 @@
         android:layout_height="60dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="#7C3AED"
+        android:background="#16161f"
         android:paddingStart="18dp"
         android:paddingEnd="8dp"
         android:elevation="8dp">
@@ -104,7 +104,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/tagline"
                     android:textSize="12sp"
-                    android:textColor="#7C3AED"
+                    android:textColor="#a855f7"
                     android:background="@drawable/chip_bg"
                     android:paddingStart="16dp"
                     android:paddingEnd="16dp"
@@ -118,7 +118,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/hero_title1"
                     android:textSize="28sp"
-                    android:textColor="#1F1F2E"
+                    android:textColor="#f0f0f8"
                     android:textStyle="bold"
                     android:gravity="center"
                     android:layout_marginBottom="2dp" />
@@ -129,7 +129,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/hero_title2"
                     android:textSize="28sp"
-                    android:textColor="#7C3AED"
+                    android:textColor="#a855f7"
                     android:textStyle="bold"
                     android:gravity="center"
                     android:layout_marginBottom="20dp" />
@@ -146,7 +146,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/feat_platforms"
                         android:textSize="12sp"
-                        android:textColor="#7C3AED"
+                        android:textColor="#a855f7"
                         android:background="@drawable/chip_bg"
                         android:paddingStart="12dp"
                         android:paddingEnd="12dp"
@@ -159,7 +159,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/feat_media"
                         android:textSize="12sp"
-                        android:textColor="#6D28D9"
+                        android:textColor="#a855f7"
                         android:background="@drawable/chip_bg"
                         android:paddingStart="12dp"
                         android:paddingEnd="12dp"
@@ -172,7 +172,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/feat_quality"
                         android:textSize="12sp"
-                        android:textColor="#7C3AED"
+                        android:textColor="#a855f7"
                         android:background="@drawable/chip_bg"
                         android:paddingStart="12dp"
                         android:paddingEnd="12dp"
@@ -209,20 +209,20 @@
                         android:layout_height="wrap_content"
                         android:text="100%"
                         android:textSize="16sp"
-                        android:textColor="#7C3AED"
+                        android:textColor="#a855f7"
                         android:textStyle="bold" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/stat_free_label"
                         android:textSize="11sp"
-                        android:textColor="#6B7280" />
+                        android:textColor="#8888aa" />
                 </LinearLayout>
 
                 <View
                     android:layout_width="1dp"
                     android:layout_height="32dp"
-                    android:background="#E5E7EB" />
+                    android:background="#2a2a3a" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -235,20 +235,20 @@
                         android:layout_height="wrap_content"
                         android:text="@string/stat_noreg_label"
                         android:textSize="14sp"
-                        android:textColor="#7C3AED"
+                        android:textColor="#a855f7"
                         android:textStyle="bold" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/stat_noaccount"
                         android:textSize="11sp"
-                        android:textColor="#6B7280" />
+                        android:textColor="#8888aa" />
                 </LinearLayout>
 
                 <View
                     android:layout_width="1dp"
                     android:layout_height="32dp"
-                    android:background="#E5E7EB" />
+                    android:background="#2a2a3a" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -261,14 +261,14 @@
                         android:layout_height="wrap_content"
                         android:text="@string/stat_fast_label"
                         android:textSize="16sp"
-                        android:textColor="#7C3AED"
+                        android:textColor="#a855f7"
                         android:textStyle="bold" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/stat_fast_sub"
                         android:textSize="11sp"
-                        android:textColor="#6B7280" />
+                        android:textColor="#8888aa" />
                 </LinearLayout>
 
             </LinearLayout>
@@ -330,7 +330,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/url_hint"
                     android:textSize="13sp"
-                    android:textColor="#6B7280"
+                    android:textColor="#8888aa"
                     android:layout_marginBottom="10dp" />
 
                 <!-- Input row -->
@@ -359,8 +359,8 @@
                         android:hint="https://..."
                         android:inputType="textUri"
                         android:textSize="13sp"
-                        android:textColor="#1F1F2E"
-                        android:textColorHint="#9CA3AF"
+                        android:textColor="#f0f0f8"
+                        android:textColorHint="#8888aa"
                         android:background="@null"
                         android:singleLine="true"
                         android:layoutDirection="ltr"
@@ -401,7 +401,7 @@
                 android:layout_height="48dp"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginTop="20dp"
-                android:indeterminateTint="#7C3AED"
+                android:indeterminateTint="#a855f7"
                 android:visibility="gone" />
 
             <!-- ── Error Box ────────────────────────────────────────────── -->
@@ -412,9 +412,9 @@
                 android:layout_marginStart="14dp"
                 android:layout_marginEnd="14dp"
                 android:layout_marginTop="10dp"
-                android:background="#FEE2E2"
+                android:background="#2d1515"
                 android:padding="14dp"
-                android:textColor="#DC2626"
+                android:textColor="#ff6b6b"
                 android:textSize="13sp"
                 android:lineSpacingExtra="4dp"
                 android:visibility="gone" />
@@ -445,7 +445,7 @@
                         android:layout_width="120dp"
                         android:layout_height="80dp"
                         android:scaleType="centerCrop"
-                        android:background="#E5E7EB"
+                        android:background="#2a2a3a"
                         android:layout_marginEnd="12dp" />
 
                     <LinearLayout
@@ -460,7 +460,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:background="@drawable/chip_bg"
-                            android:textColor="#7C3AED"
+                            android:textColor="#a855f7"
                             android:textSize="11sp"
                             android:textStyle="bold"
                             android:paddingStart="10dp"
@@ -474,7 +474,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:textSize="13sp"
-                            android:textColor="#1F1F2E"
+                            android:textColor="#f0f0f8"
                             android:textStyle="bold"
                             android:maxLines="3"
                             android:ellipsize="end"
@@ -488,7 +488,7 @@
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
-                    android:background="#F3F4F6"
+                    android:background="#2a2a3a"
                     android:layout_marginBottom="14dp" />
 
                 <TextView
@@ -496,7 +496,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/quality_label"
                     android:textSize="13sp"
-                    android:textColor="#6B7280"
+                    android:textColor="#8888aa"
                     android:textStyle="bold"
                     android:layout_marginBottom="10dp" />
 
@@ -536,7 +536,7 @@
                         android:layout_weight="1"
                         android:text="@string/downloading_label"
                         android:textSize="14sp"
-                        android:textColor="#1F1F2E"
+                        android:textColor="#f0f0f8"
                         android:textStyle="bold" />
 
                     <TextView
@@ -545,7 +545,7 @@
                         android:layout_height="wrap_content"
                         android:text="0%"
                         android:textSize="14sp"
-                        android:textColor="#7C3AED"
+                        android:textColor="#a855f7"
                         android:textStyle="bold" />
 
                 </LinearLayout>
@@ -557,15 +557,15 @@
                     android:layout_height="8dp"
                     android:max="100"
                     android:progress="0"
-                    android:progressTint="#7C3AED"
-                    android:progressBackgroundTint="#EEE9FF" />
+                    android:progressTint="#7c3aed"
+                    android:progressBackgroundTint="#2a2a3a" />
 
                 <TextView
                     android:id="@+id/downloadFilename"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:textSize="11sp"
-                    android:textColor="#9CA3AF"
+                    android:textColor="#8888aa"
                     android:layout_marginTop="6dp"
                     android:maxLines="1"
                     android:ellipsize="middle"
@@ -600,7 +600,7 @@
                         android:layout_weight="1"
                         android:text="@string/history_title"
                         android:textSize="14sp"
-                        android:textColor="#1F1F2E"
+                        android:textColor="#f0f0f8"
                         android:textStyle="bold" />
 
                     <Button
@@ -609,7 +609,7 @@
                         android:layout_height="32dp"
                         android:text="@string/btn_clear"
                         android:textSize="11sp"
-                        android:textColor="#6B7280"
+                        android:textColor="#8888aa"
                         android:background="@null"
                         android:stateListAnimator="@null" />
 
@@ -647,7 +647,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/hint_paste_url"
                     android:textSize="15sp"
-                    android:textColor="#6B7280"
+                    android:textColor="#8888aa"
                     android:gravity="center" />
 
                 <TextView
@@ -655,7 +655,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/hint_platforms"
                     android:textSize="13sp"
-                    android:textColor="#A78BFA"
+                    android:textColor="#a855f7"
                     android:gravity="center"
                     android:layout_marginTop="6dp" />
 
@@ -686,7 +686,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/footer_tagline"
                     android:textSize="12sp"
-                    android:textColor="#9CA3AF"
+                    android:textColor="#8888aa"
                     android:layout_marginBottom="16dp" />
 
                 <!-- Footer links -->
@@ -730,7 +730,7 @@
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
-                    android:background="#374151"
+                    android:background="#2a2a3a"
                     android:layout_marginBottom="14dp" />
 
                 <TextView
@@ -738,7 +738,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/footer_copyright"
                     android:textSize="11sp"
-                    android:textColor="#6B7280" />
+                    android:textColor="#8888aa" />
 
             </LinearLayout>
 

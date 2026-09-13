@@ -48,14 +48,14 @@ public class AppTheme {
 
     public static final AppTheme PURPLE = new AppTheme(
         "purple", "بنفسجي",
-        0xFFF5F3FF, 0xFF7C3AED, 0xFFFFFFFF,
-        0xFF7C3AED, 0xFF6D28D9,
-        0xFF1F1F2E, 0xFF6B7280,
-        0xFFEDE9FE, 0xFFF5F3FF,
-        0xFFEEE9FF, 0xFF1E1B2E,
-        0xFFEEE9FF, 0xFFC4B5FD,
-        0xFFEEE9FF, 0xFFC4B5FD,
-        0xFFE5E7EB
+        /* bg, header, card    */ 0xFF0a0a0f, 0xFF16161f, 0xFF16161f,
+        /* accent, accentDark  */ 0xFFa855f7, 0xFF7c3aed,
+        /* textPrimary, muted  */ 0xFFf0f0f8, 0xFF8888aa,
+        /* heroStart, heroEnd  */ 0xFF14101f, 0xFF0a0a0f,
+        /* progressTrack, footer */ 0xFF2a2a3a, 0xFF0d0d14,
+        /* inputBg, inputBorder  */ 0xFF16161f, 0xFF2a2a3a,
+        /* chipBg, chipBorder    */ 0xFF1e1530, 0xFF4c2d9e,
+        /* divider */ 0xFF2a2a3a
     );
 
     public static AppTheme getDefault() {
