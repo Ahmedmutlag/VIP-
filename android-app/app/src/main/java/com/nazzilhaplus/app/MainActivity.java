@@ -193,7 +193,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         if (urlInput != null) {
             urlInput.setText(url);
             urlInput.setSelection(url.length());
-            detectedUrl = url;
+            pendingDlUrl = url;
         }
     }
 
