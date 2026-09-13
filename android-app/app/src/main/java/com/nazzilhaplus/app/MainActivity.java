@@ -664,7 +664,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
 
                 LinearLayout row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
-                AppTheme ct = currentTheme();
+                AppTheme ct = AppTheme.getDefault();
                 GradientDrawable fmtBg = new GradientDrawable();
                 fmtBg.setColor(ct.cardBgColor);
                 fmtBg.setCornerRadius((float) dp(10));
@@ -1016,14 +1016,14 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 TextView tv = new TextView(this);
                 tv.setText(title.isEmpty() ? "فيديو" : title);
                 tv.setTextSize(13);
-                tv.setTextColor(currentTheme().textPrimaryColor);
+                tv.setTextColor(AppTheme.getDefault().textPrimaryColor);
                 tv.setMaxLines(1);
                 tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
 
                 TextView plat = new TextView(this);
                 plat.setText(platform);
                 plat.setTextSize(11);
-                plat.setTextColor(currentTheme().textSecondaryColor);
+                plat.setTextColor(AppTheme.getDefault().textSecondaryColor);
 
                 info.addView(tv);
                 info.addView(plat);
@@ -1037,7 +1037,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                     LinearLayout.LayoutParams dp1 = new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT, 1);
                     div.setLayoutParams(dp1);
-                    div.setBackgroundColor(currentTheme().dividerColor);
+                    div.setBackgroundColor(AppTheme.getDefault().dividerColor);
                     historyList.addView(div);
                 }
             }
