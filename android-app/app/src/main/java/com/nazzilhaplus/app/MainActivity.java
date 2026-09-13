@@ -98,6 +98,8 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private Button clearHistoryBtn;
     private LinearLayout rootLayout, headerBar, heroSection, statsBar;
     private LinearLayout urlInputCard, urlInputField, footerSection;
+    private LinearLayout occasionBanner;
+    private TextView occasionBannerText;
 
     // ── Download state ───────────────────────────────────────────────────────
     private String pendingDlUrl;
@@ -155,6 +157,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         NotificationReceiver.schedule(this);
 
         setupBilling();
+        fetchOccasion();
 
         FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
             if (token != null)
@@ -212,6 +215,8 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         urlInputCard     = findViewById(R.id.urlInputCard);
         urlInputField    = findViewById(R.id.urlInputField);
         footerSection    = findViewById(R.id.footerSection);
+        occasionBanner   = findViewById(R.id.occasionBanner);
+        occasionBannerText = findViewById(R.id.occasionBannerText);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1415,5 +1420,127 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         if (filename.endsWith(".m4a")) return "audio/mp4";
         if (filename.endsWith(".aac")) return "audio/aac";
         return "video/mp4";
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Occasions (seasonal greetings)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private static final long OCCASION_CACHE_MS = 6 * 60 * 60 * 1000L; // 6 hours
+
+    private void fetchOccasion() {
+        SharedPreferences p = getPrefs();
+        long lastCheck = p.getLong("occasion_ts", 0);
+        if (System.currentTimeMillis() - lastCheck < OCCASION_CACHE_MS) {
+            String cached = p.getString("occasion_id", "");
+            if (!cached.isEmpty()) applyOccasionFromCache(cached);
+            return;
+        }
+        new Thread(() -> {
+            try {
+                HttpURLConnection c = (HttpURLConnection)
+                        new URL(API_BASE + "/api/occasion").openConnection();
+                c.setConnectTimeout(8000);
+                c.setReadTimeout(8000);
+                c.connect();
+                if (c.getResponseCode() == 200) {
+                    java.io.InputStream is = c.getInputStream();
+                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                    byte[] buf = new byte[1024]; int n;
+                    while ((n = is.read(buf)) != -1) baos.write(buf, 0, n);
+                    is.close();
+                    JSONObject obj = new JSONObject(baos.toString("UTF-8"));
+                    String occ = obj.optString("occasion", "");
+                    p.edit()
+                        .putString("occasion_id", occ)
+                        .putLong("occasion_ts", System.currentTimeMillis())
+                        .apply();
+                    if (!occ.isEmpty()) {
+                        runOnUiThread(() -> applyOccasionFromCache(occ));
+                    }
+                }
+                c.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
+    private void applyOccasionFromCache(String occasion) {
+        int msgRes;
+        int bgColor;
+        String[] particleEmojis;
+        switch (occasion) {
+            case "ramadan":
+                msgRes = R.string.occasion_ramadan;
+                bgColor = 0xFF1A1060; // deep indigo-purple
+                particleEmojis = new String[]{"🌙", "⭐", "✨", "🌟", "💫"};
+                break;
+            case "eid":
+                msgRes = R.string.occasion_eid;
+                bgColor = 0xFF1B5E20; // deep green
+                particleEmojis = new String[]{"🎉", "🎊", "✨", "🌟", "🎆"};
+                break;
+            case "new_year":
+                msgRes = R.string.occasion_new_year;
+                bgColor = 0xFF0D1B2A; // midnight blue
+                particleEmojis = new String[]{"🎆", "🎇", "✨", "🌟", "🎊"};
+                break;
+            default:
+                occasionBanner.setVisibility(View.GONE);
+                return;
+        }
+        occasionBanner.setBackgroundColor(bgColor);
+        occasionBannerText.setText(getString(msgRes));
+        occasionBanner.setVisibility(View.VISIBLE);
+        showOccasionParticles(particleEmojis);
+    }
+
+    private void showOccasionParticles(String[] emojis) {
+        android.widget.FrameLayout overlay = new android.widget.FrameLayout(this);
+        overlay.setLayoutParams(new android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        overlay.setClickable(false);
+        getWindow().addContentView(overlay,
+                new android.view.WindowManager.LayoutParams(
+                        android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                        android.view.WindowManager.LayoutParams.MATCH_PARENT));
+
+        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(dm);
+        int screenW = dm.widthPixels;
+        int screenH = dm.heightPixels;
+        java.util.Random rng = new java.util.Random();
+
+        int count = 20;
+        for (int i = 0; i < count; i++) {
+            String emoji = emojis[rng.nextInt(emojis.length)];
+            TextView tv = new TextView(this);
+            tv.setText(emoji);
+            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20 + rng.nextInt(16));
+            android.widget.FrameLayout.LayoutParams lp =
+                    new android.widget.FrameLayout.LayoutParams(
+                            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT);
+            lp.leftMargin = rng.nextInt(screenW);
+            lp.topMargin = -80;
+            tv.setLayoutParams(lp);
+            overlay.addView(tv);
+
+            long delay = rng.nextInt(2500);
+            long duration = 2500 + rng.nextInt(2000);
+            android.animation.ObjectAnimator anim = android.animation.ObjectAnimator
+                    .ofFloat(tv, "translationY", 0, screenH + 150);
+            anim.setDuration(duration);
+            anim.setStartDelay(delay);
+            anim.setInterpolator(new android.view.animation.AccelerateInterpolator(0.8f));
+            anim.start();
+        }
+
+        overlay.postDelayed(() -> {
+            try {
+                android.view.ViewGroup parent = (android.view.ViewGroup) overlay.getParent();
+                if (parent != null) parent.removeView(overlay);
+            } catch (Exception ignored) {}
+        }, 5500);
     }
 }
