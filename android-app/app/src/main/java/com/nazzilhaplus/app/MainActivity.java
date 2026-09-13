@@ -1178,7 +1178,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                     ContentValues cv = new ContentValues();
                     cv.put(MediaStore.Video.Media.DISPLAY_NAME, filename);
                     cv.put(MediaStore.Video.Media.MIME_TYPE, mimeFor(filename));
-                    cv.put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/NazzilhaPlus");
+                    cv.put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/NazzilhaPlus");
                     cv.put(MediaStore.Video.Media.IS_PENDING, 1);
                     dlUri = getContentResolver().insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, cv);
                     if (dlUri == null) return false;
@@ -1238,7 +1238,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 }
             } catch (Exception ignored) {}
         }
-        dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "NazzilhaPlus");
+        dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "NazzilhaPlus");
         dir.mkdirs();
         File file = new File(dir, filename);
         for (int attempt = 0; attempt < 5; attempt++) {
