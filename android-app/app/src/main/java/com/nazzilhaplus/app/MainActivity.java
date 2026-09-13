@@ -149,6 +149,12 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        if (!getSharedPreferences("app_prefs", MODE_PRIVATE).getBoolean("onboarding_done", false)) {
+            startActivity(new android.content.Intent(this, OnboardingActivity.class));
+            finish();
+            return;
+        }
+
         bindViews();
         applyAppTheme();
         setupListeners();

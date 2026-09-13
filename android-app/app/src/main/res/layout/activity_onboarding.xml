@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0a0a0f">
+
+    <!-- Skip button -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp">
+        <TextView
+            android:id="@+id/skipBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical|end"
+            android:layout_marginEnd="20dp"
+            android:text="تخطي"
+            android:textSize="14sp"
+            android:textColor="#8888aa"
+            android:padding="8dp" />
+    </FrameLayout>
+
+    <!-- Pages container -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- Page 1 -->
+        <LinearLayout
+            android:id="@+id/page1"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔗"
+                android:textSize="72sp"
+                android:layout_marginBottom="28dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="الصق رابط أي فيديو"
+                android:textSize="24sp"
+                android:textColor="#f0f0f8"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginBottom="14dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="من تيك توك، انستا، فيسبوك\nوأكثر من 50 منصة حول العالم"
+                android:textSize="15sp"
+                android:textColor="#8888aa"
+                android:gravity="center"
+                android:lineSpacingExtra="4dp" />
+
+        </LinearLayout>
+
+        <!-- Page 2 -->
+        <LinearLayout
+            android:id="@+id/page2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⬇️"
+                android:textSize="72sp"
+                android:layout_marginBottom="28dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="اختر الجودة وحمّل"
+                android:textSize="24sp"
+                android:textColor="#f0f0f8"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginBottom="14dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="جودة عالية بضغطة واحدة\nمجاناً وبدون تسجيل"
+                android:textSize="15sp"
+                android:textColor="#8888aa"
+                android:gravity="center"
+                android:lineSpacingExtra="4dp" />
+
+        </LinearLayout>
+
+        <!-- Page 3 -->
+        <LinearLayout
+            android:id="@+id/page3"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📂"
+                android:textSize="72sp"
+                android:layout_marginBottom="28dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="جد ملفاتك في ملفاتي"
+                android:textSize="24sp"
+                android:textColor="#f0f0f8"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginBottom="14dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="كل ما حمّلته موجود في 📂 ملفاتي\nشغّل، شارك، أو احذف بسهولة"
+                android:textSize="15sp"
+                android:textColor="#8888aa"
+                android:gravity="center"
+                android:lineSpacingExtra="4dp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- Dots -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="24dp">
+
+        <View android:id="@+id/dot1"
+            android:layout_width="10dp" android:layout_height="10dp"
+            android:background="#a855f7" android:layout_marginEnd="8dp"
+            android:layout_marginStart="8dp" />
+        <View android:id="@+id/dot2"
+            android:layout_width="8dp" android:layout_height="8dp"
+            android:background="#2a2a3a" android:layout_marginEnd="8dp"
+            android:layout_marginStart="8dp" />
+        <View android:id="@+id/dot3"
+            android:layout_width="8dp" android:layout_height="8dp"
+            android:background="#2a2a3a" android:layout_marginEnd="8dp"
+            android:layout_marginStart="8dp" />
+
+    </LinearLayout>
+
+    <!-- Next / Start button -->
+    <TextView
+        android:id="@+id/nextBtn"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="32dp"
+        android:gravity="center"
+        android:text="التالي ←"
+        android:textSize="16sp"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:background="@drawable/btn_primary" />
+
+</LinearLayout>
