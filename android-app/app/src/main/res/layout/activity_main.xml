@@ -47,6 +47,31 @@
 
     </LinearLayout>
 
+    <!-- ══ Occasion Banner ══════════════════════════════════════════════ -->
+    <LinearLayout
+        android:id="@+id/occasionBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/occasionBannerText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:lineSpacingExtra="2dp" />
+
+    </LinearLayout>
+
     <!-- ══ Scrollable body ════════════════════════════════════════════════ -->
     <ScrollView
         android:layout_width="match_parent"

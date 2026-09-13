@@ -62,6 +62,11 @@
     <!-- Premium button states -->
     <string name="premium_active_label">✅ اشتراكك نشط — تحميل بلا حدود وبدون إعلانات</string>
 
+    <!-- Occasion banners -->
+    <string name="occasion_ramadan">🌙 رمضان كريم! رمضان مبارك عليكم، كل عام وأنتم بخير.</string>
+    <string name="occasion_eid">🎉 عيد مبارك! كل عام وأنتم بخير وسعادة.</string>
+    <string name="occasion_new_year">🎆 سنة سعيدة! عام مليء بالسعادة والنجاح والتوفيق.</string>
+
     <!-- Toast / misc -->
     <string name="premium_active_toast">✅ اشتراكك نشط</string>
     <string name="open_url_error">تعذّر فتح الرابط</string>

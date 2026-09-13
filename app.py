@@ -3469,6 +3469,52 @@ def api_proxy_download():
         return jsonify({"error": "فشل تحميل الفيديو"}), 500
 
 
+# ── Occasions ─────────────────────────────────────────────────────────────────
+# Update the date ranges each year. Islamic dates shift ~11 days earlier annually.
+# Set OCCASION_OVERRIDE env var to force an occasion for testing:
+#   OCCASION_OVERRIDE=ramadan  or  OCCASION_OVERRIDE=eid  or  OCCASION_OVERRIDE=new_year
+
+_OCCASIONS = [
+    # id            start_mm_dd  end_mm_dd   hijri_approx
+    ("ramadan",     (2, 18),     (3, 19)),   # Ramadan 2026
+    ("eid",         (3, 20),     (3, 22)),   # Eid Al-Fitr 2026
+    ("eid",         (5, 27),     (5, 29)),   # Eid Al-Adha 2026
+    ("new_year",    (1,  1),     (1,  1)),   # Gregorian New Year 2026
+    ("new_year",    (1,  1),     (1,  1)),   # Gregorian New Year 2027 (same slot)
+    ("ramadan",     (2,  7),     (3,  8)),   # Ramadan 2027
+    ("eid",         (3,  9),     (3, 11)),   # Eid Al-Fitr 2027
+    ("eid",         (5, 16),     (5, 18)),   # Eid Al-Adha 2027
+]
+
+_OCCASION_META = {
+    "ramadan":  {"emoji": "🌙", "ar": "رمضان كريم", "en": "Ramadan Kareem"},
+    "eid":      {"emoji": "🎉", "ar": "عيد مبارك",  "en": "Eid Mubarak"},
+    "new_year": {"emoji": "🎆", "ar": "سنة سعيدة",  "en": "Happy New Year"},
+}
+
+
+@app.route("/api/occasion", methods=["GET"])
+@limiter.limit("60 per minute")
+def api_occasion():
+    override = os.environ.get("OCCASION_OVERRIDE", "").strip().lower()
+    if override and override in _OCCASION_META:
+        meta = _OCCASION_META[override]
+        return jsonify({"occasion": override, **meta})
+
+    today = now().date()
+    for row in _OCCASIONS:
+        occ_id, (sm, sd), (em, ed) = row[0], row[1], row[2]
+        start = today.replace(month=sm, day=sd)
+        end   = today.replace(month=em, day=ed)
+        if end < start:                    # crosses year boundary
+            end = end.replace(year=end.year + 1)
+        if start <= today <= end:
+            meta = _OCCASION_META[occ_id]
+            return jsonify({"occasion": occ_id, **meta})
+
+    return jsonify({"occasion": None})
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=False, host="0.0.0.0", port=port)

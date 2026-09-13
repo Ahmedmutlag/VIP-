@@ -62,6 +62,11 @@
     <!-- Premium button states -->
     <string name="premium_active_label">✅ Subscription Active — Unlimited Downloads, Ad-Free</string>
 
+    <!-- Occasion banners -->
+    <string name="occasion_ramadan">🌙 Ramadan Kareem! Wishing you a blessed and peaceful month.</string>
+    <string name="occasion_eid">🎉 Eid Mubarak! May joy and blessings surround you.</string>
+    <string name="occasion_new_year">🎆 Happy New Year! Wishing you a wonderful year ahead.</string>
+
     <!-- Toast / misc -->
     <string name="premium_active_toast">✅ Your subscription is active</string>
     <string name="open_url_error">Could not open link</string>
