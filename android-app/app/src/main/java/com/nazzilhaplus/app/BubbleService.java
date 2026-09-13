@@ -252,7 +252,20 @@ public class BubbleService extends Service {
         if (panelOpen) return;
         panelOpen = true;
         badgeView.setVisibility(View.GONE);
-        buildPanel(detectedUrl.isEmpty() ? "" : detectedUrl);
+        // Read clipboard directly in case it was copied before the service started
+        if (detectedUrl.isEmpty()) {
+            try {
+                ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip() != null) {
+                    android.content.ClipData.Item item = cm.getPrimaryClip().getItemAt(0);
+                    if (item != null && item.getText() != null) {
+                        String txt = item.getText().toString().trim();
+                        if (isVideoUrl(txt)) detectedUrl = txt;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        buildPanel(detectedUrl);
     }
 
     private void closePanel() {
