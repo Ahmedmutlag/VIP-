@@ -1350,13 +1350,22 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     }
 
     private void showSuccessDialog(Uri fileUri, String filename) {
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("✅ اكتمل التحميل")
-            .setMessage("تم الحفظ في ملفاتي")
-            .setNegativeButton("حسناً", null)
-            .setPositiveButton("📂 فتح ملفاتي", (dlg, w) ->
-                startActivity(new Intent(this, FileBrowserActivity.class)))
-            .show();
+        androidx.appcompat.app.AlertDialog.Builder b =
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("✅ اكتمل التحميل")
+                .setMessage("تم الحفظ في ملفاتي")
+                .setNegativeButton("📂 ملفاتي", (dlg, w) ->
+                    startActivity(new Intent(this, FileBrowserActivity.class)));
+        if (fileUri != null) {
+            b.setPositiveButton("📤 مشاركة", (dlg, w) -> {
+                Intent share = new Intent(Intent.ACTION_SEND);
+                share.setType(mimeFor(filename != null ? filename : "video.mp4"));
+                share.putExtra(Intent.EXTRA_STREAM, fileUri);
+                share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivity(Intent.createChooser(share, "مشاركة الفيديو"));
+            });
+        }
+        b.show();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
