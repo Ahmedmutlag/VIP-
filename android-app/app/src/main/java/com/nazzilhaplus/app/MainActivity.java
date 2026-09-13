@@ -1212,6 +1212,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 ContentValues cv2 = new ContentValues();
                 cv2.put(MediaStore.Video.Media.IS_PENDING, 0);
                 getContentResolver().update(dlUri, cv2, null, null);
+                getContentResolver().notifyChange(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, null);
                 out[0] = dlUri;
                 return true;
             } catch (Exception e) {
