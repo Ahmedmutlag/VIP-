@@ -58,6 +58,7 @@ public class BubbleService extends Service {
     private View          bubbleRoot;
     private View          panelRoot;
     private TextView      badgeView;
+    private View          dismissTarget;
     private boolean       panelOpen = false;
     private String        detectedUrl = "";
 
@@ -183,20 +184,42 @@ public class BubbleService extends Service {
 
         @Override
         public boolean onTouch(View v, MotionEvent e) {
+            android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+            wm.getDefaultDisplay().getMetrics(dm);
+            int screenH = dm.heightPixels;
+            int screenW = dm.widthPixels;
+
             switch (e.getAction()) {
                 case MotionEvent.ACTION_DOWN:
                     bInitX = lp.x; bInitY = lp.y;
                     bInitTX = e.getRawX(); bInitTY = e.getRawY();
                     bDownTime = System.currentTimeMillis();
                     return true;
+
                 case MotionEvent.ACTION_MOVE:
                     lp.x = bInitX + (int)(e.getRawX() - bInitTX);
                     lp.y = bInitY + (int)(e.getRawY() - bInitTY);
                     wm.updateViewLayout(bubbleRoot, lp);
+                    boolean dragging = Math.abs(e.getRawX()-bInitTX) > dp(8)
+                                    || Math.abs(e.getRawY()-bInitTY) > dp(8);
+                    if (dragging) showDismissTarget();
+                    // Snap bubble to dismiss zone when close enough
+                    boolean nearDismiss = e.getRawY() > screenH - dp(120)
+                            && Math.abs(e.getRawX() - screenW / 2f) < dp(60);
+                    bubbleRoot.setAlpha(nearDismiss ? 0.5f : 1f);
                     return true;
+
                 case MotionEvent.ACTION_UP:
+                    hideDismissTarget();
+                    bubbleRoot.setAlpha(1f);
                     boolean wasDrag = Math.abs(e.getRawX()-bInitTX) > dp(8)
                                    || Math.abs(e.getRawY()-bInitTY) > dp(8);
+                    boolean droppedOnDismiss = e.getRawY() > screenH - dp(120)
+                            && Math.abs(e.getRawX() - screenW / 2f) < dp(60);
+                    if (wasDrag && droppedOnDismiss) {
+                        stop(BubbleService.this);
+                        return true;
+                    }
                     if (!wasDrag && System.currentTimeMillis()-bDownTime < 350) {
                         if (panelOpen) closePanel();
                         else openPanel();
@@ -205,6 +228,46 @@ public class BubbleService extends Service {
             }
             return false;
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Dismiss target (trash zone at bottom)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void showDismissTarget() {
+        if (dismissTarget != null) return;
+        int wType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            : WindowManager.LayoutParams.TYPE_PHONE;
+
+        TextView tv = new TextView(this);
+        tv.setText("✕");
+        tv.setTextSize(22);
+        tv.setTextColor(0xFFFFFFFF);
+        tv.setGravity(Gravity.CENTER);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.OVAL);
+        bg.setColor(0xCCEF4444);
+        tv.setBackground(bg);
+        tv.setPadding(dp(16), dp(16), dp(16), dp(16));
+
+        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+            dp(64), dp(64), wType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT);
+        lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        lp.y = dp(48);
+
+        dismissTarget = tv;
+        wm.addView(dismissTarget, lp);
+    }
+
+    private void hideDismissTarget() {
+        if (dismissTarget == null) return;
+        safeRemove(dismissTarget);
+        dismissTarget = null;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
