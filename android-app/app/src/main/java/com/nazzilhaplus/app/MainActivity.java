@@ -1116,8 +1116,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             Uri fu = resultUri[0];
             if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> {
                 showProgressSection(false, null);
-                if (isPremiumActive()) showSuccessDialog(fu, filename);
-                else showInterstitialAd(() -> showSuccessDialog(fu, filename));
+                showSuccessDialog(fu, filename);
             });
         } else {
             if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> { showProgressSection(false, null); showError("فشل التحميل، حاول مجدداً"); });
