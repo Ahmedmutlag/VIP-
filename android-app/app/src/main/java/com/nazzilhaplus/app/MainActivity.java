@@ -1343,20 +1343,13 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     }
 
     private void showSuccessDialog(Uri fileUri, String filename) {
-        androidx.appcompat.app.AlertDialog.Builder d =
-            new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("✅ اكتمل التحميل")
-                .setMessage("تم الحفظ في Downloads/NazzilhaPlus")
-                .setNegativeButton("حسناً", null);
-        if (fileUri != null) {
-            d.setPositiveButton("فتح الملف", (dlg, w) -> {
-                Intent i = new Intent(Intent.ACTION_VIEW);
-                i.setDataAndType(fileUri, mimeFor(filename != null ? filename : "video.mp4"));
-                i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                try { startActivity(i); } catch (Exception ignored) {}
-            });
-        }
-        d.show();
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("✅ اكتمل التحميل")
+            .setMessage("تم الحفظ في ملفاتي")
+            .setNegativeButton("حسناً", null)
+            .setPositiveButton("📂 فتح ملفاتي", (dlg, w) ->
+                startActivity(new Intent(this, FileBrowserActivity.class)))
+            .show();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
