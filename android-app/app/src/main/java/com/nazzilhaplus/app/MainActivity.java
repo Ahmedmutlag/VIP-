@@ -282,7 +282,6 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 return true;
             }
             if (id == R.id.menu_bubble)   { toggleBubble();        return true; }
-            if (id == R.id.menu_theme)    { showThemePicker();     return true; }
             if (id == R.id.menu_how_to)   { showHowToDialog();     return true; }
             if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
             if (id == R.id.menu_about)    { showAboutDialog();     return true; }
@@ -327,12 +326,8 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     //  Theme system
     // ══════════════════════════════════════════════════════════════════════════
 
-    private AppTheme currentTheme() {
-        return AppTheme.fromId(getPrefs().getString(AppTheme.PREF_KEY, "purple"));
-    }
-
     private void applyAppTheme() {
-        AppTheme t = currentTheme();
+        AppTheme t = AppTheme.getDefault();
 
         // Window colors
         getWindow().setStatusBarColor(t.headerColor);
@@ -419,27 +414,6 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         d.setColor(color);
         d.setCornerRadius((float) dp(radiusDp));
         return d;
-    }
-
-    private void showThemePicker() {
-        String[] names = new String[AppTheme.ALL.length];
-        for (int i = 0; i < AppTheme.ALL.length; i++) names[i] = AppTheme.ALL[i].name;
-
-        String current = getPrefs().getString(AppTheme.PREF_KEY, "purple");
-        int checked = 0;
-        for (int i = 0; i < AppTheme.ALL.length; i++) {
-            if (AppTheme.ALL[i].id.equals(current)) { checked = i; break; }
-        }
-
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("🎨 اختر الثيم")
-            .setSingleChoiceItems(names, checked, (dialog, which) -> {
-                getPrefs().edit().putString(AppTheme.PREF_KEY, AppTheme.ALL[which].id).apply();
-                dialog.dismiss();
-                recreate();
-            })
-            .setNegativeButton("إلغاء", null)
-            .show();
     }
 
     private void showHowToDialog() {
