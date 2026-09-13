@@ -15,6 +15,7 @@ import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.provider.Settings;
@@ -747,12 +748,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             saveHistory(title, platform);
             beginDownload();
         } else {
-            new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(getString(R.string.limit_title))
-                .setMessage(buildLimitMessage())
-                .setPositiveButton(getString(R.string.btn_premium), (d, w) -> launchBillingFlow())
-                .setNegativeButton(getString(R.string.btn_cancel), null)
-                .show();
+            showLimitDialog();
         }
     }
 
@@ -765,29 +761,49 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         return p.getInt("dl_count", 0) < FREE_DAILY_LIMIT;
     }
 
-    private String buildLimitMessage() {
-        // Calculate hours + minutes until midnight (next free reset)
-        java.util.Calendar now = java.util.Calendar.getInstance();
-        java.util.Calendar midnight = (java.util.Calendar) now.clone();
+    private long millisUntilMidnight() {
+        java.util.Calendar midnight = java.util.Calendar.getInstance();
         midnight.set(java.util.Calendar.HOUR_OF_DAY, 0);
         midnight.set(java.util.Calendar.MINUTE, 0);
         midnight.set(java.util.Calendar.SECOND, 0);
         midnight.set(java.util.Calendar.MILLISECOND, 0);
         midnight.add(java.util.Calendar.DAY_OF_MONTH, 1);
+        return midnight.getTimeInMillis() - System.currentTimeMillis();
+    }
 
-        long diffMs = midnight.getTimeInMillis() - now.getTimeInMillis();
-        long hours   = diffMs / (1000 * 60 * 60);
-        long minutes = (diffMs % (1000 * 60 * 60)) / (1000 * 60);
+    private String formatCountdown(long millis) {
+        long h = millis / 3_600_000;
+        long m = (millis % 3_600_000) / 60_000;
+        long s = (millis % 60_000) / 1_000;
+        if (h > 0) return String.format(Locale.getDefault(), "%d:%02d:%02d", h, m, s);
+        return String.format(Locale.getDefault(), "%02d:%02d", m, s);
+    }
 
-        String resetTime;
-        if (hours > 0) {
-            resetTime = String.format(Locale.getDefault(),
-                    getString(R.string.limit_reset_hours), hours, minutes);
-        } else {
-            resetTime = String.format(Locale.getDefault(),
-                    getString(R.string.limit_reset_minutes), minutes);
-        }
-        return String.format(getString(R.string.limit_message), FREE_DAILY_LIMIT, resetTime);
+    private String buildLimitMessageFromMillis(long millis) {
+        return String.format(getString(R.string.limit_message), FREE_DAILY_LIMIT, formatCountdown(millis));
+    }
+
+    private void showLimitDialog() {
+        long remaining = millisUntilMidnight();
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.limit_title))
+            .setMessage(buildLimitMessageFromMillis(remaining))
+            .setPositiveButton(getString(R.string.btn_premium), (d, w) -> launchBillingFlow())
+            .setNegativeButton(getString(R.string.btn_cancel), null)
+            .create();
+        dialog.show();
+
+        android.widget.TextView msgView = dialog.findViewById(android.R.id.message);
+        CountDownTimer timer = new CountDownTimer(remaining, 1000) {
+            @Override public void onTick(long ms) {
+                if (msgView != null) runOnUiThread(() ->
+                    msgView.setText(buildLimitMessageFromMillis(ms)));
+            }
+            @Override public void onFinish() {
+                if (dialog.isShowing()) dialog.dismiss();
+            }
+        }.start();
+        dialog.setOnDismissListener(d -> timer.cancel());
     }
 
     // ── Premium (Wayl) ───────────────────────────────────────────────────────
