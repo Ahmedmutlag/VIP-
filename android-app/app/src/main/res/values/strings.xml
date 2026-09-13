@@ -68,7 +68,9 @@
 
     <!-- Daily limit dialog -->
     <string name="limit_title">Daily Limit Reached</string>
-    <string name="limit_message">You\'ve used your %d free downloads for today.\nUpgrade to Premium for unlimited downloads.</string>
+    <string name="limit_message">You\'ve used your %1$d free downloads for today.\n\n🕐 Free downloads reset in %2$s\n\n⭐ Want to download now? Upgrade to Premium for unlimited downloads.</string>
+    <string name="limit_reset_hours">%d hours and %d minutes</string>
+    <string name="limit_reset_minutes">%d minutes</string>
     <string name="btn_premium">⭐ Go Premium</string>
     <string name="btn_cancel">Cancel</string>
 </resources>

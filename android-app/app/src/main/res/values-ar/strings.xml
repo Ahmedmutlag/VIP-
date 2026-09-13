@@ -68,7 +68,9 @@
 
     <!-- Daily limit dialog -->
     <string name="limit_title">تجاوزت الحد اليومي</string>
-    <string name="limit_message">استنفذت %d تحميلات مجانية لهذا اليوم.\nفعّل البريميوم للحصول على تحميل غير محدود.</string>
+    <string name="limit_message">استنفذت %1$d تحميلات مجانية لهذا اليوم.\n\n🕐 التحميل المجاني يتجدد خلال %2$s\n\n⭐ تريد تحمّل الآن؟ اشترك بريميوم للتحميل بلا حدود.</string>
+    <string name="limit_reset_hours">%d ساعة و%d دقيقة</string>
+    <string name="limit_reset_minutes">%d دقيقة</string>
     <string name="btn_premium">⭐ اشترك بريميوم</string>
     <string name="btn_cancel">إلغاء</string>
 </resources>

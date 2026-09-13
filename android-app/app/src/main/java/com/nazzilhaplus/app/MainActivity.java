@@ -749,7 +749,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         } else {
             new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle(getString(R.string.limit_title))
-                .setMessage(String.format(getString(R.string.limit_message), FREE_DAILY_LIMIT))
+                .setMessage(buildLimitMessage())
                 .setPositiveButton(getString(R.string.btn_premium), (d, w) -> launchBillingFlow())
                 .setNegativeButton(getString(R.string.btn_cancel), null)
                 .show();
@@ -763,6 +763,31 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         SharedPreferences p = getPrefs();
         if (!today.equals(p.getString("dl_date", ""))) return true;
         return p.getInt("dl_count", 0) < FREE_DAILY_LIMIT;
+    }
+
+    private String buildLimitMessage() {
+        // Calculate hours + minutes until midnight (next free reset)
+        java.util.Calendar now = java.util.Calendar.getInstance();
+        java.util.Calendar midnight = (java.util.Calendar) now.clone();
+        midnight.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        midnight.set(java.util.Calendar.MINUTE, 0);
+        midnight.set(java.util.Calendar.SECOND, 0);
+        midnight.set(java.util.Calendar.MILLISECOND, 0);
+        midnight.add(java.util.Calendar.DAY_OF_MONTH, 1);
+
+        long diffMs = midnight.getTimeInMillis() - now.getTimeInMillis();
+        long hours   = diffMs / (1000 * 60 * 60);
+        long minutes = (diffMs % (1000 * 60 * 60)) / (1000 * 60);
+
+        String resetTime;
+        if (hours > 0) {
+            resetTime = String.format(Locale.getDefault(),
+                    getString(R.string.limit_reset_hours), hours, minutes);
+        } else {
+            resetTime = String.format(Locale.getDefault(),
+                    getString(R.string.limit_reset_minutes), minutes);
+        }
+        return String.format(getString(R.string.limit_message), FREE_DAILY_LIMIT, resetTime);
     }
 
     // ── Premium (Wayl) ───────────────────────────────────────────────────────
