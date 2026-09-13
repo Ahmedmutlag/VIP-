@@ -320,7 +320,6 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 return true;
             }
             if (id == R.id.menu_bubble)   { toggleBubble();        return true; }
-            if (id == R.id.menu_folder)   { pickDownloadFolder();  return true; }
             if (id == R.id.menu_files)    { startActivity(new android.content.Intent(this, FileBrowserActivity.class)); return true; }
             if (id == R.id.menu_how_to)   { showHowToDialog();     return true; }
             if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
