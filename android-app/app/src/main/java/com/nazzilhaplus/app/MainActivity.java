@@ -1211,6 +1211,19 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 ContentValues cv2 = new ContentValues();
                 cv2.put(MediaStore.Video.Media.IS_PENDING, 0);
                 getContentResolver().update(dlUri, cv2, null, null);
+                // Force immediate gallery indexing
+                try {
+                    android.database.Cursor c2 = getContentResolver().query(
+                        dlUri, new String[]{MediaStore.MediaColumns.DATA}, null, null, null);
+                    if (c2 != null && c2.moveToFirst()) {
+                        String path = c2.getString(0);
+                        c2.close();
+                        if (path != null) {
+                            MediaScannerConnection.scanFile(this,
+                                new String[]{path}, new String[]{mimeFor(filename)}, null);
+                        }
+                    } else if (c2 != null) c2.close();
+                } catch (Exception ignored) {}
                 getContentResolver().notifyChange(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, null);
                 out[0] = dlUri;
                 return true;
