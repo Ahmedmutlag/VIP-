@@ -16,7 +16,7 @@
     <string name="stat_noaccount">No Account Needed</string>
     <string name="stat_fast_label">Instant</string>
     <string name="stat_fast_sub">Fast Download</string>
-    <string name="premium_btn_text">⭐ Premium — Unlimited Monthly Downloads, Ad-Free</string>
+    <string name="premium_btn_text">⭐ Premium — Unlimited Downloads</string>
     <string name="url_hint">Paste video link here…</string>
     <string name="btn_fetch">Fetch Video Info →</string>
     <string name="quality_label">Choose Quality</string>
@@ -45,7 +45,7 @@
 
     <!-- How to dialog -->
     <string name="how_to_title">How to Use Nazzilha Plus?</string>
-    <string name="how_to_message">1️⃣  Open any app (TikTok, Instagram, Facebook…)\n\n2️⃣  Tap \"Share\" then copy the link\n\n3️⃣  Return to the app — the link will auto-paste\n\n4️⃣  Tap \"Fetch Video Info\"\n\n5️⃣  Choose your preferred quality\n\n6️⃣  Wait for the download and open the file 🎉\n\n💡 Free users: 3 downloads per day, no ads\n⭐ Premium: Unlimited downloads</string>
+    <string name="how_to_message">1️⃣  Open any app (TikTok, Instagram, Facebook…)\n\n2️⃣  Tap \"Share\" then copy the link\n\n3️⃣  Return to the app — the link will auto-paste\n\n4️⃣  Tap \"Fetch Video Info\"\n\n5️⃣  Choose your preferred quality\n\n6️⃣  Wait for the download and open the file 🎉\n\n💡 Free users: 3 downloads per day\n⭐ Premium: Unlimited downloads</string>
     <string name="dialog_got_it">Got it</string>
 
     <!-- Privacy dialog -->
@@ -60,7 +60,7 @@
     <string name="about_footer">\n\n© 2026 Nazzilha Plus. All rights reserved.</string>
 
     <!-- Premium button states -->
-    <string name="premium_active_label">✅ Subscription Active — Unlimited Downloads, Ad-Free</string>
+    <string name="premium_active_label">✅ Subscription Active — Unlimited Downloads</string>
 
     <!-- Occasion banners -->
     <string name="occasion_ramadan">🌙 Ramadan Kareem! Wishing you a blessed and peaceful month.</string>

@@ -16,7 +16,7 @@
     <string name="stat_noaccount">لا حاجة لحساب</string>
     <string name="stat_fast_label">فوري</string>
     <string name="stat_fast_sub">تحميل سريع</string>
-    <string name="premium_btn_text">⭐ بريميوم — تحميل بلا حدود شهرياً وبدون إعلانات</string>
+    <string name="premium_btn_text">⭐ بريميوم — تحميل بلا حدود</string>
     <string name="url_hint">الصق رابط الفيديو هنا...</string>
     <string name="btn_fetch">جلب معلومات الفيديو ←</string>
     <string name="quality_label">اختر الجودة</string>
@@ -45,7 +45,7 @@
 
     <!-- How to dialog -->
     <string name="how_to_title">كيف تستخدم نزلها بلس؟</string>
-    <string name="how_to_message">1️⃣  افتح أي تطبيق (تيك توك، إنستغرام، فيسبوك...)\n\n2️⃣  اضغط على \"مشاركة\" ثم انسخ الرابط\n\n3️⃣  ارجع للتطبيق — سيُلصق الرابط تلقائياً\n\n4️⃣  اضغط \"جلب معلومات الفيديو\"\n\n5️⃣  اختر الجودة التي تريدها\n\n6️⃣  انتظر اكتمال التحميل وافتح الملف 🎉\n\n💡 المستخدمون المجانيون: 3 تحميلات يومياً بدون إعلانات\n⭐ بريميوم: تحميل غير محدود</string>
+    <string name="how_to_message">1️⃣  افتح أي تطبيق (تيك توك، إنستغرام، فيسبوك...)\n\n2️⃣  اضغط على \"مشاركة\" ثم انسخ الرابط\n\n3️⃣  ارجع للتطبيق — سيُلصق الرابط تلقائياً\n\n4️⃣  اضغط \"جلب معلومات الفيديو\"\n\n5️⃣  اختر الجودة التي تريدها\n\n6️⃣  انتظر اكتمال التحميل وافتح الملف 🎉\n\n💡 المستخدمون المجانيون: 3 تحميلات يومياً\n⭐ بريميوم: تحميل غير محدود</string>
     <string name="dialog_got_it">فهمت</string>
 
     <!-- Privacy dialog -->
@@ -60,7 +60,7 @@
     <string name="about_footer">\n\n© 2026 نزلها بلس. جميع الحقوق محفوظة.</string>
 
     <!-- Premium button states -->
-    <string name="premium_active_label">✅ اشتراكك نشط — تحميل بلا حدود وبدون إعلانات</string>
+    <string name="premium_active_label">✅ اشتراكك نشط — تحميل بلا حدود</string>
 
     <!-- Occasion banners -->
     <string name="occasion_ramadan">🌙 رمضان كريم! رمضان مبارك عليكم، كل عام وأنتم بخير.</string>
