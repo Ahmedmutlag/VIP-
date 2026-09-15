@@ -5,6 +5,7 @@
     <string name="app_host">www.vip-dl.com</string>
     <!-- UI Strings -->
     <string name="app_header">⬇ نزلها بلس</string>
+    <string name="menu_label">القائمة</string>
     <string name="tagline">مجاني ✦ بدون تسجيل ✦ سريع</string>
     <string name="hero_title1">احفظ المحتوى</string>
     <string name="hero_title2">بضغطة واحدة</string>

@@ -85,8 +85,9 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     private Button pasteBtn, fetchBtn;
     private LinearLayout premiumBtn;
     private TextView premiumBtnTitle, premiumBtnSub;
-    private ImageButton langBtn;
-    private ImageButton menuBtn;
+    private View langBtn;
+    private View menuBtn;
+    private TextView langLabel;
     private ProgressBar loadingSpinner;
     private TextView errorBox;
     private LinearLayout resultCard, formatsContainer, progressSection, hintCard;
@@ -137,6 +138,12 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         super.attachBaseContext(base);
     }
 
+    private void updateLangLabel() {
+        if (langLabel == null) return;
+        String lang = getPrefs().getString("app_lang", "ar");
+        langLabel.setText("ar".equals(lang) ? "EN" : "عر");
+    }
+
     private void toggleLanguage() {
         String current = getPrefs().getString("app_lang", "");
         String next = "ar".equals(current) ? "en" : "ar";
@@ -157,6 +164,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
 
         bindViews();
         applyAppTheme();
+        updateLangLabel();
         setupListeners();
         showDisclaimerIfNeeded();
         NotificationReceiver.createChannel(this);
@@ -230,6 +238,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         premiumBtnTitle  = findViewById(R.id.premiumBtnTitle);
         premiumBtnSub    = findViewById(R.id.premiumBtnSub);
         langBtn          = findViewById(R.id.langBtn);
+        langLabel        = findViewById(R.id.langLabel);
         loadingSpinner   = findViewById(R.id.loadingSpinner);
         errorBox         = findViewById(R.id.errorBox);
         resultCard       = findViewById(R.id.resultCard);
