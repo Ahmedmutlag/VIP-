@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/menu_upgrade"  android:title="@string/menu_upgrade_inactive" />
+    <item android:id="@+id/menu_bubble"   android:title="@string/menu_item_bubble_off" />
+    <item android:id="@+id/menu_files"    android:title="@string/menu_item_files" />
+    <item android:id="@+id/menu_how_to"   android:title="@string/menu_item_how_to" />
+    <item android:id="@+id/menu_privacy"  android:title="@string/menu_item_privacy" />
+    <item android:id="@+id/menu_about"    android:title="@string/menu_item_about" />
+    <item android:id="@+id/menu_blog"     android:title="@string/menu_item_blog" />
+    <item android:id="@+id/menu_clip_monitor" android:title="🔔 كشف الروابط التلقائي" />
+    <item android:id="@+id/menu_biometric" android:title="🔒 قفل البصمة" />
+    <item android:id="@+id/menu_referral" android:title="🎁 أحضر صديقاً" />
+    <item android:id="@+id/menu_contact"  android:title="@string/menu_item_contact" />
+</menu>

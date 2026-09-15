@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">نزلها بلس</string>
+    <string name="app_url">https://www.vip-dl.com</string>
+    <string name="app_host">www.vip-dl.com</string>
+    <!-- UI Strings -->
+    <string name="app_header">⬇ نزلها بلس</string>
+    <string name="menu_label">القائمة</string>
+    <string name="tagline">مجاني ✦ بدون تسجيل ✦ سريع</string>
+    <string name="hero_title1">احفظ المحتوى</string>
+    <string name="hero_title2">بضغطة واحدة</string>
+    <string name="feat_platforms">🌐 +50 منصة</string>
+    <string name="feat_media">🎬 فيديو وصوت</string>
+    <string name="feat_quality">⚡ جودة عالية</string>
+    <string name="stat_free_label">مجاني وآمن</string>
+    <string name="stat_noreg_label">بدون تسجيل</string>
+    <string name="stat_noaccount">لا حاجة لحساب</string>
+    <string name="stat_fast_label">فوري</string>
+    <string name="stat_fast_sub">تحميل سريع</string>
+    <string name="premium_btn_text">⭐ بريميوم — تحميل بلا حدود</string>
+    <string name="url_hint">الصق رابط الفيديو هنا...</string>
+    <string name="btn_fetch">جلب معلومات الفيديو ←</string>
+    <string name="quality_label">اختر الجودة</string>
+    <string name="downloading_label">⬇  جاري التحميل...</string>
+    <string name="history_title">📋 سجل التحميلات الأخيرة</string>
+    <string name="btn_clear">مسح الكل</string>
+    <string name="hint_paste_url">الصق رابط أي فيديو من الإنترنت</string>
+    <string name="hint_platforms">+50 منصة مدعومة</string>
+    <string name="footer_tagline">احفظ المحتوى الرقمي بضغطة واحدة</string>
+    <string name="footer_how_to">كيف تستخدمه</string>
+    <string name="footer_privacy">سياسة الخصوصية</string>
+    <string name="footer_about">عن التطبيق</string>
+    <string name="footer_copyright">© 2026 نزلها بلس. جميع الحقوق محفوظة.</string>
+
+    <!-- Menu items -->
+    <string name="menu_upgrade_inactive">⭐ ترقية للبريميوم</string>
+    <string name="menu_upgrade_active">⭐ بريميوم — نشط ✅</string>
+    <string name="menu_item_bubble_off">🫧 الفقاعة العائمة — معطّلة</string>
+    <string name="menu_item_bubble_on">🫧 الفقاعة العائمة — نشطة ✅</string>
+
+    <string name="menu_item_how_to">كيف تستخدمه</string>
+    <string name="menu_item_privacy">سياسة الخصوصية</string>
+    <string name="menu_item_about">عن التطبيق</string>
+    <string name="menu_item_blog">المدونة</string>
+    <string name="menu_item_contact">✉ تواصل مع المالك</string>
+
+    <!-- How to dialog -->
+    <string name="how_to_title">كيف تستخدم نزلها بلس؟</string>
+    <string name="how_to_message">1️⃣  افتح أي تطبيق (تيك توك، إنستغرام، فيسبوك...)\n\n2️⃣  اضغط على \"مشاركة\" ثم انسخ الرابط\n\n3️⃣  ارجع للتطبيق — سيُلصق الرابط تلقائياً\n\n4️⃣  اضغط \"جلب معلومات الفيديو\"\n\n5️⃣  اختر الجودة التي تريدها\n\n6️⃣  انتظر اكتمال التحميل وافتح الملف 🎉\n\n💡 المستخدمون المجانيون: 3 تحميلات يومياً\n⭐ بريميوم: تحميل غير محدود</string>
+    <string name="dialog_got_it">فهمت</string>
+
+    <!-- Privacy dialog -->
+    <string name="privacy_dialog_title">سياسة الخصوصية</string>
+    <string name="privacy_message">نزلها بلس — سياسة الخصوصية\n\n• لا نجمع بياناتك الشخصية ولا نشاركها مع أي طرف ثالث.\n\n• الروابط التي تدخلها تُرسل إلى خادمنا لمعالجتها فقط ولا تُحفظ.\n\n• سجل التحميلات محفوظ على جهازك فقط.\n\n• نستخدم Firebase للإشعارات وتحليل الأداء.\n\n• الاشتراك يُدار بالكامل عبر Google Play.\n\n• أنت مسؤول عن التحقق من حقوق المحتوى الذي تحمّله.\n\nللتواصل: </string>
+    <string name="dialog_ok">حسناً</string>
+    <string name="dialog_visit_site">زيارة الموقع</string>
+
+    <!-- About dialog -->
+    <string name="about_title">عن نزلها بلس</string>
+    <string name="about_message">📱 نزلها بلس\nالإصدار: %s\n\nتطبيق لتحميل الفيديوهات من أكثر من 50 منصة بضغطة واحدة.\n\nالمنصات المدعومة:\nتيك توك • إنستغرام • فيسبوك • تويتر/X\nسناب شات • ديلي موشن • فيميو • بيليبيلي\nبنترست • تويتش • ريديت • وغيرها\n\n🌐 </string>
+    <string name="about_footer">\n\n© 2026 نزلها بلس. جميع الحقوق محفوظة.</string>
+
+    <!-- Premium button states -->
+    <string name="premium_active_label">✅ اشتراكك نشط — تحميل بلا حدود</string>
+
+    <!-- Download folder -->
+    <string name="menu_item_folder">📁 مجلد التحميل</string>
+    <string name="menu_item_files">📂 ملفاتي</string>
+    <string name="folder_saved">تم حفظ المجلد</string>
+
+    <!-- Notifications -->
+    <string name="notif_done_title">اكتمل التحميل</string>
+    <string name="notif_fail_title">فشل التحميل</string>
+
+    <!-- Occasion banners -->
+    <string name="occasion_ramadan">🌙 رمضان كريم! رمضان مبارك عليكم، كل عام وأنتم بخير.</string>
+    <string name="occasion_eid">🎉 عيد مبارك! كل عام وأنتم بخير وسعادة.</string>
+    <string name="occasion_new_year">🎆 سنة سعيدة! عام مليء بالسعادة والنجاح والتوفيق.</string>
+
+    <!-- Toast / misc -->
+    <string name="premium_active_toast">✅ اشتراكك نشط</string>
+    <string name="open_url_error">تعذّر فتح الرابط</string>
+
+    <!-- Daily limit dialog -->
+    <string name="limit_title">تجاوزت الحد اليومي</string>
+    <string name="limit_message">استنفذت %1$d تحميلات مجانية لهذا اليوم.\n\n🕐  التحميل المجاني يتجدد خلال\n%2$s\n\n⭐ تريد بلا حدود؟ اشترك بريميوم.</string>
+    <string name="btn_premium">⭐ اشترك بريميوم</string>
+    <string name="btn_cancel">إلغاء</string>
+</resources>

@@ -26,6 +26,348 @@ from flask_compress import Compress
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 import yt_dlp
+try:
+    import imageio_ffmpeg
+    _FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
+except Exception:
+    _FFMPEG_PATH = None
+
+# ===== RapidAPI — Social Media Video Downloader (SMVD) =====
+RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
+SMVD_HOST     = "social-media-video-downloader.p.rapidapi.com"
+
+# ===== RapidAPI — YouTube Media Downloader =====
+YTDL_HOST = "youtube-media-downloader.p.rapidapi.com"
+
+# ===== RapidAPI — YouTube Video And Shorts Downloader =====
+YTDL2_HOST = "youtube-video-and-shorts-downloader1.p.rapidapi.com"
+
+
+def _call_youtube_api(video_id: str) -> dict:
+    """Call YouTube Media Downloader RapidAPI."""
+    if not RAPIDAPI_KEY:
+        return {"error": "no_key"}
+    try:
+        import requests as _req
+        resp = _req.get(
+            f"https://{YTDL_HOST}/v2/video/details",
+            params={
+                "videoId": video_id,
+                "urlAccess": "proxied",
+                "videos": "auto",
+                "audios": "auto",
+            },
+            headers={
+                "x-rapidapi-host": YTDL_HOST,
+                "x-rapidapi-key": RAPIDAPI_KEY,
+            },
+            timeout=30,
+        )
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _call_youtube2_api(video_id: str) -> dict:
+    """Call YouTube Video And Shorts Downloader RapidAPI (fallback)."""
+    if not RAPIDAPI_KEY:
+        return {"error": "no_key"}
+    try:
+        import requests as _req
+        import urllib.parse as _up
+        resp = _req.get(
+            f"https://{YTDL2_HOST}/youtube/v3/video/details",
+            params={
+                "videoId": video_id,
+                "urlAccess": "proxied",
+                "renderableFormats": "720p,highres",
+                "getTranscript": "false",
+            },
+            headers={
+                "x-rapidapi-host": YTDL2_HOST,
+                "x-rapidapi-key": RAPIDAPI_KEY,
+            },
+            timeout=30,
+        )
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _parse_youtube_api_response(data: dict) -> tuple:
+    """Parse YouTube Media Downloader response into (title, thumbnail, formats)."""
+    title = ""
+    thumbnail = ""
+    formats = []
+
+    title = (data.get("title") or "").strip()
+    thumbnail = (data.get("thumbnail") or {}).get("url", "") or ""
+
+    videos = data.get("videos") or {}
+    audios = data.get("audios") or {}
+
+    # videos can be a dict keyed by quality label or a list
+    video_items = []
+    if isinstance(videos, dict):
+        for label, v in videos.items():
+            if isinstance(v, list):
+                video_items.extend(v)
+            elif isinstance(v, dict):
+                v["_label"] = label
+                video_items.append(v)
+    elif isinstance(videos, list):
+        video_items = videos
+
+    # Collect audio items first to embed best audio URL in video formats
+    audio_items_tmp = []
+    if isinstance(audios, dict):
+        for label, a in audios.items():
+            if isinstance(a, list):
+                audio_items_tmp.extend(a)
+            elif isinstance(a, dict):
+                audio_items_tmp.append(a)
+    elif isinstance(audios, list):
+        audio_items_tmp = list(audios)
+
+    best_audio_url = ""
+    for a in audio_items_tmp:
+        a_url = (a.get("url") or "").strip()
+        if a_url:
+            best_audio_url = a_url
+            break
+
+    seen_heights: set = set()
+    for v in video_items:
+        v_url = (v.get("url") or "").strip()
+        if not v_url:
+            continue
+        height = v.get("height") or 0
+        label = v.get("quality") or v.get("_label") or (f"{height}p" if height else "فيديو")
+        if height and height in seen_heights:
+            continue
+        seen_heights.add(height)
+        fmt = {
+            "id": f"v{height or label}",
+            "label": str(label),
+            "url": v_url,
+            "ext": "mp4",
+            "type": "video",
+            "height": height,
+        }
+        if best_audio_url:
+            fmt["audio_url"] = best_audio_url
+        formats.append(fmt)
+
+    audio_added = False
+    audio_items = audio_items_tmp
+
+    for a in audio_items:
+        a_url = (a.get("url") or "").strip()
+        if not a_url or audio_added:
+            continue
+        formats.append({
+            "id": "audio",
+            "label": "صوت فقط",
+            "url": a_url,
+            "ext": "m4a",
+            "type": "audio",
+            "height": 0,
+        })
+        audio_added = True
+
+    video_fmts = sorted([f for f in formats if f["type"] == "video"],
+                        key=lambda x: x["height"], reverse=True)
+    audio_fmts = [f for f in formats if f["type"] == "audio"]
+    formats = video_fmts + audio_fmts
+
+    return title, thumbnail, formats
+
+# Platform → SMVD endpoint path
+SMVD_PLATFORM_PATHS = {
+    "TikTok":    "/tiktok/v3/post/details",
+    "Instagram": "/instagram/v3/media/details",
+    "Facebook":  "/facebook/v3/post/details",
+    "Twitter/X": "/twitter/v3/post/details",
+    "Snapchat":  "/snapchat/v3/post/details",
+    "Pinterest": "/pinterest/v3/pin/details",
+}
+
+
+def _extract_youtube_id(url: str) -> str:
+    """Extract YouTube video ID from various URL formats."""
+    import re as _re
+    patterns = [
+        r"[?&]v=([A-Za-z0-9_-]{11})",
+        r"youtu\.be/([A-Za-z0-9_-]{11})",
+        r"shorts/([A-Za-z0-9_-]{11})",
+        r"embed/([A-Za-z0-9_-]{11})",
+    ]
+    for p in patterns:
+        m = _re.search(p, url)
+        if m:
+            return m.group(1)
+    return ""
+
+
+def _call_smvd_api(url: str, platform: str) -> dict:
+    """Call the Social Media Video Downloader RapidAPI (GET-based)."""
+    if not RAPIDAPI_KEY:
+        return {"error": "no_key"}
+    path = SMVD_PLATFORM_PATHS.get(platform)
+    if not path:
+        return {"error": "unsupported_platform"}
+    try:
+        import requests as _req
+        import urllib.parse as _up
+
+        if platform == "YouTube":
+            video_id = _extract_youtube_id(url)
+            if not video_id:
+                return {"error": "could_not_extract_youtube_id"}
+            endpoint = (
+                f"https://{SMVD_HOST}{path}"
+                f"?videoId={_up.quote(video_id, safe='')}"
+                f"&urlAccess=proxied"
+                f"&renderableFormats=720p%2Chighres"
+                f"&getTranscript=false"
+            )
+        else:
+            endpoint = f"https://{SMVD_HOST}{path}?url={_up.quote(url, safe='')}"
+
+        resp = _req.get(
+            endpoint,
+            headers={
+                "x-rapidapi-host": SMVD_HOST,
+                "x-rapidapi-key": RAPIDAPI_KEY,
+            },
+            timeout=30,
+        )
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _parse_smvd_response(data: dict) -> tuple:
+    """Parse SMVD API response into (title, thumbnail, formats).
+
+    SMVD response shape:
+      data.metadata.title / data.metadata.thumbnailUrl
+      data.contents[0].videos[]  → {label, url, metadata:{height, width}}
+      data.contents[0].audios[]  → {label, url, metadata:{mime_type}}
+    """
+    title = ""
+    thumbnail = ""
+    formats = []
+
+    meta = data.get("metadata") or {}
+    title = (meta.get("title") or "").strip()
+    thumbnail = (meta.get("thumbnailUrl") or "").strip()
+
+    contents = data.get("contents") or []
+    if not contents:
+        return title, thumbnail, formats
+
+    first = contents[0]
+    videos = first.get("videos") or []
+    audios = first.get("audios") or []
+
+    # Pick best audio URL to embed in video formats
+    best_audio_url = ""
+    for a in audios:
+        a_url = (a.get("url") or "").strip()
+        if a_url:
+            best_audio_url = a_url
+            break
+
+    seen_heights: set = set()
+    for v in videos:
+        v_url = (v.get("url") or "").strip()
+        if not v_url:
+            continue
+        v_meta = v.get("metadata") or {}
+        height = v_meta.get("height") or 0
+        label_raw = (v.get("label") or "").strip()
+
+        # Skip h265 variants when an h264 of same height already added
+        if height and height in seen_heights:
+            continue
+        seen_heights.add(height)
+
+        label = label_raw if label_raw else (f"{height}p" if height else "فيديو")
+        fmt = {
+            "id": f"v{height or label_raw}",
+            "label": label,
+            "url": v_url,
+            "ext": "mp4",
+            "type": "video",
+            "height": height,
+        }
+        if best_audio_url:
+            fmt["audio_url"] = best_audio_url
+        formats.append(fmt)
+
+    audio_added = False
+    for a in audios:
+        a_url = (a.get("url") or "").strip()
+        if not a_url or audio_added:
+            continue
+        a_meta = a.get("metadata") or {}
+        mime = (a_meta.get("mime_type") or "audio/mpeg").lower()
+        ext = "mp3" if "mpeg" in mime else ("m4a" if "mp4" in mime or "aac" in mime else "mp3")
+        formats.append({
+            "id": "audio",
+            "label": "صوت فقط",
+            "url": a_url,
+            "ext": ext,
+            "type": "audio",
+            "height": 0,
+        })
+        audio_added = True
+
+    # Sort video formats highest quality first, audio at the end
+    video_fmts = sorted([f for f in formats if f["type"] == "video"],
+                        key=lambda x: x["height"], reverse=True)
+    audio_fmts = [f for f in formats if f["type"] == "audio"]
+    formats = video_fmts + audio_fmts
+
+    return title, thumbnail, formats
+
+
+# ===== RapidAPI — Auto Download All In One (legacy, kept for tiktok-download fallback) =====
+RAPIDAPI_HOST = "auto-download-all-in-one.p.rapidapi.com"
+RAPIDAPI_URL  = f"https://{RAPIDAPI_HOST}/v1/social/autolink"
+
+
+def _call_rapidapi(url: str) -> dict:
+    if not RAPIDAPI_KEY:
+        return {"error": "no_key"}
+    try:
+        import requests as _req
+        resp = _req.post(
+            RAPIDAPI_URL,
+            headers={
+                "Content-Type": "application/json",
+                "x-rapidapi-host": RAPIDAPI_HOST,
+                "x-rapidapi-key": RAPIDAPI_KEY,
+            },
+            json={"url": url},
+            timeout=30,
+        )
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def _rapidapi_pick_url(medias: list, prefer_audio: bool = False) -> str:
+    if not medias:
+        return ""
+    if prefer_audio:
+        for u in medias:
+            if u.get("type", "") == "audio" or u.get("extension", "") in ("mp3", "m4a", "aac"):
+                return u.get("url", "")
+    for u in medias:
+        if u.get("extension", "") == "mp4" and u.get("type", "") == "video":
+            return u.get("url", "")
+    return medias[0].get("url", "")
 
 
 # ===== Auto-update yt-dlp =====
@@ -42,14 +384,39 @@ def auto_update_ytdlp():
 
 threading.Thread(target=auto_update_ytdlp, daemon=True).start()
 
+# Short-lived store for direct-merge URL pairs keyed by short UUID.
+# Avoids putting very long YouTube/SMVD proxied URLs in the HTTP request line
+# which would exceed gunicorn's 4094-byte limit-request-line.
+_merge_jobs: dict = {}          # id → {"v": url, "a": url, "ts": float}
+_merge_jobs_lock = threading.Lock()
+
+def _store_merge_job(v_url: str, a_url: str) -> str:
+    job_id = uuid.uuid4().hex[:16]
+    with _merge_jobs_lock:
+        _merge_jobs[job_id] = {"v": v_url, "a": a_url, "ts": time.time()}
+        # Evict entries older than 30 minutes
+        cutoff = time.time() - 1800
+        stale = [k for k, val in _merge_jobs.items() if val["ts"] < cutoff]
+        for k in stale:
+            del _merge_jobs[k]
+    return job_id
+
+def _get_merge_job(job_id: str) -> dict:
+    with _merge_jobs_lock:
+        return _merge_jobs.get(job_id) or {}
+
 _server_start = time.time()
 _last_activity = time.time()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "vip-secret-2026-xk9z")
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 CORS(app, origins=["https://www.vip-dl.com", "https://vip-dl.com"])
 Compress(app)
+app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # 1 MB
+app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 @app.before_request
 def track_activity():
@@ -68,18 +435,18 @@ def add_cache_headers(response):
         response.cache_control.public = True
 
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com "
-        "https://pagead2.googlesyndication.com https://www.googletagmanager.com; "
+        "https://www.googletagmanager.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
-        "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://region1.google-analytics.com; "
-        "frame-src https://googleads.g.doubleclick.net https://www.google.com;"
+        "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; "
+        "frame-src 'none';"
     )
     if request.is_secure:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
@@ -105,9 +472,20 @@ def is_locked(ip):
         return True, mins
     return False, 0
 
+_MAX_TRACKED_IPS = 10_000
+
 def record_failed_login(ip):
     if ip not in login_attempts:
-        login_attempts[ip] = {"count": 0, "locked_until": None}
+        if len(login_attempts) >= _MAX_TRACKED_IPS:
+            # Evict the oldest unlocked entry to keep memory bounded
+            oldest = min(
+                (k for k, v in login_attempts.items() if not v.get("locked_until")),
+                key=lambda k: login_attempts[k].get("_ts", 0),
+                default=None,
+            )
+            if oldest:
+                login_attempts.pop(oldest, None)
+        login_attempts[ip] = {"count": 0, "locked_until": None, "_ts": time.time()}
     login_attempts[ip]["count"] += 1
     if login_attempts[ip]["count"] >= 5:
         login_attempts[ip]["locked_until"] = now() + timedelta(minutes=15)
@@ -120,27 +498,22 @@ DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 progress_store = {}
-info_cache = {}  # cache_id -> {info, expires}
-
-def _cleanup_info_cache():
-    while True:
-        time.sleep(120)
-        now = time.time()
-        expired = [k for k, v in list(info_cache.items()) if v["expires"] < now]
-        for k in expired:
-            info_cache.pop(k, None)
-
-threading.Thread(target=_cleanup_info_cache, daemon=True).start()
+_active_downloads = 0
+_active_downloads_lock = threading.Lock()
+_codes_lock = threading.Lock()
 
 STRIPE_PAYMENT_LINK = os.environ.get("STRIPE_PAYMENT_LINK", "#pricing")
-ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
-ADMIN_PASS = os.environ.get("ADMIN_PASS", "vip2026")
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "ahmed.alabdan2@gmail.com")
+SITE_URL = os.environ.get("SITE_URL", "https://www.vip-dl.com").rstrip("/")
+ADMIN_USER = os.environ.get("ADMIN_USER", "")
+ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
+ADMIN_CODE = os.environ.get("ADMIN_CODE", "")
+YOUTUBE_UNLOCK_DATE = os.environ.get("YOUTUBE_UNLOCK_DATE", "")
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 RESET_SECRET = os.environ.get("RESET_SECRET", "")
-SMTP_PASS = os.environ.get("SMTP_PASS", "")
 INSTAGRAM_COOKIES = os.environ.get("INSTAGRAM_COOKIES", "")  # Netscape cookies.txt content
+YOUTUBE_COOKIES  = os.environ.get("YOUTUBE_COOKIES",  "")  # Netscape cookies.txt content
 
 reset_tokens = {}  # token -> {"expires": datetime}
 
@@ -150,7 +523,9 @@ RATINGS_FILE      = Path("data/ratings.json")
 STATS_FILE        = Path("data/stats.json")
 VISITORS_FILE     = Path("data/visitors.json")
 DOWNLOAD_LOG_FILE = Path("data/download_log.json")
-APP_INSTALLS_FILE = Path("data/app_installs.json")
+APP_INSTALLS_FILE  = Path("data/app_installs.json")
+APP_USERS_FILE     = Path("data/app_users.json")
+_app_users_lock    = threading.Lock()
 HOURLY_STATS_FILE = Path("data/hourly_stats.json")
 DAILY_STATS_FILE  = Path("data/daily_stats.json")
 SETTINGS_FILE     = Path("data/settings.json")
@@ -274,7 +649,7 @@ def load_stats_file():
     if STATS_FILE.exists():
         try: return json.loads(STATS_FILE.read_text())
         except: pass
-    return {"total_downloads": 0, "failed_downloads": 0, "platform_counts": {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Other": 0}}
+    return {"total_downloads": 0, "failed_downloads": 0, "platform_counts": {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Snapchat": 0, "Other": 0}}
 
 def save_stats_file(data):
     try:
@@ -296,6 +671,7 @@ def save_config(data):
 _UPSTASH_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "")
 _UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 _CODES_REDIS_KEY = "vip_codes"
+
 
 def _redis(cmd, *args):
     if not _UPSTASH_URL:
@@ -341,23 +717,31 @@ def save_codes(data):
         pass
 
 config = load_config()
-if "admin_pass" in config:
+# config.json stores passwords changed at runtime (e.g. via the admin panel).
+# It takes precedence only when the env var is absent, so Render env vars
+# always win — a tampered config.json cannot override a Render-set credential.
+if "admin_pass" in config and not os.environ.get("ADMIN_PASS"):
     ADMIN_PASS = config["admin_pass"]
-if "admin_user" in config:
+elif "admin_pass" in config and os.environ.get("ADMIN_PASS"):
+    # Env var is set but config.json also has one — use env var and clean up
+    app.logger.warning("SECURITY: ADMIN_PASS is set via env var; ignoring config.json value")
+if "admin_user" in config and not os.environ.get("ADMIN_USER"):
     ADMIN_USER = config["admin_user"]
 
 SERVER_START = now()
 
 # ===== Live Stats =====
 _saved = load_stats_file()
+_today_str = now().date().isoformat()
+_daily_on_start = load_daily_stats()
 stats = {
     "total_downloads": _saved.get("total_downloads", 0),
-    "today_downloads": 0,
+    "today_downloads": _daily_on_start.get(_today_str, 0),
     "failed_downloads": _saved.get("failed_downloads", 0),
-    "platform_counts": _saved.get("platform_counts", {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Other": 0}),
+    "platform_counts": _saved.get("platform_counts", {"TikTok": 0, "Instagram": 0, "Facebook": 0, "Pinterest": 0, "Snapchat": 0, "Other": 0}),
     "recent_errors": [],
     "ytdlp_updated": "لم يتم بعد",
-    "last_reset_date": now().date().isoformat(),
+    "last_reset_date": _today_str,
 }
 
 stats_lock = threading.Lock()
@@ -411,15 +795,97 @@ def record_download(platform, success, error_msg="", duration=0):
     save_daily_stats(daily)
 
 
+def _load_app_users() -> dict:
+    try:
+        if APP_USERS_FILE.exists():
+            return json.loads(APP_USERS_FILE.read_text())
+    except Exception:
+        pass
+    return {}
+
+def _save_app_users(data: dict):
+    try:
+        APP_USERS_FILE.write_text(json.dumps(data, ensure_ascii=False))
+    except Exception:
+        pass
+
+def _record_app_user(device_id: str, country: str, app_version: str):
+    if not device_id:
+        return
+    today = now().strftime("%Y-%m-%d")
+    month = now().strftime("%Y-%m")
+    with _app_users_lock:
+        users = _load_app_users()
+        u = users.get(device_id, {
+            "country": country or "??",
+            "first_seen": today,
+            "last_seen": today,
+            "app_version": app_version or "",
+            "dl_daily": {},
+            "dl_monthly": {},
+        })
+        u["last_seen"] = today
+        if country:
+            u["country"] = country.upper()
+        if app_version:
+            u["app_version"] = app_version
+        users[device_id] = u
+        _save_app_users(users)
+
+def _record_app_download(device_id: str, success: bool):
+    if not device_id:
+        return
+    today = now().strftime("%Y-%m-%d")
+    month = now().strftime("%Y-%m")
+    with _app_users_lock:
+        users = _load_app_users()
+        u = users.get(device_id)
+        if not u:
+            return
+        if success:
+            u["dl_daily"][today] = u["dl_daily"].get(today, 0) + 1
+            u["dl_monthly"][month] = u["dl_monthly"].get(month, 0) + 1
+            # keep only last 60 days of daily data
+            if len(u["dl_daily"]) > 60:
+                oldest = sorted(u["dl_daily"].keys())[0]
+                del u["dl_daily"][oldest]
+        users[device_id] = u
+        _save_app_users(users)
+
+
+_INSTAGRAM_COOKIE_FILE = None
+_YOUTUBE_COOKIE_FILE   = None
+
 def get_cookies_file():
-    """Write INSTAGRAM_COOKIES env var to a temp file for yt-dlp."""
+    """Write INSTAGRAM_COOKIES env var to a single shared temp file (created once)."""
+    global _INSTAGRAM_COOKIE_FILE
     if not INSTAGRAM_COOKIES:
         return None
+    if _INSTAGRAM_COOKIE_FILE and os.path.exists(_INSTAGRAM_COOKIE_FILE):
+        return _INSTAGRAM_COOKIE_FILE
     import tempfile
     try:
         tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
         tmp.write(INSTAGRAM_COOKIES)
         tmp.close()
+        _INSTAGRAM_COOKIE_FILE = tmp.name
+        return tmp.name
+    except Exception:
+        return None
+
+def get_youtube_cookies_file():
+    """Write YOUTUBE_COOKIES env var to a single shared temp file (created once)."""
+    global _YOUTUBE_COOKIE_FILE
+    if not YOUTUBE_COOKIES:
+        return None
+    if _YOUTUBE_COOKIE_FILE and os.path.exists(_YOUTUBE_COOKIE_FILE):
+        return _YOUTUBE_COOKIE_FILE
+    import tempfile
+    try:
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+        tmp.write(YOUTUBE_COOKIES)
+        tmp.close()
+        _YOUTUBE_COOKIE_FILE = tmp.name
         return tmp.name
     except Exception:
         return None
@@ -435,16 +901,67 @@ def detect_platform(url):
         return "Facebook"
     if "pinterest.com" in url or "pin.it" in url:
         return "Pinterest"
+    if "snapchat.com" in url or "snap.com" in url:
+        return "Snapchat"
     return "Other"
 
 
 # ===== Admin Auth =====
+def _is_safe_url(url: str) -> bool:
+    """Return True only if the URL is a public http(s) host with no internal addresses."""
+    try:
+        import ipaddress
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        host = (parsed.hostname or "").lower()
+        if not host:
+            return False
+        if host in ("localhost", "metadata.google.internal", "169.254.169.254") or host.endswith(".local"):
+            return False
+        try:
+            addr = ipaddress.ip_address(host)
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+                return False
+        except ValueError:
+            pass
+        return True
+    except Exception:
+        return False
+
+
+def _safe_proxy_get(url: str, **kwargs) -> "requests.Response":
+    """requests.get wrapper that validates every redirect hop to prevent SSRF."""
+    import requests as _r
+    kwargs.setdefault("timeout", 30)
+    kwargs["allow_redirects"] = False
+    resp = _r.get(url, **kwargs)
+    hops = 0
+    while resp.is_redirect and hops < 10:
+        dest = resp.headers.get("Location", "")
+        if not dest:
+            break
+        # Resolve relative redirects
+        if dest.startswith("/"):
+            from urllib.parse import urlparse as _up
+            p = _up(resp.url)
+            dest = f"{p.scheme}://{p.netloc}{dest}"
+        if not _is_safe_url(dest):
+            raise ValueError(f"Redirect to blocked destination: {dest[:120]}")
+        resp = _r.get(dest, **kwargs)
+        hops += 1
+    return resp
+
+
 def verify_password(stored, provided):
     if stored and stored.startswith(("pbkdf2:", "scrypt:")):
         return check_password_hash(stored, provided)
     return stored == provided
 
 def check_auth(username, password):
+    if not ADMIN_PASS:
+        return False
     return username == ADMIN_USER and verify_password(ADMIN_PASS, password)
 
 
@@ -461,13 +978,29 @@ def requires_auth(f):
 
 def clean_old_files():
     while True:
-        now = time.time()
+        ts = time.time()
         for f in DOWNLOAD_DIR.iterdir():
-            if f.is_file() and (now - f.stat().st_mtime) > 3600:  # 1 hour
+            if f.is_file() and (ts - f.stat().st_mtime) > 1800:  # 30 minutes
                 try:
                     f.unlink()
                 except Exception:
                     pass
+        # evict stale progress entries (older than 3 hours)
+        stale = [k for k, v in list(progress_store.items())
+                 if v.get("_ts", ts) < ts - 10800]
+        for k in stale:
+            progress_store.pop(k, None)
+        # evict stale login_attempts (unlocked entries older than 1 hour)
+        cutoff = time.time() - 3600
+        stale_ips = [ip for ip, v in list(login_attempts.items())
+                     if not v.get("locked_until") and v.get("_ts", 0) < cutoff]
+        for ip in stale_ips:
+            login_attempts.pop(ip, None)
+        # Clean expired reset tokens
+        now_dt = now()
+        expired_tokens = [k for k, v in list(reset_tokens.items()) if now_dt > v.get("expires", now_dt)]
+        for k in expired_tokens:
+            reset_tokens.pop(k, None)
         time.sleep(300)
 
 
@@ -505,18 +1038,22 @@ def app_icon(size):
 
 @app.route("/download-app")
 def download_android_app():
-    return send_file("static/android-app.zip", as_attachment=True, download_name="android-app.zip")
+    return redirect("https://play.google.com/store/apps/details?id=com.nazzilhaplus.app", 302)
 
 
 @app.route("/.well-known/assetlinks.json")
 def asset_links():
-    sha256 = os.environ.get("ANDROID_CERT_SHA256", "REPLACE_WITH_YOUR_SHA256_FINGERPRINT")
+    raw = os.environ.get("ANDROID_CERT_SHA256", "")
+    fingerprints = [fp.strip() for fp in raw.split(",") if fp.strip()]
     data = [{
-        "relation": ["delegate_permission/common.handle_all_urls"],
+        "relation": [
+            "delegate_permission/common.handle_all_urls",
+            "delegate_permission/common.get_login_creds"
+        ],
         "target": {
             "namespace": "android_app",
             "package_name": "com.nazzilhaplus.app",
-            "sha256_cert_fingerprints": [sha256]
+            "sha256_cert_fingerprints": fingerprints
         }
     }]
     return jsonify(data)
@@ -528,7 +1065,13 @@ def robots_txt():
 Allow: /
 Disallow: /admin
 Disallow: /admin/
-Sitemap: https://www.vip-dl.com/sitemap.xml"""
+Sitemap: https://www.vip-dl.com/sitemap.xml
+
+User-agent: Google-adstxt
+Disallow:
+
+User-agent: Mediapartners-Google
+Disallow:"""
     return content, 200, {"Content-Type": "text/plain"}
 
 
@@ -541,6 +1084,31 @@ def sitemap_xml():
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
+  <url>
+    <loc>https://www.vip-dl.com/how-to-use</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.vip-dl.com/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.vip-dl.com/blog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.vip-dl.com/privacy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.vip-dl.com/download-app</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
 </urlset>'''
     return xml, 200, {"Content-Type": "application/xml"}
 
@@ -550,6 +1118,10 @@ def ads_txt():
     return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0", 200, {"Content-Type": "text/plain"}
 
 
+
+@app.route("/app-ads.txt")
+def app_ads_txt():
+    return "google.com, pub-9098461798177099, DIRECT, f08c47fec0942fa0\n", 200, {"Content-Type": "text/plain; charset=utf-8"}
 @app.route("/api/public-stats")
 def public_stats():
     r = load_ratings()
@@ -838,17 +1410,140 @@ def about():
 
 
 @app.route("/api/app-ping", methods=["POST"])
+@limiter.limit("30 per minute")
 def app_ping():
     data = request.get_json() or {}
     device_id = (data.get("device_id") or "").strip()[:64]
     if not device_id:
         return jsonify({"ok": False}), 400
+    country     = (data.get("country") or "").strip()[:4].upper()
+    app_version = (data.get("app_version") or "").strip()[:20]
+
+    # legacy installs counter
     installs = json.loads(APP_INSTALLS_FILE.read_text()) if APP_INSTALLS_FILE.exists() else {"devices": [], "total": 0}
     if device_id not in installs["devices"]:
         installs["devices"].append(device_id)
         installs["total"] = len(installs["devices"])
         APP_INSTALLS_FILE.write_text(json.dumps(installs))
-    return jsonify({"ok": True, "total": installs["total"]})
+
+    # rich per-user record
+    _record_app_user(device_id, country, app_version)
+
+    # Referral reward: check if a reward is pending for this device
+    reward_days = 0
+    raw_reward = _redis("GET", f"ref:pending_reward:{device_id}")
+    if raw_reward:
+        try:
+            reward_days = int(raw_reward)
+            _redis("DEL", f"ref:pending_reward:{device_id}")
+        except Exception:
+            reward_days = 0
+
+    return jsonify({"ok": True, "total": installs["total"], "referral_reward_days": reward_days})
+
+
+@app.route("/api/analytics/download", methods=["POST"])
+@limiter.limit("60 per minute")
+def analytics_download():
+    data = request.get_json() or {}
+    device_id = (data.get("device_id") or "").strip()[:64]
+    success   = bool(data.get("success", True))
+    platform  = (data.get("platform") or "Other").strip()[:32]
+    if device_id:
+        _record_app_download(device_id, success)
+    record_download(platform, success)
+    return jsonify({"ok": True})
+
+
+# ── Referral System ──────────────────────────────────────────────────────────
+
+def _referral_code(device_id: str) -> str:
+    """8-char uppercase code derived from device_id (no confusable chars)."""
+    import hashlib as _hl
+    h = _hl.sha256(device_id.encode()).hexdigest()
+    chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return ''.join(chars[int(h[i * 2: i * 2 + 2], 16) % len(chars)] for i in range(8))
+
+
+@app.route("/api/referral/stats", methods=["POST"])
+@limiter.limit("30 per minute")
+def referral_stats():
+    data = request.get_json() or {}
+    device_id = (data.get("device_id") or "").strip()[:64]
+    if not device_id:
+        return jsonify({"error": "device_id required"}), 400
+    code = _referral_code(device_id)
+    if not _redis("GET", f"ref:owner:{code}"):
+        _redis("SET", f"ref:owner:{code}", device_id)
+    count_raw = _redis("GET", f"ref:count:{device_id}")
+    valid_count = int(count_raw) if count_raw else 0
+    rewards_raw = _redis("GET", f"ref:total_rewards:{device_id}")
+    total_rewards = int(rewards_raw) if rewards_raw else 0
+    return jsonify({
+        "code": code,
+        "link": f"https://www.vip-dl.com/r/{code}",
+        "valid_count": valid_count,
+        "needed": 10,
+        "total_rewards": total_rewards,
+        "share_text": f"حمّل نزّلها+ وحمّل الفيديوهات من تيك توك وانستا ويوتيوب مجاناً!\nكودي الخاص: {code}\nhttps://www.vip-dl.com/r/{code}",
+    })
+
+
+@app.route("/api/referral/register", methods=["POST"])
+@limiter.limit("10 per minute")
+def referral_register():
+    data = request.get_json() or {}
+    code = (data.get("code") or "").strip().upper()[:8]
+    new_device = (data.get("device_id") or "").strip()[:64]
+    if not code or not new_device:
+        return jsonify({"error": "missing fields"}), 400
+    owner = _redis("GET", f"ref:owner:{code}")
+    if not owner:
+        return jsonify({"error": "invalid_code"}), 404
+    if owner == new_device:
+        return jsonify({"error": "self_referral"}), 400
+    if _redis("GET", f"ref:install:{new_device}"):
+        return jsonify({"ok": True, "message": "already_registered"})
+    payload = json.dumps({"code": code, "owner": owner, "time": time.time(), "valid": False})
+    _redis("SET", f"ref:install:{new_device}", payload)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/referral/track-download", methods=["POST"])
+@limiter.limit("10 per minute")
+def referral_track_download():
+    data = request.get_json() or {}
+    device_id = (data.get("device_id") or "").strip()[:64]
+    if not device_id:
+        return jsonify({"error": "device_id required"}), 400
+    raw = _redis("GET", f"ref:install:{device_id}")
+    if not raw:
+        return jsonify({"ok": True, "message": "no_referral"})
+    try:
+        install = json.loads(raw)
+    except Exception:
+        return jsonify({"ok": True})
+    if install.get("valid"):
+        return jsonify({"ok": True, "message": "already_valid"})
+    install["valid"] = True
+    install["validated_at"] = time.time()
+    _redis("SET", f"ref:install:{device_id}", json.dumps(install))
+    owner = install.get("owner", "")
+    if owner:
+        new_count_raw = _redis("INCR", f"ref:count:{owner}")
+        new_count = int(new_count_raw) if new_count_raw else 1
+        if new_count % 10 == 0:
+            pending = int(_redis("GET", f"ref:pending_reward:{owner}") or 0)
+            _redis("SET", f"ref:pending_reward:{owner}", str(pending + 30))
+            total_r = int(_redis("GET", f"ref:total_rewards:{owner}") or 0)
+            _redis("SET", f"ref:total_rewards:{owner}", str(total_r + 1))
+    return jsonify({"ok": True})
+
+
+@app.route("/r/<code>")
+def referral_landing(code):
+    code = (code or "").strip().upper()[:8]
+    return render_template("referral.html", code=code)
 
 
 @app.route("/admin/api/app-installs")
@@ -856,6 +1551,43 @@ def app_ping():
 def admin_app_installs():
     installs = json.loads(APP_INSTALLS_FILE.read_text()) if APP_INSTALLS_FILE.exists() else {"devices": [], "total": 0}
     return jsonify({"total": installs["total"]})
+
+
+@app.route("/admin/api/android-users")
+@requires_auth
+def admin_android_users():
+    users = _load_app_users()
+    today   = now().strftime("%Y-%m-%d")
+    month   = now().strftime("%Y-%m")
+    result  = []
+    country_counts: dict = {}
+    active_today = 0
+    for did, u in users.items():
+        dl_today = u.get("dl_daily", {}).get(today, 0)
+        dl_month = u.get("dl_monthly", {}).get(month, 0)
+        dl_total = sum(u.get("dl_daily", {}).values())
+        c = u.get("country", "??")
+        country_counts[c] = country_counts.get(c, 0) + 1
+        if u.get("last_seen") == today:
+            active_today += 1
+        result.append({
+            "id":          did[:8],
+            "country":     c,
+            "first_seen":  u.get("first_seen", ""),
+            "last_seen":   u.get("last_seen", ""),
+            "app_version": u.get("app_version", ""),
+            "dl_today":    dl_today,
+            "dl_month":    dl_month,
+            "dl_total":    dl_total,
+        })
+    result.sort(key=lambda x: x["last_seen"], reverse=True)
+    countries_list = sorted(country_counts.items(), key=lambda x: x[1], reverse=True)
+    return jsonify({
+        "total":         len(result),
+        "active_today":  active_today,
+        "countries":     [{"code": c, "count": n} for c, n in countries_list],
+        "users":         result,
+    })
 
 
 # ===== Admin Dashboard =====
@@ -1010,47 +1742,108 @@ def admin_logout():
     return redirect("/admin/login")
 
 
-@app.route("/admin/emergency")
+_EMERG_CSS = ("*{box-sizing:border-box;margin:0;padding:0}"
+    "body{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;"
+    "min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}"
+    ".card{background:#16161f;border:1px solid #2a2a3a;border-radius:20px;"
+    "padding:2rem;width:100%;max-width:400px}"
+    "h2{margin-bottom:.8rem}p{color:#8888aa;font-size:.9rem;margin-bottom:1rem}"
+    "input{width:100%;background:#111118;border:1.5px solid #2a2a3a;border-radius:10px;"
+    "padding:.8rem 1rem;color:#f0f0f8;font-family:inherit;font-size:1rem;outline:none;margin-bottom:.8rem}"
+    ".btn{width:100%;padding:.9rem;background:linear-gradient(135deg,#7c3aed,#a855f7);"
+    "color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer}"
+    ".err{color:#f87171;font-size:.85rem;margin-bottom:.8rem}")
+_EMERG_FONT = '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">'
+
+
+@app.route("/admin/emergency", methods=["GET", "POST"])
 @limiter.limit("5 per hour")
 def admin_emergency():
-    secret = request.args.get("secret", "")
-    new_pass = request.args.get("new_pass", "")
-
     if not RESET_SECRET:
         return Response("<h2 style='font-family:sans-serif;color:red'>RESET_SECRET غير مضبوط في المتغيرات</h2>", mimetype="text/html")
 
-    if secret != RESET_SECRET:
+    if request.method == "GET":
+        # Step 1: show form — no secrets in URL
         return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>إعادة تعيين طارئة</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
-<style>*{{box-sizing:border-box;margin:0;padding:0}}body{{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}}.card{{background:#16161f;border:1px solid #2a2a3a;border-radius:20px;padding:2rem;width:100%;max-width:400px}}h2{{margin-bottom:.8rem}}p{{color:#8888aa;font-size:.9rem;margin-bottom:1rem}}input{{width:100%;background:#111118;border:1.5px solid #2a2a3a;border-radius:10px;padding:.8rem 1rem;color:#f0f0f8;font-family:inherit;font-size:1rem;outline:none;margin-bottom:.8rem}}.btn{{width:100%;padding:.9rem;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer}}</style>
-</head><body><div class="card">
+<title>إعادة تعيين طارئة</title>{_EMERG_FONT}
+<style>{_EMERG_CSS}</style></head><body><div class="card">
 <h2>🔑 إعادة تعيين طارئة</h2>
-<p>أدخل الكلمة السرية وكلمة السر الجديدة</p>
-<input id="s" type="password" placeholder="الكلمة السرية" />
-<input id="p" type="password" placeholder="كلمة السر الجديدة" />
-<button class="btn" onclick="go()">إعادة التعيين</button>
-<script>
-function go(){{
-  const s=document.getElementById('s').value;
-  const p=document.getElementById('p').value;
-  if(!s||!p){{alert('أدخل جميع الحقول');return;}}
-  window.location='/admin/emergency?secret='+encodeURIComponent(s)+'&new_pass='+encodeURIComponent(p);
-}}
-</script>
-</div></body></html>""", mimetype="text/html")
+<p>أدخل الكلمة السرية لمتابعة</p>
+<form method="POST" action="/admin/emergency">
+<input name="secret" type="password" placeholder="الكلمة السرية" required autocomplete="off" />
+<button class="btn" type="submit">متابعة</button>
+</form></div></body></html>""", mimetype="text/html")
 
-    global ADMIN_PASS
-    if new_pass and len(new_pass) >= 6:
+    # POST — read only from form body, never from query string
+    secret = request.form.get("secret", "").strip()
+    new_pass = request.form.get("new_pass", "").strip()
+    tok = request.form.get("tok", "").strip()
+
+    # Step 2: verify secret, issue session token, show new-password form
+    if secret and not new_pass:
+        if secret != RESET_SECRET:
+            return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إعادة تعيين طارئة</title>{_EMERG_FONT}
+<style>{_EMERG_CSS}</style></head><body><div class="card">
+<h2>🔑 إعادة تعيين طارئة</h2>
+<p class="err">❌ الكلمة السرية غير صحيحة</p>
+<form method="POST" action="/admin/emergency">
+<input name="secret" type="password" placeholder="الكلمة السرية" required autocomplete="off" />
+<button class="btn" type="submit">متابعة</button>
+</form></div></body></html>""", mimetype="text/html")
+        # Issue a one-time session token — secret never touches HTML again
+        import secrets as _sec
+        tok = _sec.token_urlsafe(32)
+        session["_emerg_tok"] = tok
+        session["_emerg_exp"] = (now() + timedelta(minutes=10)).isoformat()
+        return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إعادة تعيين طارئة</title>{_EMERG_FONT}
+<style>{_EMERG_CSS.replace('#8888aa','#10b981')}</style></head><body><div class="card">
+<h2>🔑 إعادة تعيين طارئة</h2>
+<p>✅ الكلمة السرية صحيحة — أدخل كلمة السر الجديدة</p>
+<form method="POST" action="/admin/emergency">
+<input type="hidden" name="tok" value="{tok}" />
+<input name="new_pass" type="password" placeholder="كلمة السر الجديدة (6 أحرف على الأقل)" required />
+<button class="btn" type="submit">حفظ كلمة السر الجديدة</button>
+</form></div></body></html>""", mimetype="text/html")
+
+    # Step 3: verify session token, save new password
+    if tok and new_pass:
+        stored_tok = session.get("_emerg_tok", "")
+        try:
+            exp_dt = datetime.fromisoformat(session.get("_emerg_exp", ""))
+        except Exception:
+            exp_dt = now()
+        if not stored_tok or tok != stored_tok or now() > exp_dt:
+            return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><title>خطأ</title>{_EMERG_FONT}
+<style>{_EMERG_CSS}</style></head><body><div class="card">
+<p class="err">❌ انتهت صلاحية الجلسة، أعد العملية من البداية</p>
+<a href="/admin/emergency" style="color:#a855f7">إعادة المحاولة</a>
+</div></body></html>""", mimetype="text/html")
+        if len(new_pass) < 6:
+            return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><title>خطأ</title>{_EMERG_FONT}
+<style>{_EMERG_CSS}</style></head><body><div class="card">
+<p class="err">❌ كلمة السر يجب أن تكون 6 أحرف على الأقل</p>
+<form method="POST" action="/admin/emergency">
+<input type="hidden" name="tok" value="{tok}" />
+<input name="new_pass" type="password" placeholder="كلمة السر الجديدة" required />
+<button class="btn" type="submit">حفظ</button>
+</form></div></body></html>""", mimetype="text/html")
+        global ADMIN_PASS
         ADMIN_PASS = generate_password_hash(new_pass)
         cfg = load_config()
         cfg["admin_pass"] = ADMIN_PASS
         save_config(cfg)
+        session.pop("_emerg_tok", None)
+        session.pop("_emerg_exp", None)
         session["admin_logged_in"] = True
         return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
-<head><meta charset="UTF-8"><title>تم</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
+<head><meta charset="UTF-8"><title>تم</title>{_EMERG_FONT}
 <style>body{{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:1rem}}</style>
 </head><body>
 <div style="font-size:3rem">✅</div>
@@ -1058,24 +1851,7 @@ function go(){{
 <a href="/admin" style="color:#a855f7;font-size:1rem">الذهاب للوحة التحكم</a>
 </body></html>""", mimetype="text/html")
 
-    return Response(f"""<!DOCTYPE html><html lang="ar" dir="rtl">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>إعادة تعيين طارئة</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
-<style>*{{box-sizing:border-box;margin:0;padding:0}}body{{font-family:'Cairo',sans-serif;background:#0a0a0f;color:#f0f0f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}}.card{{background:#16161f;border:1px solid #2a2a3a;border-radius:20px;padding:2rem;width:100%;max-width:400px}}h2{{margin-bottom:.8rem}}p{{color:#10b981;font-size:.9rem;margin-bottom:1rem}}input{{width:100%;background:#111118;border:1.5px solid #2a2a3a;border-radius:10px;padding:.8rem 1rem;color:#f0f0f8;font-family:inherit;font-size:1rem;outline:none;margin-bottom:.8rem}}.btn{{width:100%;padding:.9rem;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer}}</style>
-</head><body><div class="card">
-<h2>🔑 إعادة تعيين طارئة</h2>
-<p>✅ الكلمة السرية صحيحة — أدخل كلمة السر الجديدة</p>
-<input id="p" type="password" placeholder="كلمة السر الجديدة (6 أحرف على الأقل)" />
-<button class="btn" onclick="go()">حفظ كلمة السر الجديدة</button>
-<script>
-function go(){{
-  const p=document.getElementById('p').value;
-  if(p.length<6){{alert('6 أحرف على الأقل');return;}}
-  window.location='/admin/emergency?secret={secret}&new_pass='+encodeURIComponent(p);
-}}
-</script>
-</div></body></html>""", mimetype="text/html")
+    return redirect("/admin/emergency")
 
 
 def send_reset_email(token):
@@ -1104,6 +1880,7 @@ def send_reset_email(token):
 
 
 @app.route("/admin/forgot")
+@limiter.limit("10 per hour")
 def admin_forgot():
     return Response("""<!DOCTYPE html><html lang="ar" dir="rtl">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1150,6 +1927,7 @@ async function sendReset() {
 
 
 @app.route("/admin/api/send-reset", methods=["POST"])
+@limiter.limit("3 per hour")
 def send_reset():
     email = ((request.get_json() or {}).get("email", "")).strip().lower()
     if email != ADMIN_EMAIL.lower():
@@ -1170,6 +1948,7 @@ def send_reset():
 
 
 @app.route("/admin/reset")
+@limiter.limit("10 per hour")
 def admin_reset_page():
     token = request.args.get("token", "")
     valid = token in reset_tokens and now() < reset_tokens[token]["expires"]
@@ -1221,6 +2000,7 @@ a{{color:#8888aa;font-size:.85rem;display:block;text-align:center;margin-top:1re
 
 
 @app.route("/admin/api/do-reset", methods=["POST"])
+@limiter.limit("5 per hour")
 def do_reset():
     global ADMIN_PASS
     data = request.get_json() or {}
@@ -1298,7 +2078,10 @@ def generate_code():
     import secrets
     data = request.get_json() or {}
     email = data.get("email", data.get("note", "")).strip()[:100]
-    days = int(data.get("days", 30))
+    try:
+        days = max(1, min(int(data.get("days", 30)), 3650))
+    except (ValueError, TypeError):
+        return jsonify({"error": "قيمة days غير صالحة"}), 400
 
     raw = secrets.token_hex(4).upper()
     code = f"VIP-{raw[:4]}-{raw[4:]}"
@@ -1358,7 +2141,10 @@ def list_codes():
 def extend_code():
     data = request.get_json() or {}
     code = data.get("code", "").strip()
-    days = int(data.get("days", 30))
+    try:
+        days = max(1, min(int(data.get("days", 30)), 3650))
+    except (ValueError, TypeError):
+        return jsonify({"error": "قيمة days غير صالحة"}), 400
     codes = load_codes()
     if code not in codes:
         return jsonify({"error": "الكود غير موجود"}), 404
@@ -1423,21 +2209,31 @@ def redeem_code():
     if not code:
         return jsonify({"error": "أدخل الكود"}), 400
 
-    codes = load_codes()
-    if code not in codes:
-        return jsonify({"error": "الكود غير صحيح"}), 404
-    if codes[code]["used"]:
-        return jsonify({"error": "هذا الكود مستخدم مسبقاً"}), 409
+    # Admin code: never expires, never consumed
+    if ADMIN_CODE and code == ADMIN_CODE.upper():
+        from datetime import timedelta
+        expires_at = (now() + timedelta(days=36500)).strftime("%Y-%m-%d %H:%M")
+        return jsonify({
+            "message": "مرحباً بك أيها الأدمن ✅ تحميل غير محدود",
+            "expires_at": expires_at,
+        })
 
-    days = codes[code].get("days", 30)
-    from datetime import timedelta
-    current_time = now()
-    expires_at = (current_time + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+    with _codes_lock:
+        codes = load_codes()
+        if code not in codes:
+            return jsonify({"error": "الكود غير صحيح"}), 404
+        if codes[code]["used"]:
+            return jsonify({"error": "هذا الكود مستخدم مسبقاً"}), 409
 
-    codes[code]["used"] = True
-    codes[code]["used_at"] = current_time.strftime("%Y-%m-%d %H:%M")
-    codes[code]["expires_at"] = expires_at
-    save_codes(codes)
+        days = codes[code].get("days", 30)
+        from datetime import timedelta
+        current_time = now()
+        expires_at = (current_time + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+
+        codes[code]["used"] = True
+        codes[code]["used_at"] = current_time.strftime("%Y-%m-%d %H:%M")
+        codes[code]["expires_at"] = expires_at
+        save_codes(codes)
     return jsonify({
         "message": f"تم تفعيل الاشتراك المميز ✅ صالح لـ {days} يوم",
         "expires_at": expires_at,
@@ -1445,10 +2241,17 @@ def redeem_code():
 
 
 @app.route("/api/check-premium", methods=["POST"])
+@limiter.limit("10 per minute")
 def check_premium():
     code = ((request.get_json() or {}).get("code", "")).strip().upper()
     if not code:
         return jsonify({"valid": False}), 400
+
+    # Admin code: always valid, renew expiry on every check
+    if ADMIN_CODE and code == ADMIN_CODE.upper():
+        from datetime import timedelta
+        expires_at = (now() + timedelta(days=36500)).strftime("%Y-%m-%d %H:%M")
+        return jsonify({"valid": True, "expires_at": expires_at})
 
     codes = load_codes()
     if code not in codes:
@@ -1469,6 +2272,7 @@ def check_premium():
     return jsonify({"valid": True, "expires_at": entry.get("expires_at")})
 
 
+
 @app.route("/admin/api/change-password", methods=["POST"])
 @requires_auth
 def change_password():
@@ -1478,7 +2282,7 @@ def change_password():
     new_pass = (data or {}).get("new_pass", "")
     new_user = (data or {}).get("new_user", "").strip()
 
-    if current != ADMIN_PASS:
+    if not verify_password(ADMIN_PASS, current):
         return jsonify({"error": "كلمة السر الحالية غير صحيحة"}), 401
     if len(new_pass) < 6:
         return jsonify({"error": "كلمة السر الجديدة يجب أن تكون 6 أحرف على الأقل"}), 400
@@ -1504,13 +2308,56 @@ def get_info():
 
     if not url:
         return jsonify({"error": "الرابط مطلوب"}), 400
+    if not _is_safe_url(url):
+        return jsonify({"error": "رابط غير مسموح"}), 400
+
+    # Try RapidAPI first
+    if RAPIDAPI_KEY:
+        api_data = _call_rapidapi(url)
+        medias = api_data.get("medias", [])
+        if medias and not api_data.get("error"):
+            formats = []
+            for i, u in enumerate(medias):
+                if not isinstance(u, dict) or not u.get("url"):
+                    continue
+                ext = u.get("extension", "mp4")
+                quality = u.get("quality", "")
+                height = u.get("height")
+                ftype = u.get("type", "video")
+                if height:
+                    label = f"{height}p"
+                elif quality:
+                    label = quality
+                else:
+                    label = f"جودة {i+1}"
+                formats.append({
+                    "format_id": f"rapidapi_{i}",
+                    "label": label,
+                    "ext": ext,
+                    "type": ftype,
+                    "filesize": u.get("data_size"),
+                })
+            if formats:
+                return jsonify({
+                    "title": api_data.get("title", "فيديو"),
+                    "thumbnail": api_data.get("thumbnail"),
+                    "duration": api_data.get("duration"),
+                    "uploader": api_data.get("author", ""),
+                    "platform": api_data.get("source", ""),
+                    "formats": formats,
+                })
+
+    # YouTube not supported
+    if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+        return jsonify({"error": "YouTube غير مدعوم حالياً"}), 400
 
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
         "noplaylist": True,
-        "nocheckcertificate": True,
+        "nocheckcertificate": False,
+        **({"ffmpeg_location": _FFMPEG_PATH} if _FFMPEG_PATH else {}),
     }
 
     if "instagram.com" in url.lower():
@@ -1550,14 +2397,14 @@ def get_info():
                 continue
             seen.add(key)
 
-            has_both = f.get("vcodec", "none") != "none" and f.get("acodec", "none") != "none"
+            video_only = ftype == "video" and f.get("acodec", "none") == "none"
+            fid = (f["format_id"] + "+bestaudio/best") if video_only else f["format_id"]
             formats.append({
-                "format_id": f["format_id"],
+                "format_id": fid,
                 "label": label,
                 "ext": ext,
                 "type": ftype,
                 "filesize": f.get("filesize") or f.get("filesize_approx"),
-                "direct_url": f.get("url") if has_both else None,
             })
 
         formats.sort(
@@ -1577,9 +2424,6 @@ def get_info():
                 "filesize": None,
             })
 
-        cache_id = str(uuid.uuid4())
-        info_cache[cache_id] = {"info": info, "expires": time.time() + 600}
-
         return jsonify({
             "title": info.get("title", "فيديو"),
             "thumbnail": info.get("thumbnail") or next((t.get("url") for t in reversed(info.get("thumbnails") or []) if t.get("url")), None),
@@ -1587,7 +2431,6 @@ def get_info():
             "uploader": info.get("uploader") or info.get("channel"),
             "platform": info.get("extractor_key", ""),
             "formats": formats,
-            "cache_id": cache_id,
         })
 
     except yt_dlp.utils.DownloadError as e:
@@ -1601,11 +2444,27 @@ def get_info():
         return jsonify({"error": "حدث خطأ غير متوقع"}), 500
 
 
+_ALLOWED_THUMB_HOSTS = {
+    "scontent.cdninstagram.com", "instagram.com", "cdninstagram.com",
+    "p16-sign.tiktokcdn.com", "p19-sign.tiktokcdn.com", "p16-sign-va.tiktokcdn.com",
+    "p16-sign-sg.tiktokcdn.com", "v19-webapp.tiktok.com",
+    "pbs.twimg.com", "ton.twimg.com",
+    "external.fmss3-1.fna.fbcdn.net", "scontent.fmss3-1.fna.fbcdn.net",
+    "pinimg.com", "i.pinimg.com",
+}
+
 @app.route("/api/thumb")
 @limiter.limit("60 per minute")
 def proxy_thumbnail():
     url = request.args.get("url", "").strip()
-    if not url or not url.startswith("http"):
+    if not url or not url.startswith("https://"):
+        return "", 400
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).hostname or ""
+        if not any(host == h or host.endswith("." + h) for h in _ALLOWED_THUMB_HOSTS):
+            return "", 403
+    except Exception:
         return "", 400
     try:
         headers = {
@@ -1616,9 +2475,13 @@ def proxy_thumbnail():
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=8) as r:
             data = r.read()
-            content_type = r.headers.get("Content-Type", "image/jpeg")
-        resp = Response(data, content_type=content_type)
+            ct = r.headers.get("Content-Type", "image/jpeg")
+            # Only allow image content types from thumbnail proxy
+            if not ct.startswith("image/"):
+                ct = "image/jpeg"
+        resp = Response(data, content_type=ct)
         resp.headers["Cache-Control"] = "public, max-age=3600"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
         return resp
     except Exception:
         return "", 502
@@ -1630,47 +2493,106 @@ def start_download():
     data = request.get_json()
     url = (data or {}).get("url", "").strip()
     format_id = (data or {}).get("format_id", "bestvideo+bestaudio/best")
-    cache_id = (data or {}).get("cache_id", "")
 
     if not url:
         return jsonify({"error": "الرابط مطلوب"}), 400
 
+    if not _is_safe_url(url):
+        return jsonify({"error": "رابط غير مسموح"}), 400
+
     task_id = str(uuid.uuid4())
     platform = detect_platform(url)
-    progress_store[task_id] = {"status": "starting", "percent": 0}
-    cached = info_cache.pop(cache_id, None) if cache_id else None
-
-    # Check available disk space before starting (need at least 300 MB)
-    import shutil
-    try:
-        free_mb = shutil.disk_usage(DOWNLOAD_DIR).free // (1024 * 1024)
-        if free_mb < 300:
-            return jsonify({"error": "السيرفر ممتلئ مؤقتاً، حاول بعد دقيقة"}), 503
-    except Exception:
-        pass
+    progress_store[task_id] = {"status": "starting", "percent": 0, "_ts": time.time()}
 
     def do_download():
+        global _active_downloads
+        with _active_downloads_lock:
+            if _active_downloads >= 2:
+                progress_store[task_id] = {"status": "error", "error": "السيرفر مشغول، حاول بعد قليل"}
+                return
+            _active_downloads += 1
+        try:
+            _run_download()
+        finally:
+            with _active_downloads_lock:
+                _active_downloads -= 1
+
+    def _run_download():
+        import requests as _req
         _start = time.time()
+
+        # ── Block YouTube (not supported) ──────────────────────────────────────
+        if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+            progress_store[task_id] = {"status": "error", "error": "YouTube غير مدعوم حالياً"}
+            record_download(platform, False, "unsupported", duration=time.time() - _start)
+            return
+
+        # ── RapidAPI path ──────────────────────────────────────────────────────
+        use_rapidapi = RAPIDAPI_KEY and format_id.startswith("rapidapi_")
+        if use_rapidapi:
+            prefer_audio = "audio" in format_id or "bestaudio" in format_id
+            api_data = _call_rapidapi(url)
+            medias = api_data.get("medias", [])
+            if medias and not api_data.get("error"):
+                safe_title = re.sub(r'[\\/*?:"<>|]', "", api_data.get("title", "video"))[:60]
+                # pick the right media
+                if format_id.startswith("rapidapi_"):
+                    idx = int(format_id.split("_")[1])
+                    item = medias[idx] if idx < len(medias) else medias[0]
+                    direct_url = item.get("url", "")
+                    ext = "." + item.get("extension", "mp4")
+                else:
+                    direct_url = _rapidapi_pick_url(medias, prefer_audio=prefer_audio)
+                    ext = ".mp3" if prefer_audio else ".mp4"
+                if direct_url:
+                    try:
+                        progress_store[task_id] = {"status": "downloading", "percent": 0, "_ts": time.time()}
+                        out_path = DOWNLOAD_DIR / f"{task_id}{ext}"
+                        with _req.get(direct_url, stream=True, timeout=120) as r:
+                            r.raise_for_status()
+                            total = int(r.headers.get("content-length", 0))
+                            downloaded = 0
+                            with open(out_path, "wb") as f:
+                                for chunk in r.iter_content(chunk_size=65536):
+                                    if chunk:
+                                        f.write(chunk)
+                                        downloaded += len(chunk)
+                                        if total:
+                                            pct = int(downloaded * 100 / total)
+                                            progress_store[task_id] = {"status": "downloading", "percent": pct, "_ts": time.time()}
+                        progress_store[task_id] = {
+                            "status": "done", "percent": 100,
+                            "file": task_id + ext,
+                            "filename": safe_title + ext,
+                        }
+                        record_download(platform, True, duration=time.time() - _start)
+                        return
+                    except Exception as e:
+                        progress_store[task_id] = {"status": "error", "error": str(e)[:200]}
+                        record_download(platform, False, str(e)[:200], duration=time.time() - _start)
+                        return
+
+        # ── yt-dlp fallback ────────────────────────────────────────────────────
         output_path = str(DOWNLOAD_DIR / f"{task_id}.%(ext)s")
+        needs_merge = "+" in format_id
         ydl_opts = {
             "format": format_id,
             "outtmpl": output_path,
-            "merge_output_format": "mp4",
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
-            "nocheckcertificate": True,
+            "nocheckcertificate": False,
             "prefer_ffmpeg": True,
-            "socket_timeout": 30,
-            "retries": 5,
-            "fragment_retries": 5,
+            **({"ffmpeg_location": _FFMPEG_PATH} if _FFMPEG_PATH else {}),
+            "concurrent_fragment_downloads": 1,
+            "buffersize": 16384,
             "http_chunk_size": 10485760,
             "progress_hooks": [make_progress_hook(task_id)],
-            "postprocessors": [
-                {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"},
-                {"key": "FFmpegMetadata", "add_metadata": True},
-            ],
+            "postprocessors": [],
         }
+        if needs_merge:
+            ydl_opts["merge_output_format"] = "mp4"
+            ydl_opts["postprocessors"].append({"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"})
 
         if format_id in ("bestaudio", "bestaudio/best"):
             ydl_opts["format"] = "bestaudio/best"
@@ -1680,7 +2602,6 @@ def start_download():
                 "preferredquality": "320",
             }]
 
-        # Instagram requires cookies for public and private content
         if "instagram.com" in url.lower():
             cookies_file = get_cookies_file()
             if cookies_file:
@@ -1688,11 +2609,8 @@ def start_download():
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                if cached:
-                    info = ydl.process_ie_result(cached["info"], download=True)
-                else:
-                    info = ydl.extract_info(url, download=True)
-                title = (info or {}).get("title", "video") if info else "video"
+                info = ydl.extract_info(url, download=True)
+                title = info.get("title", "video")
                 safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:60]
 
             found = list(DOWNLOAD_DIR.glob(f"{task_id}.*"))
@@ -1710,18 +2628,7 @@ def start_download():
                 record_download(platform, False, "الملف لم يُوجد", duration=time.time()-_start)
         except Exception as e:
             err = str(e)[:200]
-            err_lower = err.lower()
-            if "no space left" in err_lower or "disk" in err_lower:
-                friendly = "السيرفر ممتلئ مؤقتاً، حاول بعد دقيقة"
-            elif "timed out" in err_lower or "timeout" in err_lower or "socket" in err_lower:
-                friendly = "انتهت مهلة التحميل، الفيديو كبير جداً أو الاتصال بطيء — حاول مرة أخرى"
-            elif "fragment" in err_lower:
-                friendly = "فشل تحميل أجزاء الفيديو، حاول بجودة أقل"
-            elif "memory" in err_lower:
-                friendly = "الفيديو كبير جداً على السيرفر، حاول بجودة أقل"
-            else:
-                friendly = err
-            progress_store[task_id] = {"status": "error", "error": friendly}
+            progress_store[task_id] = {"status": "error", "error": err}
             record_download(platform, False, err, duration=time.time()-_start)
 
     threading.Thread(target=do_download, daemon=True).start()
@@ -1745,9 +2652,14 @@ def serve_file(filename):
     if not filepath.exists():
         return jsonify({"error": "الملف غير موجود أو انتهت صلاحيته"}), 404
 
-    download_name = request.args.get("name", filename)
+    raw_name = request.args.get("name", filename)
+    download_name = re.sub(r'[\x00-\x1f\x7f/\\]', '', raw_name)[:200] or filename
     file_size = filepath.stat().st_size
     CHUNK = 512 * 1024  # 512 KB per chunk
+
+    import urllib.parse
+    encoded_name = urllib.parse.quote(download_name.encode("utf-8"))
+    content_disposition = f"attachment; filename*=UTF-8''{encoded_name}"
 
     range_header = request.headers.get("Range")
     if range_header:
@@ -1755,6 +2667,8 @@ def serve_file(filename):
             byte_start = int(range_header.replace("bytes=", "").split("-")[0])
         except Exception:
             byte_start = 0
+        if byte_start < 0 or byte_start >= file_size:
+            return Response("Range Not Satisfiable", status=416)
     else:
         byte_start = 0
 
@@ -1774,7 +2688,7 @@ def serve_file(filename):
 
     status = 206 if range_header else 200
     headers = {
-        "Content-Disposition": f'attachment; filename="{download_name}"',
+        "Content-Disposition": content_disposition,
         "Accept-Ranges": "bytes",
         "Content-Length": str(content_length),
         "Cache-Control": "no-store, no-transform",  # prevent any proxy/compress from altering the stream
@@ -1795,7 +2709,10 @@ def serve_file(filename):
 @app.route("/admin/api/download-trend")
 @requires_auth
 def admin_download_trend():
-    days = int(request.args.get("days", 7))
+    try:
+        days = max(1, min(int(request.args.get("days", 7)), 365))
+    except (ValueError, TypeError):
+        days = 7
     daily = load_daily_stats()
     result = []
     for i in range(days - 1, -1, -1):
@@ -1860,12 +2777,15 @@ def admin_visitor_device_stats():
     return jsonify({"mobile": mobile, "desktop": desktop, "new": new_v, "returning": returning, "peak_hour": peak})
 
 
+
 @app.route("/admin/api/test-url", methods=["POST"])
 @requires_auth
 def admin_test_url():
     url = (request.get_json() or {}).get("url", "").strip()
     if not url:
         return jsonify({"error": "أدخل رابطاً"}), 400
+    if not _is_safe_url(url):
+        return jsonify({"error": "رابط غير مسموح"}), 400
     try:
         with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "noplaylist": True}) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -1922,6 +2842,778 @@ def page_not_found(e):
 @app.errorhandler(500)
 def internal_error(e):
     return render_template("404.html", error_code=500), 500
+
+
+
+
+
+
+
+
+
+
+
+def _resolve_platform(url: str) -> str:
+    u = url.lower()
+    if "tiktok" in u:
+        return "TikTok"
+    if "instagram" in u:
+        return "Instagram"
+    if "facebook" in u or "fb.watch" in u:
+        return "Facebook"
+    if "twitter" in u or "x.com" in u:
+        return "Twitter/X"
+    if "pinterest" in u or "pin.it" in u:
+        return "Pinterest"
+    if "snapchat" in u or "snap.com" in u:
+        return "Snapchat"
+    if "youtube.com" in u or "youtu.be" in u:
+        return "YouTube"
+    return "Other"
+
+
+def _is_youtube_unlocked() -> bool:
+    """YouTube is enabled only after YOUTUBE_UNLOCK_DATE (YYYY-MM-DD).
+    If env var is not set, YouTube is disabled."""
+    if not YOUTUBE_UNLOCK_DATE:
+        return False
+    try:
+        unlock = datetime.strptime(YOUTUBE_UNLOCK_DATE, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) >= unlock
+    except Exception:
+        return False
+
+
+@app.route("/api/resolve", methods=["POST"])
+@limiter.limit("120 per minute")
+def api_resolve():
+    """Resolve a social-media URL into a list of downloadable formats.
+
+    POST body: {"url": "https://..."}
+    Response:  {"title": "...", "thumbnail": "...", "platform": "TikTok",
+                "formats": [{"id": "v720", "label": "720p", "url": "...",
+                             "ext": "mp4", "type": "video", "height": 720}, ...]}
+    """
+    data = request.get_json(silent=True) or {}
+    url = data.get("url", "").strip()
+
+    if not url or not url.startswith(("http://", "https://")):
+        return jsonify({"error": "url مطلوب"}), 400
+
+    if not _is_safe_url(url):
+        return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    platform = _resolve_platform(url)
+    formats: list = []
+    title = ""
+    thumbnail = ""
+
+    if platform == "YouTube" and not _is_youtube_unlocked():
+        return jsonify({"error": "هذه المنصة غير مدعومة حالياً"}), 422
+
+    # ── 1. Try SMVD RapidAPI (all supported platforms) ────────────────────────
+    try:
+        smvd_result = _call_smvd_api(url, platform)
+        if not smvd_result.get("error"):
+            s_title, s_thumb, s_formats = _parse_smvd_response(smvd_result)
+            if s_formats:
+                title = s_title or title
+                thumbnail = s_thumb or thumbnail
+                formats = s_formats
+                app.logger.info("resolve: SMVD returned %d formats for %s", len(formats), platform)
+        else:
+            app.logger.warning("SMVD resolve error for %s: %s", platform, smvd_result.get("error"))
+    except Exception as e:
+        app.logger.warning("SMVD resolve failed: %s", e)
+
+    # ── 2. Try YouTube Media Downloader API ───────────────────────────────────
+    if not formats and platform == "YouTube":
+        try:
+            video_id = _extract_youtube_id(url)
+            app.logger.info("YouTube: extracted video_id=%s", video_id)
+            if video_id:
+                yt_result = _call_youtube_api(video_id)
+                app.logger.info("YouTube API raw keys: %s", list(yt_result.keys())[:10])
+                if not yt_result.get("error"):
+                    y_title, y_thumb, y_formats = _parse_youtube_api_response(yt_result)
+                    app.logger.info("YouTube API parsed: %d formats", len(y_formats))
+                    if y_formats:
+                        title = y_title or title
+                        thumbnail = y_thumb or thumbnail
+                        formats = y_formats
+                        app.logger.info("resolve: YouTube API returned %d formats", len(formats))
+                else:
+                    app.logger.warning("YouTube API error: %s", yt_result.get("error"))
+        except Exception as e:
+            app.logger.warning("YouTube API resolve failed: %s", e)
+
+    # ── 2b. YouTube Video And Shorts Downloader (second YouTube fallback) ─────
+    if not formats and platform == "YouTube":
+        try:
+            video_id = _extract_youtube_id(url)
+            if video_id:
+                yt2_result = _call_youtube2_api(video_id)
+                app.logger.info("YouTube2 API raw keys: %s", list(yt2_result.keys())[:10])
+                if not yt2_result.get("error"):
+                    y_title, y_thumb, y_formats = _parse_smvd_response(yt2_result)
+                    app.logger.info("YouTube2 smvd-parse: %d formats", len(y_formats))
+                    if y_formats:
+                        title = y_title or title
+                        thumbnail = y_thumb or thumbnail
+                        formats = y_formats
+                        app.logger.info("resolve: YouTube2 API returned %d formats", len(formats))
+                    else:
+                        y_title, y_thumb, y_formats = _parse_youtube_api_response(yt2_result)
+                        app.logger.info("YouTube2 yt-parse: %d formats", len(y_formats))
+                        if y_formats:
+                            title = y_title or title
+                            thumbnail = y_thumb or thumbnail
+                            formats = y_formats
+                else:
+                    app.logger.warning("YouTube2 API error: %s", yt2_result.get("error"))
+        except Exception as e:
+            app.logger.warning("YouTube2 API resolve failed: %s", e)
+
+    # ── 3. Fallback: yt-dlp ───────────────────────────────────────────────────
+    if not formats:
+        try:
+            ydl_opts: dict = {
+                "quiet": True,
+                "no_warnings": True,
+                "skip_download": True,
+                "noplaylist": True,
+                "socket_timeout": 25,
+            }
+            cookies_file = get_cookies_file()
+            if cookies_file:
+                ydl_opts["cookiefile"] = cookies_file
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+
+            if info:
+                title = title or (info.get("title") or info.get("description") or "").strip()
+                thumbnail = thumbnail or info.get("thumbnail") or ""
+                raw_formats = info.get("formats") or []
+
+                # Single-URL extractors (e.g. direct video links)
+                if not raw_formats and info.get("url"):
+                    raw_formats = [{
+                        "format_id": "best",
+                        "url": info["url"],
+                        "ext": info.get("ext", "mp4"),
+                        "height": info.get("height"),
+                        "vcodec": info.get("vcodec", "avc1"),
+                        "acodec": info.get("acodec", "mp4a"),
+                    }]
+
+                seen_heights2: set = set()
+                audio_added2 = False
+                video_candidates: list = []
+
+                for f in raw_formats:
+                    f_url = (f.get("url") or "").strip()
+                    if not f_url or f_url.startswith("manifest"):
+                        continue
+                    vcodec = (f.get("vcodec") or "").lower()
+                    acodec = (f.get("acodec") or "").lower()
+                    height = f.get("height") or 0
+                    ext = f.get("ext") or "mp4"
+
+                    # Pure audio stream
+                    if vcodec in ("none", "") and acodec not in ("none", ""):
+                        if not audio_added2:
+                            formats.append({
+                                "id": "audio",
+                                "label": "صوت فقط",
+                                "url": f_url,
+                                "ext": ext if ext in ("mp3", "m4a", "aac", "opus") else "m4a",
+                                "type": "audio",
+                                "height": 0,
+                            })
+                            audio_added2 = True
+                        continue
+
+                    # Video stream — only include if audio is embedded (acodec != none)
+                    has_audio = acodec not in ("none", "")
+                    if height and height not in seen_heights2 and has_audio:
+                        seen_heights2.add(height)
+                        video_candidates.append({
+                            "id": f"v{height}",
+                            "label": f"{height}p",
+                            "url": f_url,
+                            "ext": ext,
+                            "type": "video",
+                            "height": height,
+                        })
+
+                # If no combined streams found, check for DASH separate streams → server-merge fallback
+                if not video_candidates:
+                    has_dash_video = any(
+                        (f.get("vcodec") or "").lower() not in ("none", "")
+                        and (f.get("acodec") or "").lower() in ("none", "")
+                        and f.get("height", 0)
+                        for f in raw_formats
+                    )
+                    if has_dash_video:
+                        import urllib.parse as _up
+                        merge_url = (
+                            SITE_URL
+                            + "/api/merged-download?src="
+                            + _up.quote(url, safe="")
+                        )
+                        video_candidates.append({
+                            "id": "v_server",
+                            "label": "أفضل جودة",
+                            "url": merge_url,
+                            "ext": "mp4",
+                            "type": "video",
+                            "height": 720,
+                        })
+
+                # Pick up to 4 quality tiers
+                video_candidates.sort(key=lambda x: x["height"], reverse=True)
+                WANT_HEIGHTS = [1080, 720, 480, 360, 240]
+                picked: list = []
+                used_h: set = set()
+                for want in WANT_HEIGHTS:
+                    match = next(
+                        (c for c in video_candidates if c["height"] <= want and c["height"] not in used_h),
+                        None,
+                    )
+                    if match:
+                        picked.append(match)
+                        used_h.add(match["height"])
+                if not picked and video_candidates:
+                    picked = video_candidates[:4]
+
+                formats = picked + [f for f in formats if f["type"] == "audio"]
+        except Exception as e:
+            app.logger.warning("yt-dlp resolve failed: %s", e)
+
+    if not formats:
+        return jsonify({"error": "تعذر استخراج روابط التحميل من هذا المصدر"}), 422
+
+    # Route CDN URLs through the right proxy.
+    # - Formats with audio_url (video-only DASH + separate audio): direct-merge first
+    # - Already-routed URLs: skip
+    # - smvd.xyz URLs with no audio_url: already proxied by SMVD, send directly
+    # - YouTube without audio_url: use merged-download (server-side yt-dlp fallback)
+    # - Everything else: proxy-download adds platform-specific Referer headers
+    import urllib.parse as _up
+    for fmt in formats:
+        raw = fmt.get("url", "")
+        if not raw.startswith("http"):
+            continue
+        if "/api/proxy-download" in raw or "/api/merged-download" in raw or "/api/tiktok-download" in raw or "/api/direct-merge" in raw:
+            continue
+        audio_raw = fmt.get("audio_url", "")
+        if audio_raw and fmt.get("type") == "video":
+            # Store the long proxied URLs server-side; pass only a short ID in the URL
+            # to avoid exceeding gunicorn's limit-request-line (4094 bytes).
+            job_id = _store_merge_job(raw, audio_raw)
+            fmt["url"] = f"{SITE_URL}/api/direct-merge?id={job_id}"
+        elif "smvd.xyz" in raw:
+            # Already proxied by SMVD (combined stream or audio-only) — pass directly
+            pass
+        elif platform == "YouTube":
+            # Fallback: no proxied audio URL, use yt-dlp merge (may need cookies)
+            fmt["url"] = (
+                f"{SITE_URL}/api/merged-download"
+                f"?src={_up.quote(url, safe='')}"
+            )
+        else:
+            fmt["url"] = (
+                f"{SITE_URL}/api/proxy-download"
+                f"?url={_up.quote(raw, safe='')}"
+                f"&ext={fmt.get('ext', 'mp4')}"
+            )
+
+    return jsonify({
+        "title": title[:200] if title else "",
+        "thumbnail": thumbnail or "",
+        "platform": "Video" if platform == "YouTube" else platform,
+        "formats": formats,
+    })
+
+
+
+@app.route("/api/tiktok-download", methods=["GET"])
+@limiter.limit("20 per minute")
+def api_tiktok_download():
+    """Download a TikTok video server-side via yt-dlp and stream it to the client."""
+    import urllib.parse as _up
+    import requests as _req
+    import tempfile, shutil, glob as _glob
+
+    src = _up.unquote(request.args.get("src", "").strip())
+    ext = request.args.get("ext", "mp4").strip().lower()
+    if ext not in ("mp4", "mp3", "m4a", "webm", "mov"):
+        ext = "mp4"
+
+    if not src or not src.startswith(("http://", "https://")):
+        return jsonify({"error": "src مطلوب"}), 400
+    if not _is_safe_url(src):
+        return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    app.logger.info("tiktok-download: extracting URL for %s", src[:80])
+
+    # Step 1: use yt-dlp (skip_download) to get a fresh CDN URL + headers
+    cdn_url = ""
+    cdn_headers = {}
+    try:
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "noplaylist": True,
+            "socket_timeout": 20,
+            "format": "bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best",
+        }
+        cookies_file = get_cookies_file()
+        if cookies_file:
+            ydl_opts["cookiefile"] = cookies_file
+        if _FFMPEG_PATH:
+            ydl_opts["ffmpeg_location"] = _FFMPEG_PATH
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(src, download=False)
+
+        if info:
+            # Prefer a direct URL on the info dict itself
+            if info.get("url"):
+                cdn_url = info["url"]
+                cdn_headers = info.get("http_headers") or {}
+            elif info.get("formats"):
+                for f in reversed(info["formats"]):
+                    if f.get("url") and f.get("ext") == "mp4":
+                        cdn_url = f["url"]
+                        cdn_headers = f.get("http_headers") or {}
+                        break
+                if not cdn_url:
+                    best = info["formats"][-1]
+                    cdn_url = best.get("url", "")
+                    cdn_headers = best.get("http_headers") or {}
+    except Exception as e:
+        app.logger.warning("tiktok-download: yt-dlp failed (%s), trying RapidAPI", e)
+
+    # Step 2: fallback to RapidAPI if yt-dlp couldn't get a URL
+    if not cdn_url:
+        try:
+            rapid = _call_rapidapi(src)
+            medias = rapid.get("medias") or []
+            app.logger.info("tiktok-download: RapidAPI medias count=%d", len(medias))
+            for m in medias:
+                m_type = (m.get("type") or "").lower()
+                m_url = (m.get("url") or "").strip()
+                if not m_url or m_type == "audio":
+                    continue
+                cdn_url = m_url
+                break
+            if not cdn_url and medias:
+                cdn_url = (medias[0].get("url") or "").strip()
+        except Exception as e:
+            app.logger.error("tiktok-download: RapidAPI also failed: %s", e)
+
+    if not cdn_url:
+        return jsonify({"error": "تعذر جلب رابط التيك توك"}), 500
+
+    app.logger.info("tiktok-download: streaming from %s", cdn_url[:120])
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/114.0.0.0 Mobile Safari/537.36"
+        ),
+        "Referer": "https://www.tiktok.com/",
+        "Accept": "*/*",
+        "Accept-Encoding": "identity",
+    }
+    # Merge yt-dlp provided headers (they contain auth tokens if needed)
+    if cdn_headers:
+        headers.update({k: v for k, v in cdn_headers.items() if k.lower() not in ("accept-encoding",)})
+
+    try:
+        resp = _safe_proxy_get(cdn_url, headers=headers, stream=True)
+        app.logger.info("tiktok-download: CDN status=%s length=%s",
+                        resp.status_code, resp.headers.get("Content-Length", "?"))
+        resp.raise_for_status()
+
+        safe_content_type = f"video/{ext}" if ext != "mp3" else "audio/mpeg"
+        content_length = resp.headers.get("Content-Length")
+
+        def _stream():
+            for chunk in resp.iter_content(chunk_size=65536):
+                if chunk:
+                    yield chunk
+
+        out_headers = {
+            "Content-Type": safe_content_type,
+            "Content-Disposition": f'attachment; filename="video.{ext}"',
+            "X-Content-Type-Options": "nosniff",
+        }
+        if content_length:
+            out_headers["Content-Length"] = content_length
+
+        return Response(_stream(), headers=out_headers)
+
+    except Exception as e:
+        app.logger.error("tiktok-download: stream failed cdn=%s error=%s", cdn_url[:120], e)
+        return jsonify({"error": "فشل تحميل الفيديو"}), 500
+
+
+@app.route("/api/tiktok-redirect", methods=["GET"])
+@limiter.limit("20 per minute")
+def api_tiktok_redirect():
+    """Extract TikTok direct CDN URL via yt-dlp and redirect the client to it.
+
+    Faster than merged-download: no server-side download, just metadata extraction
+    + 302 redirect so Android downloads directly from TikTok CDN.
+    """
+    import urllib.parse as _up
+    src = _up.unquote(request.args.get("src", "").strip())
+    if not src or not src.startswith(("http://", "https://")):
+        return jsonify({"error": "src مطلوب"}), 400
+    if not _is_safe_url(src):
+        return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    try:
+        ydl_opts: dict = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "noplaylist": True,
+            "socket_timeout": 20,
+            "format": "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best",
+        }
+        cookies_file = get_cookies_file()
+        if cookies_file:
+            ydl_opts["cookiefile"] = cookies_file
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(src, download=False)
+
+        if not info:
+            return jsonify({"error": "تعذر استخراج رابط TikTok"}), 500
+
+        # Get the direct CDN URL
+        direct_url = ""
+        if info.get("url"):
+            direct_url = info["url"]
+        elif info.get("formats"):
+            for f in reversed(info["formats"]):
+                u = f.get("url", "")
+                if u and u.startswith("http") and f.get("vcodec") not in ("none", ""):
+                    direct_url = u
+                    break
+
+        if not direct_url:
+            return jsonify({"error": "لم يُعثر على رابط مباشر"}), 500
+
+        app.logger.info("tiktok-redirect: %s → %s", src[:60], direct_url[:80])
+        return redirect(direct_url, code=302)
+
+    except Exception as e:
+        app.logger.error("tiktok-redirect error: %s", e)
+        return jsonify({"error": "فشل استخراج الرابط"}), 500
+
+
+@app.route("/api/direct-merge", methods=["GET"])
+@limiter.limit("5 per minute")
+def api_direct_merge():
+    """Download proxied video+audio streams and merge with ffmpeg (no yt-dlp, no cookies).
+
+    Used when /api/resolve provides both a video URL and an audio_url from a
+    proxied RapidAPI source (SMVD, YouTube Media Downloader, etc.).
+    """
+    import tempfile, shutil
+    import requests as _req
+    import urllib.parse as _up
+
+    # Prefer short job ID (avoids long URLs in request line)
+    job_id = request.args.get("id", "").strip()
+    if job_id:
+        job = _get_merge_job(job_id)
+        if not job:
+            return jsonify({"error": "الرابط انتهت صلاحيته، أعد البحث"}), 410
+        v_url = job["v"]
+        a_url = job["a"]
+    else:
+        v_url = _up.unquote(request.args.get("v", "").strip())
+        a_url = _up.unquote(request.args.get("a", "").strip())
+        if not v_url or not a_url:
+            return jsonify({"error": "id أو v+a مطلوب"}), 400
+        if not _is_safe_url(v_url) or not _is_safe_url(a_url):
+            return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    app.logger.info("direct-merge: v=%s a=%s", v_url[:80], a_url[:80])
+
+    tmp_dir = tempfile.mkdtemp()
+    try:
+        v_path = os.path.join(tmp_dir, "video.mp4")
+        a_path = os.path.join(tmp_dir, "audio.m4a")
+        out_path = os.path.join(tmp_dir, "merged.mp4")
+
+        def _download(src_url: str, dest: str):
+            with _safe_proxy_get(src_url, stream=True, timeout=60) as r:
+                r.raise_for_status()
+                with open(dest, "wb") as fh:
+                    for chunk in r.iter_content(65536):
+                        fh.write(chunk)
+
+        # Download both streams concurrently
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            fv = pool.submit(_download, v_url, v_path)
+            fa = pool.submit(_download, a_url, a_path)
+            fv.result(timeout=90)
+            fa.result(timeout=90)
+
+        ffmpeg = _FFMPEG_PATH or "ffmpeg"
+        result = subprocess.run(
+            [
+                ffmpeg, "-y",
+                "-i", v_path,
+                "-i", a_path,
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-movflags", "+faststart",
+                out_path,
+            ],
+            capture_output=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            app.logger.error("direct-merge ffmpeg error: %s", result.stderr[-500:])
+            return jsonify({"error": "فشل دمج الفيديو"}), 500
+
+        file_size = os.path.getsize(out_path)
+
+        def _stream_and_cleanup():
+            try:
+                with open(out_path, "rb") as fh:
+                    while True:
+                        chunk = fh.read(65536)
+                        if not chunk:
+                            break
+                        yield chunk
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        return Response(
+            _stream_and_cleanup(),
+            mimetype="video/mp4",
+            headers={
+                "Content-Disposition": 'attachment; filename="video.mp4"',
+                "Content-Length": str(file_size),
+                "Cache-Control": "no-store",
+            },
+        )
+
+    except Exception as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        app.logger.error("direct-merge error: %s", e)
+        return jsonify({"error": "فشل تحميل الفيديو"}), 500
+
+
+@app.route("/api/merged-download", methods=["GET"])
+@limiter.limit("3 per minute")
+def api_merged_download():
+    """Server-side download + ffmpeg merge for DASH-only platforms (no combined CDN URL).
+
+    Called by the Android app when /api/resolve detects separate video+audio streams.
+    Downloads best video+audio via yt-dlp, merges with ffmpeg, streams mp4 to client.
+    """
+    import tempfile
+    import shutil
+    import glob as _glob
+    import urllib.parse as _up
+
+    src = _up.unquote(request.args.get("src", "").strip())
+
+    if not src or not src.startswith(("http://", "https://")):
+        return jsonify({"error": "src مطلوب"}), 400
+    if not _is_safe_url(src):
+        return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    tmp_dir = tempfile.mkdtemp(prefix="nazzilha_merge_")
+    try:
+        ydl_opts: dict = {
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "format": (
+                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]"
+                "/bestvideo[height<=720]+bestaudio"
+                "/best[height<=720]/best"
+            ),
+            "outtmpl": os.path.join(tmp_dir, "video.%(ext)s"),
+            "merge_output_format": "mp4",
+            "socket_timeout": 30,
+            "postprocessors": [{"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"}],
+        }
+        if _FFMPEG_PATH:
+            ydl_opts["ffmpeg_location"] = _FFMPEG_PATH
+
+        if "youtube" in src.lower() or "youtu.be" in src.lower():
+            cookies_file = get_youtube_cookies_file()
+        else:
+            cookies_file = get_cookies_file()
+        if cookies_file:
+            ydl_opts["cookiefile"] = cookies_file
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([src])
+
+        mp4_files = _glob.glob(os.path.join(tmp_dir, "*.mp4"))
+        if not mp4_files:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            return jsonify({"error": "فشل دمج الفيديو"}), 500
+
+        out_path = mp4_files[0]
+        file_size = os.path.getsize(out_path)
+
+        def _stream_and_cleanup():
+            try:
+                with open(out_path, "rb") as fh:
+                    while True:
+                        chunk = fh.read(65536)
+                        if not chunk:
+                            break
+                        yield chunk
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        return Response(
+            _stream_and_cleanup(),
+            mimetype="video/mp4",
+            headers={
+                "Content-Disposition": 'attachment; filename="video.mp4"',
+                "Content-Length": str(file_size),
+            },
+        )
+
+    except Exception as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        app.logger.error("merged-download error for %s: %s", src[:80], e)
+        return jsonify({"error": "فشل تحميل الفيديو"}), 500
+
+
+@app.route("/api/proxy-download", methods=["GET"])
+@limiter.limit("30 per minute")
+def api_proxy_download():
+    """Proxy a CDN video URL through the server with correct headers to bypass platform blocking."""
+    import urllib.parse as _up
+    import requests
+
+    cdn_url = _up.unquote(request.args.get("url", "").strip())
+    ext = request.args.get("ext", "mp4").strip().lower()
+    if ext not in ("mp4", "mp3", "m4a", "webm", "mov"):
+        ext = "mp4"
+
+    if not cdn_url or not cdn_url.startswith(("http://", "https://")):
+        return jsonify({"error": "url مطلوب"}), 400
+    if not _is_safe_url(cdn_url):
+        return jsonify({"error": "الرابط غير مسموح به"}), 400
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/114.0.0.0 Mobile Safari/537.36"
+        ),
+        "Accept": "*/*",
+        "Accept-Encoding": "identity",
+        "Connection": "keep-alive",
+    }
+
+    cdn_lower = cdn_url.lower()
+    if any(k in cdn_lower for k in ("tiktok", "musically", "ibytedtos", "ttwimg", "bytedance")):
+        headers["Referer"] = "https://www.tiktok.com/"
+    elif "instagram" in cdn_lower or "cdninstagram" in cdn_lower:
+        headers["Referer"] = "https://www.instagram.com/"
+    elif "facebook" in cdn_lower or "fbcdn" in cdn_lower:
+        headers["Referer"] = "https://www.facebook.com/"
+    elif "snapchat" in cdn_lower:
+        headers["Referer"] = "https://www.snapchat.com/"
+
+    app.logger.info("proxy-download: fetching %s", cdn_url[:120])
+    try:
+        resp = _safe_proxy_get(cdn_url, headers=headers, stream=True)
+        app.logger.info("proxy-download: CDN status=%s content-type=%s length=%s",
+                        resp.status_code,
+                        resp.headers.get("Content-Type", "?"),
+                        resp.headers.get("Content-Length", "?"))
+        resp.raise_for_status()
+
+        safe_content_type = f"video/{ext}" if ext != "mp3" else "audio/mpeg"
+        content_length = resp.headers.get("Content-Length")
+
+        def _stream():
+            for chunk in resp.iter_content(chunk_size=65536):
+                if chunk:
+                    yield chunk
+
+        out_headers = {
+            "Content-Type": safe_content_type,
+            "Content-Disposition": f'attachment; filename="video.{ext}"',
+            "X-Content-Type-Options": "nosniff",
+        }
+        if content_length:
+            out_headers["Content-Length"] = content_length
+
+        return Response(_stream(), headers=out_headers)
+
+    except Exception as e:
+        app.logger.error("proxy-download FAILED cdn=%s error=%s", cdn_url[:120], e)
+        return jsonify({"error": "فشل تحميل الفيديو"}), 500
+
+
+# ── Occasions ─────────────────────────────────────────────────────────────────
+# Update the date ranges each year. Islamic dates shift ~11 days earlier annually.
+# Set OCCASION_OVERRIDE env var to force an occasion for testing:
+#   OCCASION_OVERRIDE=ramadan  or  OCCASION_OVERRIDE=eid  or  OCCASION_OVERRIDE=new_year
+
+_OCCASIONS = [
+    # id            start_mm_dd  end_mm_dd   hijri_approx
+    ("ramadan",     (2, 18),     (3, 19)),   # Ramadan 2026
+    ("eid",         (3, 20),     (3, 22)),   # Eid Al-Fitr 2026
+    ("eid",         (5, 27),     (5, 29)),   # Eid Al-Adha 2026
+    ("new_year",    (1,  1),     (1,  1)),   # Gregorian New Year 2026
+    ("new_year",    (1,  1),     (1,  1)),   # Gregorian New Year 2027 (same slot)
+    ("ramadan",     (2,  7),     (3,  8)),   # Ramadan 2027
+    ("eid",         (3,  9),     (3, 11)),   # Eid Al-Fitr 2027
+    ("eid",         (5, 16),     (5, 18)),   # Eid Al-Adha 2027
+]
+
+_OCCASION_META = {
+    "ramadan":  {"emoji": "🌙", "ar": "رمضان كريم", "en": "Ramadan Kareem"},
+    "eid":      {"emoji": "🎉", "ar": "عيد مبارك",  "en": "Eid Mubarak"},
+    "new_year": {"emoji": "🎆", "ar": "سنة سعيدة",  "en": "Happy New Year"},
+}
+
+
+@app.route("/api/occasion", methods=["GET"])
+@limiter.limit("60 per minute")
+def api_occasion():
+    override = os.environ.get("OCCASION_OVERRIDE", "").strip().lower()
+    if override and override in _OCCASION_META:
+        meta = _OCCASION_META[override]
+        return jsonify({"occasion": override, **meta})
+
+    today = now().date()
+    for row in _OCCASIONS:
+        occ_id, (sm, sd), (em, ed) = row[0], row[1], row[2]
+        start = today.replace(month=sm, day=sd)
+        end   = today.replace(month=em, day=ed)
+        if end < start:                    # crosses year boundary
+            end = end.replace(year=end.year + 1)
+        if start <= today <= end:
+            meta = _OCCASION_META[occ_id]
+            return jsonify({"occasion": occ_id, **meta})
+
+    return jsonify({"occasion": None})
 
 
 if __name__ == "__main__":

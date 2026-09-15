@@ -9,5 +9,6 @@ public class BootReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         NotificationReceiver.createChannel(context);
         NotificationReceiver.schedule(context);
+        ClipboardMonitorService.start(context);
     }
 }

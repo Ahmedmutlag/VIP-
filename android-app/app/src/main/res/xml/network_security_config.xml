@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Block all cleartext traffic for all domains -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Pin the server certificate for the API domain.
+         Run this to get the pin:
+           openssl s_client -connect www.vip-dl.com:443 2>/dev/null \
+             | openssl x509 -pubkey -noout \
+             | openssl pkey -pubin -outform DER \
+             | openssl dgst -sha256 -binary | base64
+         Then replace the placeholder below with the real pin.
+         Add a backup pin (from the CA or a second cert) so a cert rotation
+         doesn't lock users out.
+    -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">vip-dl.com</domain>
+        <!-- TODO: replace with real SHA-256 pin values before release -->
+        <!--
+        <pin-set expiration="2027-01-01">
+            <pin digest="SHA-256">REPLACE_WITH_REAL_LEAF_CERT_PIN=</pin>
+            <pin digest="SHA-256">REPLACE_WITH_BACKUP_CA_PIN=</pin>
+        </pin-set>
+        -->
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

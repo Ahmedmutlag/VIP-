@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="bg_dark">#0a0a0f</color>
+    <color name="bg_card">#16161f</color>
+    <color name="bg_border">#2a2a3a</color>
+    <color name="text_primary">#f0f0f8</color>
+    <color name="text_muted">#8888aa</color>
     <color name="accent">#7c3aed</color>
+    <color name="accent_light">#a855f7</color>
+    <color name="accent2">#06b6d4</color>
+    <color name="primary">#7c3aed</color>
+    <color name="green">#22c55e</color>
+    <color name="gold">#f59e0b</color>
+    <color name="background">#0a0a0f</color>
     <color name="white">#FFFFFF</color>
+    <color name="text_gray">#8888aa</color>
 </resources>

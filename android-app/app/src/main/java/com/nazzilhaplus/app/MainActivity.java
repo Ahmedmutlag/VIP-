@@ -1,206 +1,1832 @@
 package com.nazzilhaplus.app;
 
 import android.Manifest;
-import android.app.DownloadManager;
-import android.app.PendingIntent;
-import android.content.ActivityNotFoundException;
-import android.content.BroadcastReceiver;
+import android.content.ClipboardManager;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.drawable.GradientDrawable;
+import android.content.res.ColorStateList;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Environment;
-import android.webkit.CookieManager;
-import android.webkit.JavascriptInterface;
-import android.webkit.URLUtil;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.provider.MediaStore;
+import android.provider.Settings;
+import android.util.Log;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.PopupMenu;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
+import android.widget.FrameLayout;
+import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.android.play.core.review.ReviewInfo;
+import com.google.android.play.core.review.ReviewManager;
+import com.google.android.play.core.review.ReviewManagerFactory;
+import com.android.billingclient.api.AcknowledgePurchaseParams;
+import com.android.billingclient.api.BillingClient;
+import com.android.billingclient.api.BillingClientStateListener;
+import com.android.billingclient.api.BillingFlowParams;
+import com.android.billingclient.api.BillingResult;
+import com.android.billingclient.api.ProductDetails;
+import com.android.billingclient.api.Purchase;
+import com.android.billingclient.api.PurchasesUpdatedListener;
+import com.android.billingclient.api.QueryProductDetailsParams;
+import com.android.billingclient.api.PendingPurchasesParams;
+import com.android.billingclient.api.QueryPurchasesParams;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements PurchasesUpdatedListener {
 
-    private WebView webView;
-    private static final int STORAGE_PERMISSION_CODE = 100;
-    private String pendingUrl, pendingUserAgent, pendingContentDisposition, pendingMimeType;
+    private static final String TAG = "NazzilhaPlus";
+    private static final String API_BASE = "https://www.vip-dl.com";
+    private static final String SITE_URL = "https://www.vip-dl.com";
+    private static final int FREE_DAILY_LIMIT = 3;
+    private static final int STORAGE_PERM_CODE = 100;
+    private static final int MAX_HISTORY = 10;
+    private static final String SUBSCRIPTION_ID = "premium_monthly";
+
+    // ── Billing ──────────────────────────────────────────────────────────────
+    private BillingClient billingClient;
+
+    // ── Views ────────────────────────────────────────────────────────────────
+    private EditText urlInput;
+    private Button pasteBtn, fetchBtn;
+    private LinearLayout premiumBtn;
+    private TextView premiumBtnTitle, premiumBtnSub;
+    private View langBtn;
+    private View menuBtn;
+    private TextView langLabel;
+    private ProgressBar loadingSpinner;
+    private TextView errorBox;
+    private LinearLayout resultCard, formatsContainer, progressSection, hintCard;
+    private LinearLayout historySection, historyList;
+    private ImageView thumbnail;
+    private TextView platformBadge, videoTitle, progressPercent, downloadFilename;
+    private ProgressBar downloadProgress;
+    private TextView footerHowTo, footerPrivacy, footerAbout;
+    private Button clearHistoryBtn;
+    private LinearLayout rootLayout, headerBar, heroSection, statsBar;
+    private LinearLayout urlInputCard, urlInputField, footerSection;
+    private LinearLayout occasionBanner;
+    private TextView occasionBannerText;
+
+    // ── Download state ───────────────────────────────────────────────────────
+    private String pendingDlUrl;
+    private String pendingDlFilename;
+    private String pendingPlatform = "Other";
+    private boolean downloadPending = false;
+    private final java.util.concurrent.atomic.AtomicInteger lastReportedPct = new java.util.concurrent.atomic.AtomicInteger(0);
+
+    private static final List<String> VIDEO_DOMAINS = Arrays.asList(
+        "tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
+        "instagram.com", "instagr.am",
+        "facebook.com", "fb.watch",
+        "pinterest.com", "pin.it",
+        "twitter.com", "x.com",
+        "snapchat.com",
+        "dailymotion.com", "vimeo.com", "bilibili.com",
+        "twitch.tv", "reddit.com"
+    );
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Lifecycle
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        String lang = base.getSharedPreferences("nazzilha_prefs", MODE_PRIVATE)
+                .getString("app_lang", "");
+        if (!lang.isEmpty()) {
+            java.util.Locale locale = new java.util.Locale(lang);
+            java.util.Locale.setDefault(locale);
+            android.content.res.Configuration config = new android.content.res.Configuration();
+            config.setLocale(locale);
+            base = base.createConfigurationContext(config);
+        }
+        super.attachBaseContext(base);
+    }
+
+    private void updateLangLabel() {
+        if (langLabel == null) return;
+        String lang = getPrefs().getString("app_lang", "ar");
+        langLabel.setText("ar".equals(lang) ? "EN" : "عر");
+    }
+
+    private void toggleLanguage() {
+        String current = getPrefs().getString("app_lang", "");
+        String next = "ar".equals(current) ? "en" : "ar";
+        getPrefs().edit().putString("app_lang", next).apply();
+        recreate();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        webView = findViewById(R.id.webview);
-        setupWebView();
-        webView.loadUrl("https://www.vip-dl.com");
+
+        if (!getSharedPreferences("app_prefs", MODE_PRIVATE).getBoolean("onboarding_done", false)) {
+            startActivity(new android.content.Intent(this, OnboardingActivity.class));
+            finish();
+            return;
+        }
+
+        bindViews();
+        applyAppTheme();
+        updateLangLabel();
+        setupListeners();
+        showDisclaimerIfNeeded();
         NotificationReceiver.createChannel(this);
         requestNotificationPermission();
         NotificationReceiver.schedule(this);
-    }
 
-    private void requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 200);
-            }
-        }
-    }
+        setupBilling();
+        fetchOccasion();
+        handleIncomingIntent(getIntent());
 
-    private void setupWebView() {
-        WebSettings s = webView.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setLoadWithOverviewMode(true);
-        s.setUseWideViewPort(true);
-        s.setBuiltInZoomControls(false);
-        s.setDisplayZoomControls(false);
-        s.setMediaPlaybackRequiresUserGesture(false);
-        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
-
-        CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
-
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String url = request.getUrl().toString();
-                String scheme = request.getUrl().getScheme();
-                if (url.contains("play.google.com") || url.startsWith("market://")
-                        || "whatsapp".equals(scheme) || "tg".equals(scheme)
-                        || "instagram".equals(scheme) || "fb".equals(scheme)
-                        || "twitter".equals(scheme) || "snapchat".equals(scheme)
-                        || "intent".equals(scheme)) {
-                    try {
-                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                    } catch (Exception e) {
-                        view.loadUrl(url);
-                    }
-                    return true;
-                }
-                return false;
-            }
+        FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
+            if (token != null)
+                getPrefs().edit().putString("fcm_token", token).apply();
         });
 
-        webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
-
-        webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                            != PackageManager.PERMISSION_GRANTED) {
-                pendingUrl = url;
-                pendingUserAgent = userAgent;
-                pendingContentDisposition = contentDisposition;
-                pendingMimeType = mimeType;
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_CODE);
-            } else {
-                startDownload(url, userAgent, contentDisposition, mimeType);
-            }
-        });
-    }
-
-    private void startDownload(String url, String userAgent, String contentDisposition, String mimeType) {
-        String filename = URLUtil.guessFileName(url, contentDisposition, mimeType);
-
-        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-        request.setTitle(filename);
-        request.setDescription("نزلها بلس");
-        request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "NazzilhaPlus/" + filename);
-        request.addRequestHeader("User-Agent", userAgent);
-        String cookie = CookieManager.getInstance().getCookie(url);
-        if (cookie != null) request.addRequestHeader("Cookie", cookie);
-
-        DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-        long downloadId = dm.enqueue(request);
-
-        Toast.makeText(this, "⬇️ جاري التحميل...", Toast.LENGTH_SHORT).show();
-
-        BroadcastReceiver receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-                if (id != downloadId) return;
-
-                DownloadManager.Query query = new DownloadManager.Query();
-                query.setFilterById(downloadId);
-                Cursor cursor = dm.query(query);
-                if (cursor.moveToFirst()) {
-                    int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
-                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                        String localUri = cursor.getString(
-                                cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
-                        String path = Uri.parse(localUri).getPath();
-                        MediaScannerConnection.scanFile(context, new String[]{path}, null,
-                                (p, uri) -> runOnUiThread(() -> {
-                                    new androidx.appcompat.app.AlertDialog.Builder(MainActivity.this)
-                                        .setTitle("✅ اكتمل التحميل")
-                                        .setMessage("تم حفظ الفيديو في Downloads/NazzilhaPlus")
-                                        .setPositiveButton("فتح الفيديو", (d, w) -> {
-                                            Intent open = new Intent(Intent.ACTION_VIEW);
-                                            open.setDataAndType(uri, "video/*");
-                                            open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                                            try { startActivity(open); } catch (Exception ignored) {}
-                                        })
-                                        .setNegativeButton("حسناً", null)
-                                        .show();
-                                }));
-                    } else {
-                        runOnUiThread(() ->
-                                Toast.makeText(MainActivity.this,
-                                        "❌ فشل التحميل", Toast.LENGTH_SHORT).show());
-                    }
-                }
-                cursor.close();
-                try { unregisterReceiver(this); } catch (Exception ignored) {}
-            }
-        };
-        registerReceiver(receiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-                Build.VERSION.SDK_INT >= 33 ? Context.RECEIVER_EXPORTED : 0);
+        refreshHistory();
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == STORAGE_PERMISSION_CODE
-                && grantResults.length > 0
-                && grantResults[0] == PackageManager.PERMISSION_GRANTED
-                && pendingUrl != null) {
-            startDownload(pendingUrl, pendingUserAgent, pendingContentDisposition, pendingMimeType);
-            pendingUrl = null;
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(android.content.Intent intent) {
+        if (intent == null) return;
+        if (!android.content.Intent.ACTION_SEND.equals(intent.getAction())) return;
+        if (!"text/plain".equals(intent.getType())) return;
+        String text = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
+        if (text == null || text.isEmpty()) return;
+        String url = extractFirstUrl(text);
+        if (url == null) return;
+        if (urlInput != null) {
+            urlInput.setText(url);
+            urlInput.setSelection(url.length());
+            pendingDlUrl = url;
         }
     }
 
-    private class AppBridge {
-        @JavascriptInterface
-        public void openPlayStore() {
-            runOnUiThread(() -> {
+    private String extractFirstUrl(String text) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+            .compile("https?://[\\w\\-._~:/?#\\[\\]@!$&'()*+,;=%]+")
+            .matcher(text);
+        if (m.find()) return m.group();
+        return text.trim().startsWith("http") ? text.trim() : null;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        checkBiometricLock();
+        ClipboardMonitorService.start(this);
+        autoFillClipboard();
+        sendSessionPing();
+        if (billingClient != null && billingClient.isReady()) {
+            checkExistingSubscription();
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  View binding
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void bindViews() {
+        urlInput         = findViewById(R.id.urlInput);
+        pasteBtn         = findViewById(R.id.pasteBtn);
+        fetchBtn         = findViewById(R.id.fetchBtn);
+        menuBtn          = findViewById(R.id.menuBtn);
+        premiumBtn       = findViewById(R.id.premiumBtn);
+        premiumBtnTitle  = findViewById(R.id.premiumBtnTitle);
+        premiumBtnSub    = findViewById(R.id.premiumBtnSub);
+        langBtn          = findViewById(R.id.langBtn);
+        langLabel        = findViewById(R.id.langLabel);
+        loadingSpinner   = findViewById(R.id.loadingSpinner);
+        errorBox         = findViewById(R.id.errorBox);
+        resultCard       = findViewById(R.id.resultCard);
+        formatsContainer = findViewById(R.id.formatsContainer);
+        progressSection  = findViewById(R.id.progressSection);
+        hintCard         = findViewById(R.id.hintCard);
+        historySection   = findViewById(R.id.historySection);
+        historyList      = findViewById(R.id.historyList);
+        clearHistoryBtn  = findViewById(R.id.clearHistoryBtn);
+        thumbnail        = findViewById(R.id.thumbnail);
+        platformBadge    = findViewById(R.id.platformBadge);
+        videoTitle       = findViewById(R.id.videoTitle);
+        progressPercent  = findViewById(R.id.progressPercent);
+        downloadFilename = findViewById(R.id.downloadFilename);
+        downloadProgress = findViewById(R.id.downloadProgress);
+        footerHowTo      = findViewById(R.id.footerHowTo);
+        footerPrivacy    = findViewById(R.id.footerPrivacy);
+        footerAbout      = findViewById(R.id.footerAbout);
+        rootLayout       = findViewById(R.id.rootLayout);
+        headerBar        = findViewById(R.id.headerBar);
+        heroSection      = findViewById(R.id.heroSection);
+        statsBar         = findViewById(R.id.statsBar);
+        urlInputCard     = findViewById(R.id.urlInputCard);
+        urlInputField    = findViewById(R.id.urlInputField);
+        footerSection    = findViewById(R.id.footerSection);
+        occasionBanner   = findViewById(R.id.occasionBanner);
+        occasionBannerText = findViewById(R.id.occasionBannerText);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Listeners
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void setupListeners() {
+        pasteBtn.setOnClickListener(v -> {
+            String clip = getClipboardText();
+            if (!clip.isEmpty()) {
+                urlInput.setText(clip);
+                urlInput.setSelection(clip.length());
+            } else {
+                Toast.makeText(this, "الحافظة فارغة", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        fetchBtn.setOnClickListener(v -> fetchInfo());
+
+        langBtn.setOnClickListener(v -> toggleLanguage());
+        menuBtn.setOnClickListener(v -> showPopupMenu(v));
+        premiumBtn.setOnClickListener(v -> {
+            if (isPremiumActive()) {
+                Toast.makeText(this, "✅ اشتراكك نشط", Toast.LENGTH_SHORT).show();
+            } else {
+                launchBillingFlow();
+            }
+        });
+        refreshPremiumButton();
+
+        clearHistoryBtn.setOnClickListener(v -> {
+            getPrefs().edit().remove("dl_history").apply();
+            refreshHistory();
+        });
+
+        footerHowTo.setOnClickListener(v -> showHowToDialog());
+        footerPrivacy.setOnClickListener(v -> showPrivacyDialog());
+        footerAbout.setOnClickListener(v -> showAboutDialog());
+    }
+
+    private void showPopupMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        MenuInflater inflater = popup.getMenuInflater();
+        inflater.inflate(R.menu.main_menu, popup.getMenu());
+
+        // Show correct label for upgrade item based on premium status
+        String premiumLabel = isPremiumActive()
+                ? getString(R.string.menu_upgrade_active)
+                : getString(R.string.menu_upgrade_inactive);
+        popup.getMenu().findItem(R.id.menu_upgrade).setTitle(premiumLabel);
+
+        // Show correct clipboard monitor label
+        boolean clipOn = getPrefs().getBoolean("clip_monitor_enabled", false);
+        popup.getMenu().findItem(R.id.menu_clip_monitor).setTitle(clipOn ? "🔕 إيقاف كشف الروابط" : "🔔 كشف الروابط التلقائي");
+
+        // Show correct biometric lock label
+        boolean bioLocked = getPrefs().getBoolean("biometric_lock", false);
+        popup.getMenu().findItem(R.id.menu_biometric).setTitle(bioLocked ? "🔓 إلغاء قفل البصمة" : "🔒 قفل البصمة");
+
+        // Show correct bubble label based on running state
+        boolean bubbleRunning = BubbleService.isRunning(this);
+        popup.getMenu().findItem(R.id.menu_bubble).setTitle(
+                bubbleRunning ? getString(R.string.menu_item_bubble_on)
+                              : getString(R.string.menu_item_bubble_off));
+
+        popup.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.menu_upgrade) {
+                if (isPremiumActive()) Toast.makeText(this, getString(R.string.premium_active_toast), Toast.LENGTH_SHORT).show();
+                else launchBillingFlow();
+                return true;
+            }
+            if (id == R.id.menu_bubble)   { toggleBubble();        return true; }
+            if (id == R.id.menu_files)    { startActivity(new android.content.Intent(this, FileBrowserActivity.class)); return true; }
+            if (id == R.id.menu_how_to)   { showHowToDialog();     return true; }
+            if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
+            if (id == R.id.menu_about)    { showAboutDialog();     return true; }
+            if (id == R.id.menu_blog)     { openUrl(SITE_URL);     return true; }
+            if (id == R.id.menu_clip_monitor) { toggleClipMonitor(); return true; }
+            if (id == R.id.menu_biometric) { toggleBiometricLock(); return true; }
+            if (id == R.id.menu_referral) { startActivity(new android.content.Intent(this, ReferralActivity.class)); return true; }
+            if (id == R.id.menu_contact)  { openEmail();           return true; }
+            return false;
+        });
+        popup.show();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Floating Bubble
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private static final int REQ_OVERLAY = 5001;
+    private static final int REQ_FOLDER  = 5002;
+
+    // Bubble progress bridge (read by BubbleService)
+    public static volatile int bubbleDownloadPct = -1;
+
+    private void pickDownloadFolder() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION |
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION |
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        startActivityForResult(intent, REQ_FOLDER);
+    }
+
+    private void toggleBubble() {
+        if (BubbleService.isRunning(this)) {
+            BubbleService.stop(this);
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            startActivityForResult(intent, REQ_OVERLAY);
+        } else {
+            BubbleService.start(this);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_OVERLAY) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                BubbleService.start(this);
+            }
+        }
+        if (requestCode == REQ_FOLDER && resultCode == RESULT_OK && data != null) {
+            Uri treeUri = data.getData();
+            if (treeUri != null) {
+                getContentResolver().takePersistableUriPermission(treeUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                getPrefs().edit().putString("dl_folder_uri", treeUri.toString()).apply();
+                Toast.makeText(this, "📁 " + getString(R.string.folder_saved), Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Theme system
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void applyAppTheme() {
+        AppTheme t = AppTheme.getDefault();
+
+        // Window colors
+        getWindow().setStatusBarColor(t.headerColor);
+        getWindow().setNavigationBarColor(t.bgColor);
+
+        // Structural backgrounds
+        if (rootLayout   != null) rootLayout.setBackgroundColor(t.bgColor);
+        if (headerBar    != null) headerBar.setBackgroundColor(t.headerColor);
+        if (heroSection  != null) {
+            GradientDrawable hero = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{t.heroStartColor, t.heroEndColor});
+            heroSection.setBackground(hero);
+        }
+        if (statsBar     != null) statsBar.setBackground(makeCard(t.cardBgColor, 16));
+        if (urlInputCard != null) urlInputCard.setBackground(makeCard(t.cardBgColor, 16));
+        if (urlInputField!= null) {
+            GradientDrawable inputBg = new GradientDrawable();
+            inputBg.setColor(t.inputBgColor);
+            inputBg.setCornerRadius((float) dp(12));
+            inputBg.setStroke(dp(1), t.inputBorderColor);
+            urlInputField.setBackground(inputBg);
+        }
+        if (resultCard   != null) resultCard.setBackground(makeCard(t.cardBgColor, 16));
+        if (progressSection != null) progressSection.setBackground(makeCard(t.cardBgColor, 16));
+        if (historySection  != null) historySection.setBackground(makeCard(t.cardBgColor, 16));
+        if (footerSection   != null) footerSection.setBackgroundColor(t.footerBgColor);
+
+        // Fetch button
+        if (fetchBtn != null) {
+            GradientDrawable btn = new GradientDrawable();
+            btn.setColor(t.accentColor);
+            btn.setCornerRadius((float) dp(12));
+            fetchBtn.setBackground(btn);
+        }
+
+        // Progress bar
+        if (downloadProgress != null) {
+            downloadProgress.setProgressTintList(ColorStateList.valueOf(t.accentColor));
+            downloadProgress.setProgressBackgroundTintList(ColorStateList.valueOf(t.progressTrackColor));
+        }
+        if (progressPercent != null) progressPercent.setTextColor(t.accentColor);
+
+        // Loading spinner
+        if (loadingSpinner != null)
+            loadingSpinner.setIndeterminateTintList(ColorStateList.valueOf(t.accentColor));
+
+        // Platform badge chip
+        if (platformBadge != null) {
+            GradientDrawable chip = new GradientDrawable();
+            chip.setColor(t.chipBgColor);
+            chip.setCornerRadius((float) dp(24));
+            chip.setStroke(dp(1), t.chipBorderColor);
+            platformBadge.setBackground(chip);
+            platformBadge.setTextColor(t.accentColor);
+        }
+
+        // Traverse all text views and remap colors
+        if (rootLayout != null) applyTextTheme(rootLayout, t);
+    }
+
+    private void applyTextTheme(android.view.View v, AppTheme t) {
+        if (v instanceof TextView) {
+            TextView tv = (TextView) v;
+            int c = tv.getCurrentTextColor();
+            if (c == 0xFF1F1F2E || c == 0xFF374151) {
+                tv.setTextColor(t.textPrimaryColor);
+            } else if (c == 0xFF6B7280 || c == 0xFF9CA3AF) {
+                tv.setTextColor(t.textSecondaryColor);
+            } else if (c == 0xFF7C3AED || c == 0xFF6D28D9 || c == 0xFFA78BFA) {
+                tv.setTextColor(t.accentColor);
+            } else if (c == 0xFFC4B5FD) {
+                tv.setTextColor(t.chipBorderColor);
+            }
+        }
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) applyTextTheme(vg.getChildAt(i), t);
+        }
+    }
+
+    private GradientDrawable makeCard(int color, int radiusDp) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius((float) dp(radiusDp));
+        return d;
+    }
+
+    private void showHowToDialog() {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.how_to_title))
+            .setMessage(getString(R.string.how_to_message))
+            .setPositiveButton(getString(R.string.dialog_got_it), null)
+            .show();
+    }
+
+    private void showPrivacyDialog() {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.privacy_dialog_title))
+            .setMessage(getString(R.string.privacy_message) + SITE_URL)
+            .setPositiveButton(getString(R.string.dialog_ok), null)
+            .setNeutralButton(getString(R.string.dialog_visit_site), (d, w) -> openUrl(SITE_URL))
+            .show();
+    }
+
+    private void showAboutDialog() {
+        String version = "2.0";
+        try {
+            version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception ignored) {}
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.about_title))
+            .setMessage(String.format(getString(R.string.about_message), version)
+                    + SITE_URL + getString(R.string.about_footer))
+            .setPositiveButton(getString(R.string.dialog_ok), null)
+            .setNeutralButton(getString(R.string.dialog_visit_site), (d, w) -> openUrl(SITE_URL))
+            .show();
+    }
+
+    private void openUrl(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (Exception e) {
+            Toast.makeText(this, getString(R.string.open_url_error), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void openEmail() {
+        Intent intent = new Intent(Intent.ACTION_SENDTO,
+                Uri.parse("mailto:ahmad.jassim1@hotmail.com"));
+        intent.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_name));
+        try {
+            startActivity(Intent.createChooser(intent, null));
+        } catch (Exception e) {
+            Toast.makeText(this, getString(R.string.open_url_error), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Clipboard
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private String getClipboardText() {
+        try {
+            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip() != null
+                    && cm.getPrimaryClip().getItemCount() > 0) {
+                CharSequence t = cm.getPrimaryClip().getItemAt(0).getText();
+                return t != null ? t.toString().trim() : "";
+            }
+        } catch (Exception ignored) {}
+        return "";
+    }
+
+    private boolean isVideoUrl(String url) {
+        if (url == null || url.length() < 10) return false;
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
+        String lower = url.toLowerCase();
+        for (String d : VIDEO_DOMAINS) {
+            if (lower.contains(d)) return true;
+        }
+        return false;
+    }
+
+    private void autoFillClipboard() {
+        String clip = getClipboardText();
+        String current = urlInput.getText().toString().trim();
+        if (isVideoUrl(clip) && !clip.equals(current)) {
+            urlInput.setText(clip);
+            urlInput.setSelection(clip.length());
+            if (ClipboardMonitorService.isEnabled(this)) {
+                Toast.makeText(this, "📋 تم لصق رابط الفيديو تلقائياً", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Disclaimer
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void showDisclaimerIfNeeded() {
+        SharedPreferences p = getSharedPreferences("app_prefs", MODE_PRIVATE);
+        if (p.getBoolean("disclaimer_accepted", false)) return;
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("سياسة الاستخدام")
+            .setMessage(
+                "هذا التطبيق مخصص للاستخدام الشخصي فقط.\n\n" +
+                "يتحمل المستخدم المسؤولية الكاملة عن المحتوى الذي يحفظه، " +
+                "ويجب التأكد من امتلاك الحقوق اللازمة.\n\n" +
+                "باستخدامك هذا التطبيق فأنت توافق على سياسة الخصوصية وشروط الاستخدام."
+            )
+            .setPositiveButton("أوافق", (d, w) ->
+                p.edit().putBoolean("disclaimer_accepted", true).apply())
+            .setNeutralButton("سياسة الخصوصية", (d, w) -> openUrl(SITE_URL + "/privacy"))
+            .setNegativeButton("رفض", (d, w) -> finishAffinity())
+            .setCancelable(false)
+            .show();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Fetch video info
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void fetchInfo() {
+        String url = urlInput.getText().toString().trim();
+        if (url.isEmpty()) {
+            showError("أدخل رابطاً صحيحاً");
+            return;
+        }
+        hideError();
+        hideResult();
+        setLoading(true);
+
+        new Thread(() -> {
+            try {
+                HttpURLConnection conn = (HttpURLConnection)
+                    new URL(API_BASE + "/api/resolve").openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(30_000);
+                conn.setReadTimeout(60_000);
+                String body = "{\"url\":" + JSONObject.quote(url) + "}";
+                conn.getOutputStream().write(body.getBytes("UTF-8"));
+
+                int code = conn.getResponseCode();
+                if (code == 429) {
+                    runOnUiThread(() -> { setLoading(false); showError("طلبات كثيرة جداً — انتظر لحظة ثم حاول مجدداً"); });
+                    conn.disconnect();
+                    return;
+                }
+                if (code != 200) {
+                    String errMsg = readErrorBody(conn);
+                    runOnUiThread(() -> { setLoading(false); showError(errMsg); });
+                    conn.disconnect();
+                    return;
+                }
+
+                String respStr = readBody(conn.getInputStream());
+                conn.disconnect();
+                JSONObject resp = new JSONObject(respStr);
+
+                if (resp.has("error")) {
+                    String msg = resp.optString("error", "رابط غير مدعوم");
+                    runOnUiThread(() -> { setLoading(false); showError(msg); });
+                    return;
+                }
+
+                runOnUiThread(() -> { setLoading(false); displayResult(resp); });
+
+            } catch (Exception e) {
+                Log.e(TAG, "fetchInfo: " + e.getMessage());
+                runOnUiThread(() -> {
+                    setLoading(false);
+                    showError("فشل الاتصال بالخادم — تأكد من الإنترنت");
+                });
+            }
+        }).start();
+    }
+
+    private String readBody(InputStream is) throws Exception {
+        byte[] buf = new byte[512 * 1024]; // 512KB max
+        int totalRead = 0, n;
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        while ((n = is.read(buf)) != -1) {
+            totalRead += n;
+            if (totalRead > 512 * 1024) break;
+            baos.write(buf, 0, n);
+        }
+        return baos.toString("utf-8");
+    }
+
+    private String readErrorBody(HttpURLConnection conn) {
+        try {
+            InputStream es = conn.getErrorStream();
+            if (es != null) {
+                JSONObject j = new JSONObject(readBody(es));
+                String err = j.optString("error", "");
+                if (!err.isEmpty()) return err;
+            }
+        } catch (Exception ignored) {}
+        return "الرابط غير مدعوم أو الخادم غير متاح حالياً";
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Display result
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void displayResult(JSONObject data) {
+        hintCard.setVisibility(View.GONE);
+
+        String title    = data.optString("title", "بدون عنوان");
+        String platform = data.optString("platform", "");
+        String thumbUrl = data.optString("thumbnail", "");
+        JSONArray fmts  = data.optJSONArray("formats");
+
+        videoTitle.setText(title.isEmpty() ? "بدون عنوان" : title);
+        platformBadge.setText(platform.isEmpty() ? "فيديو" : platform.toUpperCase());
+        resultCard.setVisibility(View.VISIBLE);
+
+        // Load thumbnail asynchronously
+        if (!thumbUrl.isEmpty() && isSafeUrl(thumbUrl)) {
+            final String tu = thumbUrl;
+            new Thread(() -> {
                 try {
-                    startActivity(new Intent(Intent.ACTION_VIEW,
-                            Uri.parse("market://details?id=com.nazzilhaplus.app")));
-                } catch (ActivityNotFoundException e) {
-                    startActivity(new Intent(Intent.ACTION_VIEW,
-                            Uri.parse("https://play.google.com/store/apps/details?id=com.nazzilhaplus.app")));
+                    HttpURLConnection c = (HttpURLConnection) new URL(tu).openConnection();
+                    c.setConnectTimeout(10_000);
+                    c.setReadTimeout(10_000);
+                    c.connect();
+                    Bitmap bm = BitmapFactory.decodeStream(c.getInputStream());
+                    c.disconnect();
+                    if (bm != null) runOnUiThread(() -> thumbnail.setImageBitmap(bm));
+                } catch (Exception ignored) {}
+            }).start();
+        }
+
+        // Build format buttons
+        formatsContainer.removeAllViews();
+        if (fmts == null || fmts.length() == 0) {
+            showError("لا توجد صيغ متاحة لهذا الرابط");
+            resultCard.setVisibility(View.GONE);
+            return;
+        }
+
+        for (int i = 0; i < fmts.length(); i++) {
+            try {
+                JSONObject fmt  = fmts.getJSONObject(i);
+                String label    = fmt.optString("label", "تحميل");
+                String dlUrl    = fmt.optString("url", "");
+                String ext      = fmt.optString("ext", "mp4");
+                String type     = fmt.optString("type", "video");
+                if (dlUrl.isEmpty()) continue;
+
+                String emoji    = "audio".equals(type) ? "🎵" : "🎬";
+                String filename = sanitizeFilename(title) + "." + ext;
+
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                AppTheme ct = AppTheme.getDefault();
+                GradientDrawable fmtBg = new GradientDrawable();
+                fmtBg.setColor(ct.cardBgColor);
+                fmtBg.setCornerRadius((float) dp(10));
+                fmtBg.setStroke(dp(1), ct.dividerColor);
+                row.setBackground(fmtBg);
+                row.setPadding(dp(16), dp(12), dp(16), dp(12));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+                lp.setMargins(0, 0, 0, dp(8));
+                row.setLayoutParams(lp);
+                row.setClickable(true);
+                row.setFocusable(true);
+
+                TextView emojiTv = new TextView(this);
+                emojiTv.setText(emoji);
+                emojiTv.setTextSize(18);
+                emojiTv.setPadding(0, 0, dp(10), 0);
+
+                TextView labelTv = new TextView(this);
+                labelTv.setText(label);
+                labelTv.setTextSize(14);
+                labelTv.setTextColor(ct.textPrimaryColor);
+                labelTv.setTypeface(labelTv.getTypeface(), android.graphics.Typeface.BOLD);
+                LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                labelTv.setLayoutParams(tlp);
+
+                TextView extTv = new TextView(this);
+                extTv.setText(ext.toUpperCase());
+                extTv.setTextSize(11);
+                extTv.setTextColor(ct.textSecondaryColor);
+
+                row.addView(emojiTv);
+                row.addView(labelTv);
+                row.addView(extTv);
+
+                final String finalUrl  = dlUrl;
+                final String finalName = filename;
+                final String finalTitle = title;
+                final String finalPlatform = platform;
+                row.setOnClickListener(v -> onFormatPicked(finalUrl, finalName, finalTitle, finalPlatform));
+
+                formatsContainer.addView(row);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Format picked → quota check → ad → download
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void onFormatPicked(String dlUrl, String filename, String title, String platform) {
+        pendingDlUrl      = dlUrl;
+        pendingDlFilename = filename;
+        pendingPlatform   = platform.isEmpty() ? "Other" : platform;
+        downloadPending   = true;
+
+        if (isPremiumActive() || canDownloadFree()) {
+            saveHistory(title, platform);
+            beginDownload();
+        } else {
+            showLimitDialog();
+        }
+    }
+
+    // ── daily quota ──────────────────────────────────────────────────────────
+
+    private boolean canDownloadFree() {
+        String today = todayKey();
+        SharedPreferences p = getPrefs();
+        if (!today.equals(p.getString("dl_date", ""))) return true;
+        return p.getInt("dl_count", 0) < FREE_DAILY_LIMIT;
+    }
+
+    private long millisUntilMidnight() {
+        java.util.Calendar midnight = java.util.Calendar.getInstance();
+        midnight.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        midnight.set(java.util.Calendar.MINUTE, 0);
+        midnight.set(java.util.Calendar.SECOND, 0);
+        midnight.set(java.util.Calendar.MILLISECOND, 0);
+        midnight.add(java.util.Calendar.DAY_OF_MONTH, 1);
+        return midnight.getTimeInMillis() - System.currentTimeMillis();
+    }
+
+    private String formatCountdown(long millis) {
+        long h = millis / 3_600_000;
+        long m = (millis % 3_600_000) / 60_000;
+        long s = (millis % 60_000) / 1_000;
+        if (h > 0) return String.format(Locale.getDefault(), "%d:%02d:%02d", h, m, s);
+        return String.format(Locale.getDefault(), "%02d:%02d", m, s);
+    }
+
+    private String buildLimitMessageFromMillis(long millis) {
+        return String.format(getString(R.string.limit_message), FREE_DAILY_LIMIT, formatCountdown(millis));
+    }
+
+    private void showLimitDialog() {
+        long remaining = millisUntilMidnight();
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.limit_title))
+            .setMessage(buildLimitMessageFromMillis(remaining))
+            .setPositiveButton(getString(R.string.btn_premium), (d, w) -> launchBillingFlow())
+            .setNegativeButton(getString(R.string.btn_cancel), null)
+            .create();
+        dialog.show();
+
+        android.widget.TextView msgView = dialog.findViewById(android.R.id.message);
+        CountDownTimer timer = new CountDownTimer(remaining, 1000) {
+            @Override public void onTick(long ms) {
+                if (msgView != null) runOnUiThread(() ->
+                    msgView.setText(buildLimitMessageFromMillis(ms)));
+            }
+            @Override public void onFinish() {
+                if (dialog.isShowing()) dialog.dismiss();
+            }
+        }.start();
+        dialog.setOnDismissListener(d -> timer.cancel());
+    }
+
+    // ── Premium (Wayl) ───────────────────────────────────────────────────────
+
+    private void refreshPremiumButton() {
+        if (isPremiumActive()) {
+            premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#16A34A"));
+            if (premiumBtnTitle != null) premiumBtnTitle.setText(getString(R.string.premium_active_label));
+        } else {
+            premiumBtn.setBackgroundColor(android.graphics.Color.parseColor("#F59E0B"));
+            if (premiumBtnTitle != null) premiumBtnTitle.setText(getString(R.string.premium_btn_text));
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Google Play Billing
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void setupBilling() {
+        billingClient = BillingClient.newBuilder(this)
+                .setListener(this)
+                .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
+                .build();
+        billingClient.startConnection(new BillingClientStateListener() {
+            @Override
+            public void onBillingSetupFinished(@NonNull BillingResult result) {
+                if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                    checkExistingSubscription();
+                }
+            }
+            @Override
+            public void onBillingServiceDisconnected() {}
+        });
+    }
+
+    private void checkExistingSubscription() {
+        QueryPurchasesParams params = QueryPurchasesParams.newBuilder()
+                .setProductType(BillingClient.ProductType.SUBS)
+                .build();
+        billingClient.queryPurchasesAsync(params, (result, purchases) -> {
+            if (result.getResponseCode() != BillingClient.BillingResponseCode.OK) return;
+            boolean active = false;
+            for (Purchase p : purchases) {
+                if (p.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                    active = true;
+                    acknowledgePurchase(p);
+                }
+            }
+            boolean finalActive = active;
+            runOnUiThread(() -> {
+                if (finalActive) {
+                    getPrefs().edit().putString("premium_expires", "2099-12-31 23:59").apply();
+                    refreshPremiumButton();
                 }
             });
+        });
+    }
+
+    private void launchBillingFlow() {
+        if (billingClient == null || !billingClient.isReady()) {
+            Toast.makeText(this, "جارٍ الاتصال بمتجر Google Play...", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        java.util.List<QueryProductDetailsParams.Product> products = Arrays.asList(
+                QueryProductDetailsParams.Product.newBuilder()
+                        .setProductId(SUBSCRIPTION_ID)
+                        .setProductType(BillingClient.ProductType.SUBS)
+                        .build()
+        );
+        QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
+                .setProductList(products)
+                .build();
+        billingClient.queryProductDetailsAsync(params, (result, queryResult) -> {
+            java.util.List<ProductDetails> productDetailsList = queryResult.getProductDetailsList();
+            if (result.getResponseCode() != BillingClient.BillingResponseCode.OK
+                    || productDetailsList == null || productDetailsList.isEmpty()) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "تعذر تحميل معلومات الاشتراك", Toast.LENGTH_SHORT).show());
+                return;
+            }
+            ProductDetails productDetails = productDetailsList.get(0);
+            java.util.List<ProductDetails.SubscriptionOfferDetails> offers =
+                    productDetails.getSubscriptionOfferDetails();
+            if (offers == null || offers.isEmpty()) return;
+
+            BillingFlowParams billingParams = BillingFlowParams.newBuilder()
+                    .setProductDetailsParamsList(Arrays.asList(
+                            BillingFlowParams.ProductDetailsParams.newBuilder()
+                                    .setProductDetails(productDetails)
+                                    .setOfferToken(offers.get(0).getOfferToken())
+                                    .build()
+                    ))
+                    .build();
+            runOnUiThread(() -> billingClient.launchBillingFlow(this, billingParams));
+        });
+    }
+
+    @Override
+    public void onPurchasesUpdated(@NonNull BillingResult result,
+                                   java.util.List<Purchase> purchases) {
+        if (result.getResponseCode() == BillingClient.BillingResponseCode.OK
+                && purchases != null) {
+            for (Purchase purchase : purchases) {
+                if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                    acknowledgePurchase(purchase);
+                    getPrefs().edit()
+                            .putString("premium_expires", "2099-12-31 23:59")
+                            .apply();
+                    runOnUiThread(() -> {
+                        refreshPremiumButton();
+                        Toast.makeText(this, "✅ تم تفعيل الاشتراك بنجاح!", Toast.LENGTH_LONG).show();
+                    });
+                }
+            }
+        } else if (result.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
+            Toast.makeText(this, "تم إلغاء الاشتراك", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void acknowledgePurchase(Purchase purchase) {
+        if (purchase.isAcknowledged()) return;
+        AcknowledgePurchaseParams params = AcknowledgePurchaseParams.newBuilder()
+                .setPurchaseToken(purchase.getPurchaseToken())
+                .build();
+        billingClient.acknowledgePurchase(params, r -> {});
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (billingClient != null) billingClient.endConnection();
+    }
+
+    private boolean isPremiumActive() {
+        SharedPreferences p = getPrefs();
+        String exp = p.getString("premium_expires", "");
+        if (exp.isEmpty()) return false;
+        try {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US);
+            java.util.Date expDate = sdf.parse(exp);
+            return expDate != null && expDate.after(new java.util.Date());
+        } catch (Exception e) { return false; }
+    }
+
+    private void incrementDownloadCount() {
+        String today = todayKey();
+        SharedPreferences p = getPrefs();
+        int count = today.equals(p.getString("dl_date", "")) ? p.getInt("dl_count", 0) : 0;
+        p.edit().putString("dl_date", today).putInt("dl_count", count + 1).apply();
+
+        int total = p.getInt("total_downloads", 0) + 1;
+        p.edit().putInt("total_downloads", total).apply();
+        if (total == 3 || total == 10 || total == 30) {
+            requestReview();
+        }
+    }
+
+    private void requestReview() {
+        ReviewManager manager = ReviewManagerFactory.create(this);
+        manager.requestReviewFlow().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                ReviewInfo reviewInfo = task.getResult();
+                manager.launchReviewFlow(this, reviewInfo);
+            }
+        });
+    }
+
+    private String todayKey() {
+        return new SimpleDateFormat("yyyyMMdd", Locale.US).format(new Date());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Download history
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void saveHistory(String title, String platform) {
+        try {
+            SharedPreferences p = getPrefs();
+            JSONArray arr = new JSONArray(p.getString("dl_history", "[]"));
+            JSONObject entry = new JSONObject();
+            entry.put("title", title);
+            entry.put("platform", platform);
+            entry.put("time", System.currentTimeMillis());
+            // Prepend new entry
+            JSONArray updated = new JSONArray();
+            updated.put(entry);
+            for (int i = 0; i < arr.length() && i < MAX_HISTORY - 1; i++) {
+                updated.put(arr.getJSONObject(i));
+            }
+            p.edit().putString("dl_history", updated.toString()).apply();
+            runOnUiThread(this::refreshHistory);
+        } catch (Exception ignored) {}
+    }
+
+    private void refreshHistory() {
+        try {
+            SharedPreferences p = getPrefs();
+            JSONArray arr = new JSONArray(p.getString("dl_history", "[]"));
+            if (arr.length() == 0) {
+                historySection.setVisibility(View.GONE);
+                return;
+            }
+
+            historyList.removeAllViews();
+            historySection.setVisibility(View.VISIBLE);
+
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject e = arr.getJSONObject(i);
+                String title    = e.optString("title", "");
+                String platform = e.optString("platform", "");
+
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setPadding(0, dp(8), 0, dp(8));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+                row.setLayoutParams(lp);
+
+                TextView dot = new TextView(this);
+                dot.setText("📥");
+                dot.setTextSize(14);
+                dot.setPadding(0, 0, dp(10), 0);
+
+                LinearLayout info = new LinearLayout(this);
+                info.setOrientation(LinearLayout.VERTICAL);
+                LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                info.setLayoutParams(ilp);
+
+                TextView tv = new TextView(this);
+                tv.setText(title.isEmpty() ? "فيديو" : title);
+                tv.setTextSize(13);
+                tv.setTextColor(AppTheme.getDefault().textPrimaryColor);
+                tv.setMaxLines(1);
+                tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+
+                TextView plat = new TextView(this);
+                plat.setText(platform);
+                plat.setTextSize(11);
+                plat.setTextColor(AppTheme.getDefault().textSecondaryColor);
+
+                info.addView(tv);
+                info.addView(plat);
+                row.addView(dot);
+                row.addView(info);
+                historyList.addView(row);
+
+                // Divider (not on last item)
+                if (i < arr.length() - 1) {
+                    View div = new View(this);
+                    LinearLayout.LayoutParams dp1 = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, 1);
+                    div.setLayoutParams(dp1);
+                    div.setBackgroundColor(AppTheme.getDefault().dividerColor);
+                    historyList.addView(div);
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Download
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void beginDownload() {
+        if (!downloadPending || pendingDlUrl == null) return;
+        downloadPending = false;
+        String url  = pendingDlUrl;
+        String name = pendingDlFilename != null ? pendingDlFilename : "video.mp4";
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERM_CODE);
+            return;
+        }
+        showProgressSection(true, name);
+        bubbleDownloadPct = 0;
+        new Thread(() -> {
+            AppOpenAdManager.suppressAd = true;
+            doDownload(url, name);
+            bubbleDownloadPct = -1;
+        }).start();
+    }
+
+    private void doDownload(String url, String filename) {
+        int notifId = filename.hashCode();
+        NotificationManagerCompat nm = NotificationManagerCompat.from(this);
+        android.graphics.Bitmap appIcon = android.graphics.BitmapFactory.decodeResource(
+            getResources(), R.mipmap.ic_launcher);
+        NotificationCompat.Builder nb = new NotificationCompat.Builder(this, NotificationReceiver.DOWNLOAD_CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setLargeIcon(appIcon)
+            .setContentTitle(filename)
+            .setContentText("جاري التحميل...")
+            .setProgress(100, 0, true)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true);
+        try { nm.notify(notifId, nb.build()); } catch (Exception ignored) {}
+
+        Uri[] resultUri = {null};
+        boolean ok = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+            ? downloadMediaStore(url, filename, notifId, nb, nm, resultUri)
+            : downloadFileSystem(url, filename, notifId, nb, nm, resultUri);
+
+        nm.cancel(notifId);
+        AppOpenAdManager.suppressAd = false;
+        sendDownloadEvent(ok);
+        if (ok) trackReferralDownload();
+        if (ok) {
+            incrementDownloadCount();
+            Uri fu = resultUri[0];
+            sendCompletionNotification(nm, filename, fu, notifId + 10000);
+            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> {
+                showProgressSection(false, null);
+                showSuccessDialog(fu, filename);
+            });
+        } else {
+            sendFailureNotification(nm, filename, notifId + 10000);
+            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> { showProgressSection(false, null); showError("فشل التحميل، حاول مجدداً"); });
+        }
+    }
+
+    @android.annotation.TargetApi(Build.VERSION_CODES.Q)
+    private boolean downloadMediaStore(String url, String filename, int notifId,
+            NotificationCompat.Builder nb, NotificationManagerCompat nm, Uri[] out) {
+        Uri dlUri = null;
+        for (int attempt = 0; attempt < 5; attempt++) {
+            try {
+                long existing = 0;
+                if (dlUri == null) {
+                    ContentValues cv = new ContentValues();
+                    cv.put(MediaStore.Video.Media.DISPLAY_NAME, filename);
+                    cv.put(MediaStore.Video.Media.MIME_TYPE, mimeFor(filename));
+                    cv.put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/NazzilhaPlus");
+                    cv.put(MediaStore.Video.Media.IS_PENDING, 1);
+                    dlUri = getContentResolver().insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, cv);
+                    if (dlUri == null) return false;
+                } else {
+                    android.database.Cursor c = getContentResolver().query(
+                        dlUri, new String[]{MediaStore.Video.Media.SIZE}, null, null, null);
+                    if (c != null) { if (c.moveToFirst()) existing = c.getLong(0); c.close(); }
+                }
+                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                if (existing > 0) conn.setRequestProperty("Range", "bytes=" + existing + "-");
+                conn.setConnectTimeout(30_000); conn.setReadTimeout(60_000); conn.connect();
+                int code = conn.getResponseCode();
+                if (code != 200 && code != 206) break;
+                long total = existing + conn.getContentLengthLong();
+                String mode = (code == 206 && existing > 0) ? "wa" : "w";
+                try (InputStream in = conn.getInputStream();
+                     OutputStream os = getContentResolver().openOutputStream(dlUri, mode)) {
+                    if (os == null) break;
+                    byte[] buf = new byte[8192]; int read; long done = existing;
+                    while ((read = in.read(buf)) != -1) {
+                        os.write(buf, 0, read); done += read;
+                        if (total > 0) {
+                            int pct = (int)(done * 100L / total);
+                            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> updateProgress(pct));
+                            nb.setProgress(100, pct, false).setContentText(pct + "%");
+                            try { nm.notify(notifId, nb.build()); } catch (Exception ig) {}
+                        }
+                    }
+                }
+                ContentValues cv2 = new ContentValues();
+                cv2.put(MediaStore.Video.Media.IS_PENDING, 0);
+                getContentResolver().update(dlUri, cv2, null, null);
+                // Force immediate gallery indexing
+                try {
+                    android.database.Cursor c2 = getContentResolver().query(
+                        dlUri, new String[]{MediaStore.MediaColumns.DATA}, null, null, null);
+                    if (c2 != null && c2.moveToFirst()) {
+                        String path = c2.getString(0);
+                        c2.close();
+                        if (path != null) {
+                            MediaScannerConnection.scanFile(this,
+                                new String[]{path}, new String[]{mimeFor(filename)}, null);
+                        }
+                    } else if (c2 != null) c2.close();
+                } catch (Exception ignored) {}
+                getContentResolver().notifyChange(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, null);
+                out[0] = dlUri;
+                return true;
+            } catch (Exception e) {
+                Log.e(TAG, "dl attempt " + attempt + ": " + e.getMessage());
+                if (attempt < 4) try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ig) {}
+            }
+        }
+        if (dlUri != null) try { getContentResolver().delete(dlUri, null, null); } catch (Exception ig) {}
+        return false;
+    }
+
+    private boolean downloadFileSystem(String url, String filename, int notifId,
+            NotificationCompat.Builder nb, NotificationManagerCompat nm, Uri[] out) {
+        // Use user-chosen folder if available, else default Downloads/NazzilhaPlus
+        String folderUriStr = getPrefs().getString("dl_folder_uri", null);
+        File dir;
+        if (folderUriStr != null) {
+            try {
+                androidx.documentfile.provider.DocumentFile tree =
+                    androidx.documentfile.provider.DocumentFile.fromTreeUri(this, Uri.parse(folderUriStr));
+                if (tree != null && tree.canWrite()) {
+                    return downloadToDocumentFile(url, filename, notifId, nb, nm, out, tree);
+                }
+            } catch (Exception ignored) {}
+        }
+        dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "NazzilhaPlus");
+        dir.mkdirs();
+        File file = new File(dir, filename);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            try {
+                long existing = file.exists() ? file.length() : 0;
+                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                if (existing > 0) conn.setRequestProperty("Range", "bytes=" + existing + "-");
+                conn.setConnectTimeout(30_000); conn.setReadTimeout(60_000); conn.connect();
+                int code = conn.getResponseCode();
+                if (code != 200 && code != 206) break;
+                long total = existing + conn.getContentLengthLong();
+                try (InputStream in = conn.getInputStream();
+                     FileOutputStream fos = new FileOutputStream(file, code == 206 && existing > 0)) {
+                    byte[] buf = new byte[8192]; int read; long done = existing;
+                    while ((read = in.read(buf)) != -1) {
+                        fos.write(buf, 0, read); done += read;
+                        if (total > 0) {
+                            int pct = (int)(done * 100L / total);
+                            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> updateProgress(pct));
+                            nb.setProgress(100, pct, false).setContentText(pct + "%");
+                            try { nm.notify(notifId, nb.build()); } catch (Exception ig) {}
+                        }
+                    }
+                }
+                Uri[] scanned = {null};
+                Object lock = new Object();
+                MediaScannerConnection.scanFile(this, new String[]{file.getAbsolutePath()}, null, (p, u) -> {
+                    scanned[0] = u; synchronized (lock) { lock.notifyAll(); }
+                });
+                synchronized (lock) { try { lock.wait(3000); } catch (InterruptedException ig) {} }
+                out[0] = scanned[0] != null ? scanned[0] : Uri.fromFile(file);
+                return true;
+            } catch (Exception e) {
+                Log.e(TAG, "dl attempt " + attempt + ": " + e.getMessage());
+                if (attempt < 4) try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ig) {}
+            }
+        }
+        return false;
+    }
+
+    private boolean downloadToDocumentFile(String url, String filename, int notifId,
+            NotificationCompat.Builder nb, NotificationManagerCompat nm, Uri[] out,
+            androidx.documentfile.provider.DocumentFile tree) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            try {
+                androidx.documentfile.provider.DocumentFile existing = tree.findFile(filename);
+                if (existing != null && !existing.delete()) existing = null;
+                androidx.documentfile.provider.DocumentFile docFile = tree.createFile(mimeFor(filename), filename);
+                if (docFile == null) break;
+                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                conn.setConnectTimeout(30_000); conn.setReadTimeout(60_000); conn.connect();
+                if (conn.getResponseCode() != 200) break;
+                long total = conn.getContentLengthLong();
+                try (InputStream in = conn.getInputStream();
+                     OutputStream os = getContentResolver().openOutputStream(docFile.getUri())) {
+                    if (os == null) break;
+                    byte[] buf = new byte[8192]; int read; long done = 0;
+                    while ((read = in.read(buf)) != -1) {
+                        os.write(buf, 0, read); done += read;
+                        if (total > 0) {
+                            int pct = (int)(done * 100L / total);
+                            if (!isDestroyed() && !isFinishing()) runOnUiThread(() -> updateProgress(pct));
+                            nb.setProgress(100, pct, false).setContentText(pct + "%");
+                            try { nm.notify(notifId, nb.build()); } catch (Exception ig) {}
+                        }
+                    }
+                }
+                out[0] = docFile.getUri();
+                return true;
+            } catch (Exception e) {
+                Log.e(TAG, "docfile attempt " + attempt + ": " + e.getMessage());
+                if (attempt < 4) try { Thread.sleep(2000L * (attempt + 1)); } catch (InterruptedException ig) {}
+            }
+        }
+        return false;
+    }
+
+    private void sendCompletionNotification(NotificationManagerCompat nm, String filename, Uri fileUri, int id) {
+        try {
+            android.app.PendingIntent openIntent = null;
+            if (fileUri != null) {
+                Intent view = new Intent(Intent.ACTION_VIEW);
+                view.setDataAndType(fileUri, mimeFor(filename));
+                view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                openIntent = android.app.PendingIntent.getActivity(this, id, view,
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+            }
+            NotificationCompat.Builder nb = new NotificationCompat.Builder(this, NotificationReceiver.DOWNLOAD_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setContentTitle("✅ " + getString(R.string.notif_done_title))
+                .setContentText(filename)
+                .setAutoCancel(true);
+            if (openIntent != null) nb.setContentIntent(openIntent);
+            nm.notify(id, nb.build());
+        } catch (Exception ignored) {}
+    }
+
+    private void sendFailureNotification(NotificationManagerCompat nm, String filename, int id) {
+        try {
+            NotificationCompat.Builder nb = new NotificationCompat.Builder(this, NotificationReceiver.DOWNLOAD_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_notify_error)
+                .setContentTitle("❌ " + getString(R.string.notif_fail_title))
+                .setContentText(filename)
+                .setAutoCancel(true);
+            nm.notify(id, nb.build());
+        } catch (Exception ignored) {}
+    }
+
+    private void showSuccessDialog(Uri fileUri, String filename) {
+        androidx.appcompat.app.AlertDialog.Builder b =
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("✅ اكتمل التحميل")
+                .setMessage("تم الحفظ في ملفاتي")
+                .setNegativeButton("📂 ملفاتي", (dlg, w) ->
+                    startActivity(new Intent(this, FileBrowserActivity.class)));
+        if (fileUri != null) {
+            b.setPositiveButton("📤 مشاركة", (dlg, w) -> {
+                Intent share = new Intent(Intent.ACTION_SEND);
+                share.setType(mimeFor(filename != null ? filename : "video.mp4"));
+                share.putExtra(Intent.EXTRA_STREAM, fileUri);
+                share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivity(Intent.createChooser(share, "مشاركة الفيديو"));
+            });
+        }
+        b.show();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  UI helpers
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void setLoading(boolean on) {
+        loadingSpinner.setVisibility(on ? View.VISIBLE : View.GONE);
+        fetchBtn.setEnabled(!on);
+        fetchBtn.setAlpha(on ? 0.6f : 1f);
+    }
+
+    private void showError(String msg) {
+        errorBox.setText("⚠ " + msg);
+        errorBox.setVisibility(View.VISIBLE);
+    }
+
+    private void hideError() {
+        errorBox.setVisibility(View.GONE);
+    }
+
+    private void hideResult() {
+        resultCard.setVisibility(View.GONE);
+        progressSection.setVisibility(View.GONE);
+        hintCard.setVisibility(View.VISIBLE);
+    }
+
+    private void showProgressSection(boolean on, String filename) {
+        progressSection.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (on) {
+            lastReportedPct.set(0);
+            downloadProgress.setProgress(0);
+            progressPercent.setText("0%");
+            if (filename != null) downloadFilename.setText(filename);
+        }
+    }
+
+    private void updateProgress(int pct) {
+        int prev = lastReportedPct.getAndUpdate(p -> Math.max(p, pct));
+        if (pct <= prev) return; // never go backwards
+        bubbleDownloadPct = pct;
+        downloadProgress.setProgress(pct);
+        progressPercent.setText(pct + "%");
+    }
+
+    private int dp(int dp) {
+        return (int)(dp * getResources().getDisplayMetrics().density);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Permissions
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 200);
         }
     }
 
     @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+    public void onRequestPermissionsResult(int code, @NonNull String[] perms, @NonNull int[] results) {
+        super.onRequestPermissionsResult(code, perms, results);
+        if (code == STORAGE_PERM_CODE && results.length > 0
+                && results[0] == PackageManager.PERMISSION_GRANTED) {
+            beginDownload();
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Utilities
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Analytics
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private String getOrCreateDeviceId() {
+        String id = getPrefs().getString("device_id", "");
+        if (id.isEmpty()) {
+            String raw = android.provider.Settings.Secure.getString(
+                getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+            try {
+                java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+                byte[] hash = md.digest((raw != null ? raw : java.util.UUID.randomUUID().toString()).getBytes("UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                for (byte b : hash) sb.append(String.format("%02x", b));
+                id = sb.toString();
+            } catch (Exception e) {
+                id = java.util.UUID.randomUUID().toString().replace("-", "");
+            }
+            getPrefs().edit().putString("device_id", id).apply();
+        }
+        return id;
+    }
+
+    private String getCountryCode() {
+        try {
+            android.telephony.TelephonyManager tm =
+                (android.telephony.TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+            if (tm != null) {
+                String net = tm.getNetworkCountryIso();
+                if (net != null && !net.isEmpty()) return net.toUpperCase();
+                String sim = tm.getSimCountryIso();
+                if (sim != null && !sim.isEmpty()) return sim.toUpperCase();
+            }
+        } catch (Exception ignored) {}
+        return "";
+    }
+
+    void sendSessionPing() {
+        long lastPing = getPrefs().getLong("last_ping_ms", 0);
+        if (System.currentTimeMillis() - lastPing < 4 * 60 * 60 * 1000L) return;
+        getPrefs().edit().putLong("last_ping_ms", System.currentTimeMillis()).apply();
+        String deviceId = getOrCreateDeviceId();
+        String country  = getCountryCode();
+        String version  = "";
+        try { version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) {}
+        final String body = "{\"device_id\":" + org.json.JSONObject.quote(deviceId) +
+            ",\"country\":" + org.json.JSONObject.quote(country) +
+            ",\"app_version\":" + org.json.JSONObject.quote(version) + "}";
+        new Thread(() -> {
+            try {
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection)
+                    new java.net.URL(API_BASE + "/api/app-ping").openConnection();
+                c.setRequestMethod("POST");
+                c.setRequestProperty("Content-Type", "application/json");
+                c.setDoOutput(true);
+                c.setConnectTimeout(10_000);
+                c.setReadTimeout(10_000);
+                c.getOutputStream().write(body.getBytes("UTF-8"));
+                c.getResponseCode();
+                c.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
+    // ── Clipboard Monitor ────────────────────────────────────────────────────
+
+    private void toggleClipMonitor() {
+        boolean current = getPrefs().getBoolean("clip_monitor_enabled", false);
+        getPrefs().edit().putBoolean("clip_monitor_enabled", !current).apply();
+        if (!current) {
+            ClipboardMonitorService.start(this);
+            Toast.makeText(this, "✅ كشف الروابط مفعّل — انسخ أي رابط فيديو", Toast.LENGTH_SHORT).show();
+        } else {
+            ClipboardMonitorService.stop(this);
+            Toast.makeText(this, "كشف الروابط معطّل", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // ── Biometric Lock ───────────────────────────────────────────────────────
+
+    private boolean biometricShowing = false;
+
+    private void checkBiometricLock() {
+        if (!getPrefs().getBoolean("biometric_lock", false)) return;
+        if (biometricShowing) return;
+        androidx.biometric.BiometricManager bm = androidx.biometric.BiometricManager.from(this);
+        int can = bm.canAuthenticate(
+            androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG |
+            androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+        if (can != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) return;
+        biometricShowing = true;
+        androidx.biometric.BiometricPrompt prompt = new androidx.biometric.BiometricPrompt(
+            this,
+            new androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                @Override
+                public void onAuthenticationSucceeded(androidx.biometric.BiometricPrompt.AuthenticationResult r) {
+                    biometricShowing = false;
+                }
+                @Override
+                public void onAuthenticationError(int code, CharSequence msg) {
+                    biometricShowing = false;
+                    if (code != androidx.biometric.BiometricPrompt.ERROR_NEGATIVE_BUTTON &&
+                        code != androidx.biometric.BiometricPrompt.ERROR_USER_CANCELED) {
+                        finishAffinity();
+                    }
+                }
+                @Override
+                public void onAuthenticationFailed() { /* let user retry */ }
+            });
+        androidx.biometric.BiometricPrompt.PromptInfo info =
+            new androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+                .setTitle("نزّلها+")
+                .setSubtitle("تحقق من هويتك للمتابعة")
+                .setAllowedAuthenticators(
+                    androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG |
+                    androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                .build();
+        prompt.authenticate(info);
+    }
+
+    private void toggleBiometricLock() {
+        androidx.biometric.BiometricManager bm = androidx.biometric.BiometricManager.from(this);
+        int can = bm.canAuthenticate(
+            androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG |
+            androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+        if (can != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
+            Toast.makeText(this, "هاتفك لا يدعم قفل البصمة أو لم يُفعَّل", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        boolean current = getPrefs().getBoolean("biometric_lock", false);
+        getPrefs().edit().putBoolean("biometric_lock", !current).apply();
+        Toast.makeText(this,
+            !current ? "✅ قفل البصمة مفعّل" : "قفل البصمة معطّل",
+            Toast.LENGTH_SHORT).show();
+    }
+
+    private void trackReferralDownload() {
+        if (getSharedPreferences("app_prefs", MODE_PRIVATE).getBoolean("referral_dl_tracked", false)) return;
+        getSharedPreferences("app_prefs", MODE_PRIVATE).edit().putBoolean("referral_dl_tracked", true).apply();
+        final String body = "{\"device_id\":" + org.json.JSONObject.quote(getOrCreateDeviceId()) + "}";
+        new Thread(() -> {
+            try {
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection)
+                    new java.net.URL(API_BASE + "/api/referral/track-download").openConnection();
+                c.setRequestMethod("POST");
+                c.setRequestProperty("Content-Type", "application/json");
+                c.setDoOutput(true);
+                c.setConnectTimeout(10_000);
+                c.setReadTimeout(10_000);
+                c.getOutputStream().write(body.getBytes("UTF-8"));
+                int code = c.getResponseCode();
+                if (code == 200) {
+                    try {
+                        String resp = new String(c.getInputStream().readAllBytes(), "UTF-8");
+                        org.json.JSONObject json = new org.json.JSONObject(resp);
+                        int rewardDays = json.optInt("referral_reward_days", 0);
+                        if (rewardDays > 0) applyReferralReward(rewardDays);
+                    } catch (Exception ignored) {}
+                }
+                c.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
+    private void applyReferralReward(int days) {
+        try {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US);
+            String current = getPrefs().getString("premium_expires", "");
+            java.util.Date base;
+            try { base = sdf.parse(current); } catch (Exception e) { base = new java.util.Date(); }
+            if (base.before(new java.util.Date())) base = new java.util.Date();
+            java.util.Calendar cal = java.util.Calendar.getInstance();
+            cal.setTime(base);
+            cal.add(java.util.Calendar.DAY_OF_YEAR, days);
+            String newExpiry = sdf.format(cal.getTime());
+            getPrefs().edit().putString("premium_expires", newExpiry).apply();
+            runOnUiThread(() -> {
+                Toast.makeText(this,
+                    "🎉 مبروك! حصلت على " + days + " يوم VIP مجاناً لإحالاتك",
+                    Toast.LENGTH_LONG).show();
+                refreshPremiumButton();
+            });
+        } catch (Exception ignored) {}
+    }
+
+    private void sendDownloadEvent(boolean success) {
+        final String body = "{\"device_id\":" + org.json.JSONObject.quote(getOrCreateDeviceId()) +
+            ",\"success\":" + success +
+            ",\"platform\":" + org.json.JSONObject.quote(pendingPlatform) + "}";
+        new Thread(() -> {
+            try {
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection)
+                    new java.net.URL(API_BASE + "/api/analytics/download").openConnection();
+                c.setRequestMethod("POST");
+                c.setRequestProperty("Content-Type", "application/json");
+                c.setDoOutput(true);
+                c.setConnectTimeout(10_000);
+                c.setReadTimeout(10_000);
+                c.getOutputStream().write(body.getBytes("UTF-8"));
+                c.getResponseCode();
+                c.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
+    private SharedPreferences getPrefs() {
+        return getSharedPreferences("nazzilha_prefs", MODE_PRIVATE);
+    }
+
+    private String sanitizeFilename(String title) {
+        if (title == null || title.isEmpty()) return "video";
+        return title.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+    }
+
+    private boolean isSafeUrl(String url) {
+        if (url == null || url.isEmpty()) return false;
+        try {
+            java.net.URL u = new java.net.URL(url);
+            String protocol = u.getProtocol();
+            return protocol.equals("https") || protocol.equals("http");
+        } catch (Exception e) { return false; }
+    }
+
+    private String mimeFor(String filename) {
+        if (filename.endsWith(".mp3")) return "audio/mpeg";
+        if (filename.endsWith(".m4a")) return "audio/mp4";
+        if (filename.endsWith(".aac")) return "audio/aac";
+        return "video/mp4";
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Occasions (seasonal greetings)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private static final long OCCASION_CACHE_MS = 6 * 60 * 60 * 1000L; // 6 hours
+
+    private void fetchOccasion() {
+        SharedPreferences p = getPrefs();
+        long lastCheck = p.getLong("occasion_ts", 0);
+        if (System.currentTimeMillis() - lastCheck < OCCASION_CACHE_MS) {
+            String cached = p.getString("occasion_id", "");
+            if (!cached.isEmpty()) applyOccasionFromCache(cached);
+            return;
+        }
+        new Thread(() -> {
+            try {
+                HttpURLConnection c = (HttpURLConnection)
+                        new URL(API_BASE + "/api/occasion").openConnection();
+                c.setConnectTimeout(8000);
+                c.setReadTimeout(8000);
+                c.connect();
+                if (c.getResponseCode() == 200) {
+                    java.io.InputStream is = c.getInputStream();
+                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                    byte[] buf = new byte[1024]; int n;
+                    while ((n = is.read(buf)) != -1) baos.write(buf, 0, n);
+                    is.close();
+                    JSONObject obj = new JSONObject(baos.toString("UTF-8"));
+                    String occ = obj.optString("occasion", "");
+                    p.edit()
+                        .putString("occasion_id", occ)
+                        .putLong("occasion_ts", System.currentTimeMillis())
+                        .apply();
+                    if (!occ.isEmpty()) {
+                        runOnUiThread(() -> applyOccasionFromCache(occ));
+                    }
+                }
+                c.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
+    private void applyOccasionFromCache(String occasion) {
+        int msgRes;
+        int bgColor;
+        String[] particleEmojis;
+        switch (occasion) {
+            case "ramadan":
+                msgRes = R.string.occasion_ramadan;
+                bgColor = 0xFF1A1060; // deep indigo-purple
+                particleEmojis = new String[]{"🌙", "⭐", "✨", "🌟", "💫"};
+                break;
+            case "eid":
+                msgRes = R.string.occasion_eid;
+                bgColor = 0xFF1B5E20; // deep green
+                particleEmojis = new String[]{"🎉", "🎊", "✨", "🌟", "🎆"};
+                break;
+            case "new_year":
+                msgRes = R.string.occasion_new_year;
+                bgColor = 0xFF0D1B2A; // midnight blue
+                particleEmojis = new String[]{"🎆", "🎇", "✨", "🌟", "🎊"};
+                break;
+            default:
+                occasionBanner.setVisibility(View.GONE);
+                return;
+        }
+        occasionBanner.setBackgroundColor(bgColor);
+        occasionBannerText.setText(getString(msgRes));
+        occasionBanner.setVisibility(View.VISIBLE);
+        showOccasionParticles(particleEmojis);
+    }
+
+    private void showOccasionParticles(String[] emojis) {
+        android.widget.FrameLayout overlay = new android.widget.FrameLayout(this);
+        overlay.setLayoutParams(new android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        overlay.setClickable(false);
+        getWindow().addContentView(overlay,
+                new android.view.WindowManager.LayoutParams(
+                        android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                        android.view.WindowManager.LayoutParams.MATCH_PARENT));
+
+        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(dm);
+        int screenW = dm.widthPixels;
+        int screenH = dm.heightPixels;
+        java.util.Random rng = new java.util.Random();
+
+        int count = 20;
+        for (int i = 0; i < count; i++) {
+            String emoji = emojis[rng.nextInt(emojis.length)];
+            TextView tv = new TextView(this);
+            tv.setText(emoji);
+            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20 + rng.nextInt(16));
+            android.widget.FrameLayout.LayoutParams lp =
+                    new android.widget.FrameLayout.LayoutParams(
+                            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT);
+            lp.leftMargin = rng.nextInt(screenW);
+            lp.topMargin = -80;
+            tv.setLayoutParams(lp);
+            overlay.addView(tv);
+
+            long delay = rng.nextInt(2500);
+            long duration = 2500 + rng.nextInt(2000);
+            android.animation.ObjectAnimator anim = android.animation.ObjectAnimator
+                    .ofFloat(tv, "translationY", 0, screenH + 150);
+            anim.setDuration(duration);
+            anim.setStartDelay(delay);
+            anim.setInterpolator(new android.view.animation.AccelerateInterpolator(0.8f));
+            anim.start();
+        }
+
+        overlay.postDelayed(() -> {
+            try {
+                android.view.ViewGroup parent = (android.view.ViewGroup) overlay.getParent();
+                if (parent != null) parent.removeView(overlay);
+            } catch (Exception ignored) {}
+        }, 5500);
     }
 }

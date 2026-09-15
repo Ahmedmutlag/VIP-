@@ -3,1127 +3,811 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>لوحة التحكم - نزلها بلس</title>
+<title>لوحة التحكم — نزلها بلس</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#07051a;--sidebar:#0d0b2a;--card:#12103a;--card2:#1a1845;
-  --accent:#00c8ff;--accent2:#7c3aed;--text:#e0e0ff;--sub:#9090b0;
+  --bg:#0a0818;--sb:#0f0d2a;--card:#15133a;--card2:#1c1a48;
+  --accent:#00c8ff;--purple:#7c3aed;--text:#dde0ff;--muted:#8888aa;
   --green:#22c55e;--red:#ef4444;--orange:#f97316;--yellow:#eab308;
-  --border:#1e1c4a;--radius:14px;
+  --border:#22204f;--r:12px;
 }
-body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
-/* Sidebar */
-.sidebar{width:220px;background:var(--sidebar);border-left:1px solid var(--border);display:flex;flex-direction:column;position:fixed;right:0;top:0;height:100vh;z-index:100}
-.sidebar-logo{padding:1.5rem 1rem;text-align:center;border-bottom:1px solid var(--border)}
-.sidebar-logo h2{color:var(--accent);font-size:1.2rem}
-.sidebar-logo span{color:var(--sub);font-size:.75rem}
-.nav-item{display:flex;align-items:center;gap:.7rem;padding:.8rem 1.2rem;cursor:pointer;color:var(--sub);transition:.2s;border-right:3px solid transparent;font-size:.9rem}
-.nav-item:hover{background:var(--card);color:var(--text)}
-.nav-item.active{background:var(--card);color:var(--accent);border-right-color:var(--accent)}
-.nav-item .icon{font-size:1.1rem;width:22px;text-align:center}
-.sidebar-bottom{margin-top:auto;padding:1rem;border-top:1px solid var(--border)}
-.logout-btn{width:100%;padding:.7rem;background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3);border-radius:8px;cursor:pointer;font-size:.85rem;transition:.2s}
-.logout-btn:hover{background:rgba(239,68,68,.2)}
+/* ── Layout ── */
+.sidebar{width:220px;background:var(--sb);border-left:1px solid var(--border);position:fixed;right:0;top:0;height:100vh;z-index:200;display:flex;flex-direction:column;overflow-y:auto}
+.main{margin-right:220px;padding:1.5rem;min-height:100vh}
 
-/* Main content */
-.main{margin-right:220px;flex:1;padding:1.5rem;min-height:100vh}
-.page{display:none}
-.page.active{display:block}
+/* ── Sidebar ── */
+.sb-logo{padding:1.2rem 1rem 1rem;border-bottom:1px solid var(--border);text-align:center}
+.sb-logo h2{color:var(--accent);font-size:1.05rem;font-weight:700}
+.sb-logo small{color:var(--muted);font-size:.7rem;display:block;margin-top:.2rem}
+.nav-item{display:flex;align-items:center;gap:.6rem;padding:.75rem 1.1rem;cursor:pointer;color:var(--muted);font-size:.87rem;transition:.15s;border-right:3px solid transparent}
+.nav-item:hover{background:rgba(0,200,255,.05);color:var(--text)}
+.nav-item.active{background:rgba(0,200,255,.07);color:var(--accent);border-right-color:var(--accent)}
+.nav-icon{font-size:1rem;flex-shrink:0;width:20px;text-align:center}
+.sb-foot{margin-top:auto;padding:.9rem;border-top:1px solid var(--border)}
+.logout-btn{width:100%;padding:.6rem;background:rgba(239,68,68,.08);color:var(--red);border:1px solid rgba(239,68,68,.25);border-radius:8px;cursor:pointer;font-size:.83rem;font-family:inherit;transition:.15s}
+.logout-btn:hover{background:rgba(239,68,68,.18)}
 
-/* Header */
-.page-header{margin-bottom:1.5rem}
-.page-header h1{font-size:1.4rem;color:var(--text)}
-.page-header p{color:var(--sub);font-size:.85rem;margin-top:.2rem}
+/* ── Mobile topbar ── */
+.topbar{display:none;position:fixed;top:0;left:0;right:0;height:52px;background:var(--sb);border-bottom:1px solid var(--border);z-index:300;align-items:center;padding:0 1rem;gap:.8rem}
+.topbar-title{color:var(--accent);font-weight:700;font-size:.92rem;flex:1;text-align:center}
+.hamburger{background:none;border:none;color:var(--text);font-size:1.3rem;cursor:pointer;padding:.3rem;line-height:1;flex-shrink:0}
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:150}
+.sb-overlay.open{display:block}
 
-/* KPI Cards */
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem}
-.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem;position:relative;overflow:hidden}
-.kpi-card::before{content:'';position:absolute;top:0;right:0;width:4px;height:100%;background:var(--accent)}
-.kpi-card.green::before{background:var(--green)}
-.kpi-card.purple::before{background:var(--accent2)}
-.kpi-card.orange::before{background:var(--orange)}
-.kpi-label{color:var(--sub);font-size:.8rem;margin-bottom:.4rem}
-.kpi-value{font-size:2rem;font-weight:700;color:var(--text);line-height:1}
-.kpi-sub{color:var(--sub);font-size:.75rem;margin-top:.4rem}
-.kpi-icon{position:absolute;left:1rem;top:50%;transform:translateY(-50%);font-size:2rem;opacity:.15}
+/* ── Pages ── */
+.page{display:none}.page.active{display:block}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.7rem;margin-bottom:1.4rem}
+.page-hdr h1{font-size:1.25rem;color:var(--text)}
+.page-hdr p{color:var(--muted);font-size:.8rem;margin-top:.15rem}
+.refresh-btn{display:inline-flex;align-items:center;gap:.4rem;background:rgba(0,200,255,.08);color:var(--accent);border:1px solid rgba(0,200,255,.22);border-radius:8px;padding:.4rem .85rem;cursor:pointer;font-size:.79rem;font-family:inherit;transition:.15s}
+.refresh-btn:hover{background:rgba(0,200,255,.16)}
 
-/* Charts */
-.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
-.chart-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem}
-.chart-card.full{grid-column:1/-1}
-.chart-title{font-size:.9rem;color:var(--sub);margin-bottom:1rem;font-weight:600}
-.chart-wrap{position:relative;height:220px}
+/* ── KPI grid ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.9rem;margin-bottom:1.3rem}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem 1.1rem 1rem;border-top:3px solid var(--accent);position:relative}
+.kpi.g{border-top-color:var(--green)}.kpi.p{border-top-color:var(--purple)}.kpi.o{border-top-color:var(--orange)}.kpi.y{border-top-color:var(--yellow)}.kpi.r{border-top-color:var(--red)}
+.kpi-ico{font-size:1.4rem;margin-bottom:.45rem;opacity:.75}
+.kpi-lbl{color:var(--muted);font-size:.75rem;margin-bottom:.3rem;line-height:1.3}
+.kpi-val{font-size:1.75rem;font-weight:700;color:var(--text);line-height:1}
+.kpi-sub{color:var(--muted);font-size:.72rem;margin-top:.3rem}
 
-/* Tables */
-.table-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:1rem}
-.table-header{padding:1rem 1.2rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-.table-header h3{font-size:.95rem}
-table{width:100%;border-collapse:collapse}
-th{padding:.7rem 1rem;text-align:right;color:var(--sub);font-size:.8rem;border-bottom:1px solid var(--border);font-weight:600;background:rgba(0,0,0,.2)}
-td{padding:.75rem 1rem;font-size:.85rem;border-bottom:1px solid rgba(30,28,74,.5);color:var(--text)}
+/* ── Grid layouts ── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.1rem}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.1rem}
+.full{grid-column:1/-1}
+
+/* ── Cards ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem;margin-bottom:1.1rem}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.9rem}
+.card-title{font-size:.87rem;font-weight:600;color:var(--muted)}
+.chart-box{position:relative;height:220px}
+.chart-box-lg{position:relative;height:270px}
+.chart-box-sm{position:relative;height:190px}
+.chart-box .no-data,.chart-box-lg .no-data,.chart-box-sm .no-data{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.donut-box{position:relative;height:200px}
+.donut-box canvas{position:absolute;inset:0}
+.donut-box .no-data{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+
+/* ── Tables ── */
+.tbl-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:1.1rem}
+.tbl-hdr{padding:.85rem 1.1rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem}
+.tbl-hdr h3{font-size:.88rem;font-weight:600}
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:420px}
+th{padding:.6rem .9rem;text-align:right;color:var(--muted);font-size:.76rem;border-bottom:1px solid var(--border);font-weight:600;background:rgba(0,0,0,.15);white-space:nowrap}
+td{padding:.68rem .9rem;font-size:.82rem;border-bottom:1px solid rgba(34,32,79,.4);color:var(--text);vertical-align:middle}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(0,200,255,.03)}
+tr:hover td{background:rgba(0,200,255,.025)}
+.empty-row td{text-align:center;color:var(--muted);padding:2rem;font-size:.84rem}
 
-/* Badges */
-.badge{display:inline-block;padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600}
-.badge-green{background:rgba(34,197,94,.15);color:var(--green)}
-.badge-red{background:rgba(239,68,68,.15);color:var(--red)}
-.badge-gray{background:rgba(144,144,176,.15);color:var(--sub)}
-.badge-blue{background:rgba(0,200,255,.15);color:var(--accent)}
-.badge-orange{background:rgba(249,115,22,.15);color:var(--orange)}
+/* ── Badges ── */
+.b{display:inline-block;padding:.16rem .5rem;border-radius:20px;font-size:.71rem;font-weight:600;white-space:nowrap}
+.bg{background:rgba(34,197,94,.13);color:var(--green)}
+.br{background:rgba(239,68,68,.13);color:var(--red)}
+.bb{background:rgba(0,200,255,.13);color:var(--accent)}
+.bo{background:rgba(249,115,22,.13);color:var(--orange)}
+.by{background:rgba(234,179,8,.13);color:var(--yellow)}
+.bm{background:rgba(144,144,170,.13);color:var(--muted)}
+.bp{background:rgba(124,58,237,.13);color:var(--purple)}
 
-/* Stat rows */
-.stat-row{display:flex;justify-content:space-between;align-items:center;padding:.8rem 0;border-bottom:1px solid var(--border)}
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.48rem .95rem;border-radius:8px;border:none;cursor:pointer;font-size:.83rem;font-weight:600;font-family:inherit;transition:.15s;white-space:nowrap;text-decoration:none}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-pri{background:var(--accent);color:#000}.btn-pri:hover:not(:disabled){opacity:.85}
+.btn-sec{background:var(--card2);color:var(--text);border:1px solid var(--border)}.btn-sec:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.btn-red{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.28)}.btn-red:hover:not(:disabled){background:rgba(239,68,68,.2)}
+.btn-grn{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.28)}.btn-grn:hover:not(:disabled){background:rgba(34,197,94,.2)}
+.btn-warn{background:rgba(234,179,8,.1);color:var(--yellow);border:1px solid rgba(234,179,8,.28)}.btn-warn:hover:not(:disabled){background:rgba(234,179,8,.2)}
+.btn-sm{padding:.28rem .6rem;font-size:.73rem}
+.btn-row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+
+/* ── Section / Form ── */
+.sec{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.15rem;margin-bottom:1.1rem}
+.sec-title{font-size:.88rem;font-weight:700;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:.5rem;margin-bottom:.9rem}
+.fg{margin-bottom:.85rem}
+.fl{display:block;color:var(--muted);font-size:.76rem;margin-bottom:.3rem}
+.fi{width:100%;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:.55rem .85rem;color:var(--text);font-size:.87rem;outline:none;font-family:inherit;transition:.15s}
+.fi:focus{border-color:var(--accent)}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:.9rem}
+
+/* ── Status grid ── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1rem;margin-bottom:1.1rem}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid rgba(34,32,79,.4);font-size:.83rem}
 .stat-row:last-child{border-bottom:none}
-.stat-row-label{color:var(--sub);font-size:.85rem}
-.stat-row-val{font-weight:700;font-size:.95rem}
+.stat-lbl{color:var(--muted)}
+.stat-val{color:var(--text);font-weight:600;direction:ltr;text-align:left}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green);margin-left:.35rem;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
 
-/* Progress bar */
-.progress-wrap{margin-top:.4rem}
-.progress-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
-.progress-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:.5s}
+/* ── Country bar ── */
+.c-item{display:flex;align-items:center;gap:.6rem;padding:.4rem 0;border-bottom:1px solid rgba(34,32,79,.35);font-size:.82rem}
+.c-item:last-child{border-bottom:none}
+.c-flag{font-size:1.15rem;flex-shrink:0}
+.c-name{width:36px;color:var(--text)}
+.c-bar{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:0 .4rem}
+.c-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--purple));border-radius:2px}
+.c-cnt{color:var(--accent);font-weight:700;min-width:28px;text-align:left}
 
-/* Buttons */
-.btn{padding:.55rem 1.1rem;border-radius:8px;border:none;cursor:pointer;font-size:.85rem;font-weight:600;transition:.2s;display:inline-flex;align-items:center;gap:.4rem}
-.btn-primary{background:var(--accent);color:#000}
-.btn-primary:hover{opacity:.85}
-.btn-danger{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
-.btn-danger:hover{background:rgba(239,68,68,.25)}
-.btn-secondary{background:var(--card2);color:var(--text);border:1px solid var(--border)}
-.btn-secondary:hover{border-color:var(--accent)}
-.btn-success{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
-.btn-success:hover{background:rgba(34,197,94,.25)}
-.btn-group{display:flex;gap:.6rem;flex-wrap:wrap}
+/* ── Progress ── */
+.prog-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:.3rem}
+.prog-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--purple));transition:.5s}
 
-/* System status */
-.status-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin-bottom:1rem}
-.status-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem}
-.status-row{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid rgba(30,28,74,.5);font-size:.85rem}
-.status-row:last-child{border-bottom:none}
-.status-label{color:var(--sub)}
-.status-val{color:var(--text);font-weight:600}
-.online-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);margin-left:.4rem}
+/* ── Spinner / Loading ── */
+.spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(0,200,255,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .65s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading{display:flex;align-items:center;justify-content:center;gap:.6rem;padding:2.5rem;color:var(--muted);font-size:.86rem}
 
-/* Forms */
-.form-group{margin-bottom:1rem}
-.form-label{display:block;color:var(--sub);font-size:.8rem;margin-bottom:.4rem}
-.form-input{width:100%;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:.65rem 1rem;color:var(--text);font-size:.9rem;outline:none;transition:.2s}
-.form-input:focus{border-color:var(--accent)}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
-.section-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem;margin-bottom:1rem}
-.section-title{font-size:.95rem;font-weight:600;margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid var(--border);color:var(--accent)}
-
-/* Visitors page */
-.visitors-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
-.donut-wrap{position:relative;height:200px;display:flex;align-items:center;justify-content:center}
-
-/* Toast */
-#toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--card2);border:1px solid var(--accent);color:var(--text);padding:.8rem 1.5rem;border-radius:10px;font-size:.9rem;z-index:9999;transition:.3s;opacity:0;pointer-events:none}
+/* ── Toast ── */
+#toast{position:fixed;bottom:1.8rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--card2);border:1px solid var(--accent);color:var(--text);padding:.7rem 1.3rem;border-radius:10px;font-size:.87rem;z-index:9999;transition:.28s;opacity:0;pointer-events:none;max-width:88vw;text-align:center}
 #toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+#toast.err{border-color:var(--red)}
+#toast.ok{border-color:var(--green)}
 
-/* Modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:center;justify-content:center}
-.modal-overlay.open{display:flex}
-.modal{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;width:90%;max-width:440px}
-.modal-title{font-size:1rem;font-weight:700;margin-bottom:1rem;color:var(--accent)}
-.modal-footer{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1rem}
+/* ── Modal ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-bg.open{display:flex}
+.modal-box{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.4rem;width:100%;max-width:420px}
+.modal-title{font-size:.97rem;font-weight:700;color:var(--accent);margin-bottom:1rem}
+.modal-foot{display:flex;gap:.55rem;justify-content:flex-end;margin-top:1.1rem;flex-wrap:wrap}
 
-/* Toggle */
-.toggle{position:relative;width:44px;height:24px}
-.toggle input{opacity:0;width:0;height:0}
-.toggle-slider{position:absolute;inset:0;background:var(--border);border-radius:24px;cursor:pointer;transition:.3s}
-.toggle-slider::before{content:'';position:absolute;width:18px;height:18px;right:3px;top:3px;background:#fff;border-radius:50%;transition:.3s}
-.toggle input:checked+.toggle-slider{background:var(--accent)}
-.toggle input:checked+.toggle-slider::before{transform:translateX(-20px)}
-.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:.7rem 0;border-bottom:1px solid var(--border)}
-.toggle-row:last-child{border-bottom:none}
+/* ── URL test ── */
+.url-res{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:.85rem;margin-top:.85rem;font-size:.81rem;display:none}
+.url-res.ok{border-color:var(--green)}.url-res.err{border-color:var(--red)}
 
-/* Delete btn in table */
-.del-btn{background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:.2rem .4rem;border-radius:4px;opacity:.7;transition:.2s}
-.del-btn:hover{opacity:1;background:rgba(239,68,68,.1)}
+/* ── Misc ── */
+.code-box{background:var(--card2);border:1px solid var(--green);border-radius:8px;padding:.75rem 1rem;font-family:monospace;color:var(--green);word-break:break-all;margin-top:.75rem;display:none}
+.divider{height:1px;background:var(--border);margin:.9rem 0}
+.no-data{text-align:center;padding:1.8rem;color:var(--muted);font-size:.84rem}
+.del-btn,.ext-btn{background:none;border:none;cursor:pointer;font-size:.92rem;padding:.2rem .38rem;border-radius:4px;opacity:.65;transition:.15s}
+.del-btn{color:var(--red)}.del-btn:hover{opacity:1;background:rgba(239,68,68,.1)}
+.ext-btn{color:var(--green)}.ext-btn:hover{opacity:1;background:rgba(34,197,94,.1)}
 
-/* Top bar (mobile only) */
-.topbar{display:none;position:fixed;top:0;left:0;right:0;height:56px;background:var(--sidebar);border-bottom:1px solid var(--border);z-index:200;align-items:center;padding:0 1rem;justify-content:space-between}
-.topbar-title{color:var(--accent);font-weight:700;font-size:1rem}
-.hamburger{background:none;border:none;color:var(--text);font-size:1.5rem;cursor:pointer;padding:.3rem}
-
-/* Sidebar overlay (mobile) */
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:150}
-.sidebar-overlay.open{display:block}
-
-@media(max-width:768px){
+/* ── Responsive ── */
+@media(max-width:800px){
   .topbar{display:flex}
-  .sidebar{transform:translateX(100%);transition:.3s;z-index:300}
+  .sidebar{transform:translateX(100%);transition:.25s}
   .sidebar.open{transform:translateX(0)}
-  .main{margin-right:0;padding:1rem;padding-top:72px;padding-bottom:1rem}
-  .kpi-grid{grid-template-columns:1fr 1fr}
-  .charts-grid{grid-template-columns:1fr}
-  .form-row{grid-template-columns:1fr}
-  .status-grid{grid-template-columns:1fr}
-  .visitors-grid{grid-template-columns:1fr}
-  .kpi-value{font-size:1.5rem}
-  #toast{bottom:1rem;width:90%;text-align:center}
+  .main{margin-right:0;padding:.85rem;padding-top:62px}
+  .kpi-row{grid-template-columns:1fr 1fr}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .fr{grid-template-columns:1fr}
+  .stat-grid{grid-template-columns:1fr}
+  .kpi-val{font-size:1.4rem}
+  #toast{bottom:.9rem;width:90%}
+  .chart-box{height:175px}.chart-box-lg{height:210px}
+  .donut-box{height:170px}
+  .chart-box-sm{height:155px}
 }
-
-@media(min-width:769px) and (max-width:1100px){
-  .kpi-grid{grid-template-columns:1fr 1fr}
-  .charts-grid{grid-template-columns:1fr}
-  .status-grid{grid-template-columns:1fr}
+@media(min-width:801px) and (max-width:1100px){
+  .sidebar{width:185px}.main{margin-right:185px}
+  .grid3{grid-template-columns:1fr 1fr}
+  .kpi-row{grid-template-columns:repeat(3,1fr)}
 }
 </style>
 </head>
 <body>
 
-<!-- Top Bar (mobile) -->
-<div class="topbar">
-  <button class="hamburger" onclick="toggleSidebar()">☰</button>
-  <span class="topbar-title">⚡ نزلها بلس</span>
-  <span></span>
-</div>
+<div id="toast"></div>
 
-<!-- Overlay -->
-<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+<!-- Mobile topbar -->
+<div class="topbar">
+  <button class="hamburger" onclick="toggleSB()">☰</button>
+  <span class="topbar-title">⚡ نزلها بلس</span>
+  <span style="width:32px"></span>
+</div>
+<div class="sb-overlay" id="sb-overlay" onclick="closeSB()"></div>
 
 <!-- Sidebar -->
 <nav class="sidebar" id="sidebar">
-  <div class="sidebar-logo">
+  <div class="sb-logo">
     <h2>⚡ نزلها بلس</h2>
-    <span>لوحة التحكم</span>
+    <small>لوحة التحكم</small>
   </div>
-  <div class="nav-item active" onclick="showPage('overview', this)">
-    <span class="icon">📊</span> نظرة عامة
-  </div>
-  <div class="nav-item" onclick="showPage('visitors', this)">
-    <span class="icon">👥</span> الزوار
-  </div>
-  <div class="nav-item" onclick="showPage('downloads', this)">
-    <span class="icon">⬇️</span> التحميلات
-  </div>
-  <div class="nav-item" onclick="showPage('subscribers', this)">
-    <span class="icon">🔑</span> المشتركون
-  </div>
-  <div class="nav-item" onclick="showPage('system', this)">
-    <span class="icon">🖥️</span> النظام
-  </div>
-  <div class="nav-item" onclick="showPage('settings', this)">
-    <span class="icon">⚙️</span> الإعدادات
-  </div>
-  <div class="sidebar-bottom">
-    <button class="logout-btn" onclick="logout()">🚪 تسجيل الخروج</button>
+  <div class="nav-item active" onclick="showPage('overview',this)"><span class="nav-icon">📊</span> نظرة عامة</div>
+  <div class="nav-item" onclick="showPage('downloads',this)"><span class="nav-icon">⬇️</span> التحميلات</div>
+  <div class="nav-item" onclick="showPage('android',this)"><span class="nav-icon">📱</span> مستخدمو التطبيق</div>
+  <div class="nav-item" onclick="showPage('visitors',this)"><span class="nav-icon">👥</span> الزوار</div>
+  <div class="nav-item" onclick="showPage('subscriptions',this)"><span class="nav-icon">⭐</span> الاشتراكات</div>
+  <div class="nav-item" onclick="showPage('server',this)"><span class="nav-icon">⚙️</span> السيرفر</div>
+  <div class="nav-item" onclick="showPage('settings',this)"><span class="nav-icon">🔧</span> الإعدادات</div>
+  <div class="sb-foot">
+    <button class="logout-btn" onclick="location.href='/admin/logout'">🚪 تسجيل الخروج</button>
   </div>
 </nav>
 
 <!-- Main -->
 <main class="main">
 
-  <!-- ===== OVERVIEW ===== -->
-  <div class="page active" id="page-overview">
-    <div class="page-header">
-      <h1>نظرة عامة</h1>
-      <p id="server-time">—</p>
-    </div>
+<!-- ═══ 1. OVERVIEW ═══ -->
+<div class="page active" id="page-overview">
+  <div class="page-hdr">
+    <div><h1>📊 نظرة عامة</h1><p id="ov-time">جاري التحميل…</p></div>
+    <button class="refresh-btn" onclick="loadOverview()"><span class="spin" id="ov-spin" style="display:none"></span> 🔄 تحديث</button>
+  </div>
 
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-label">زوار اليوم</div>
-        <div class="kpi-value" id="kpi-today-visitors">—</div>
-        <div class="kpi-sub" id="kpi-yesterday-visitors">أمس: —</div>
-        <div class="kpi-icon">👥</div>
-      </div>
-      <div class="kpi-card green">
-        <div class="kpi-label">تحميلات اليوم</div>
-        <div class="kpi-value" id="kpi-today-dl">—</div>
-        <div class="kpi-sub" id="kpi-total-dl">الإجمالي: —</div>
-        <div class="kpi-icon">⬇️</div>
-      </div>
-      <div class="kpi-card purple">
-        <div class="kpi-label">المشتركون النشطون</div>
-        <div class="kpi-value" id="kpi-active-subs">—</div>
-        <div class="kpi-sub" id="kpi-total-subs">الإجمالي: —</div>
-        <div class="kpi-icon">🔑</div>
-      </div>
-      <div class="kpi-card orange">
-        <div class="kpi-label">تحميلات فاشلة</div>
-        <div class="kpi-value" id="kpi-failed">—</div>
-        <div class="kpi-sub" id="kpi-active-tasks">مهام نشطة: —</div>
-        <div class="kpi-icon">❌</div>
-      </div>
-      <div class="kpi-card" style="--accent:#f97316">
-        <div class="kpi-label">مثبّتو التطبيق (Android)</div>
-        <div class="kpi-value" id="kpi-app-installs">—</div>
-        <div class="kpi-sub">أجهزة فريدة</div>
-        <div class="kpi-icon">📱</div>
-      </div>
-    </div>
+  <div class="kpi-row">
+    <div class="kpi g"><div class="kpi-ico">⬇️</div><div class="kpi-lbl">تحميلات اليوم</div><div class="kpi-val" id="ov-today-dl">—</div><div class="kpi-sub" id="ov-total-dl">الإجمالي: —</div></div>
+    <div class="kpi"><div class="kpi-ico">👥</div><div class="kpi-lbl">زوار اليوم</div><div class="kpi-val" id="ov-today-vis">—</div><div class="kpi-sub" id="ov-week-vis">الأسبوع: —</div></div>
+    <div class="kpi p"><div class="kpi-ico">📱</div><div class="kpi-lbl">مستخدمو التطبيق النشطون</div><div class="kpi-val" id="ov-active-users">—</div><div class="kpi-sub" id="ov-total-users">الإجمالي: —</div></div>
+    <div class="kpi y"><div class="kpi-ico">⭐</div><div class="kpi-lbl">مشتركون نشطون</div><div class="kpi-val" id="ov-active-subs">—</div><div class="kpi-sub" id="ov-total-subs">الإجمالي: —</div></div>
+    <div class="kpi o"><div class="kpi-ico">❌</div><div class="kpi-lbl">تحميلات فاشلة</div><div class="kpi-val" id="ov-failed">—</div><div class="kpi-sub" id="ov-tasks-sub">مهام نشطة: —</div></div>
+    <div class="kpi"><div class="kpi-ico">⚡</div><div class="kpi-lbl">مهام نشطة</div><div class="kpi-val" id="ov-tasks">—</div><div class="kpi-sub" id="ov-storage">التخزين: —</div></div>
+  </div>
 
-    <div class="charts-grid">
-      <div class="chart-card">
-        <div class="chart-title">📈 الزوار - آخر 30 يوم</div>
-        <div class="chart-wrap"><canvas id="chart-visitors"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">📥 التحميلات - آخر 30 يوم</div>
-        <div class="chart-wrap"><canvas id="chart-downloads"></canvas></div>
-      </div>
-    </div>
+  <div class="card full">
+    <div class="card-hdr"><span class="card-title">📈 التحميلات — آخر 30 يوم</span></div>
+    <div class="chart-box-lg"><canvas id="ov-chart-trend"></canvas></div>
+  </div>
 
-    <div class="chart-card">
-      <div class="chart-title">🕐 نشاط ساعات اليوم</div>
-      <div class="chart-wrap"><canvas id="chart-hourly"></canvas></div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🕐 التحميلات حسب الساعة</span></div>
+      <div class="chart-box"><canvas id="ov-chart-hourly"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🎯 توزيع المنصات</span></div>
+      <div class="donut-box"><canvas id="ov-chart-platforms"></canvas></div>
     </div>
   </div>
 
-  <!-- ===== VISITORS ===== -->
-  <div class="page" id="page-visitors">
-    <div class="page-header">
-      <h1>الزوار</h1>
-      <p>تحليل الزوار الجدد والعائدين</p>
-    </div>
-
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-label">زوار اليوم</div>
-        <div class="kpi-value" id="v-today">—</div>
-        <div class="kpi-icon">📅</div>
-      </div>
-      <div class="kpi-card green">
-        <div class="kpi-label">زوار هذا الأسبوع</div>
-        <div class="kpi-value" id="v-week">—</div>
-        <div class="kpi-icon">📆</div>
-      </div>
-      <div class="kpi-card purple">
-        <div class="kpi-label">زوار جدد (إجمالي)</div>
-        <div class="kpi-value" id="v-new">—</div>
-        <div class="kpi-icon">🆕</div>
-      </div>
-      <div class="kpi-card orange">
-        <div class="kpi-label">زوار عائدون (إجمالي)</div>
-        <div class="kpi-value" id="v-returning">—</div>
-        <div class="kpi-icon">🔄</div>
+  <div class="grid2">
+    <div class="tbl-card">
+      <div class="tbl-hdr"><h3>⬇️ آخر التحميلات</h3></div>
+      <div class="tbl-scroll">
+        <table><thead><tr><th>المنصة</th><th>الحالة</th><th>المدة</th><th>الوقت</th></tr></thead>
+        <tbody id="ov-recent-body"><tr class="empty-row"><td colspan="4">جاري التحميل…</td></tr></tbody></table>
       </div>
     </div>
-
-    <div class="charts-grid">
-      <div class="chart-card">
-        <div class="chart-title">جدد مقابل عائدون</div>
-        <div class="donut-wrap"><canvas id="chart-new-return"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">📈 الزوار - آخر 30 يوم</div>
-        <div class="chart-wrap"><canvas id="chart-visitors2"></canvas></div>
-      </div>
-    </div>
-
-    <div class="section-card">
-      <div class="section-title">إدارة البيانات</div>
-      <p style="color:var(--sub);font-size:.85rem;margin-bottom:1rem">مسح إحصائيات الزوار يحذف جميع البيانات المحفوظة ويبدأ العد من صفر.</p>
-      <button class="btn btn-danger" onclick="resetVisitors()">🗑️ مسح إحصائيات الزوار</button>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">⚠️ آخر الأخطاء</span></div>
+      <div id="ov-errors-list" style="max-height:260px;overflow-y:auto"><div class="loading"><span class="spin"></span> جاري التحميل…</div></div>
     </div>
   </div>
+</div>
 
-  <!-- ===== DOWNLOADS ===== -->
-  <div class="page" id="page-downloads">
-    <div class="page-header">
-      <h1>التحميلات</h1>
-      <p>إحصائيات ومتابعة التحميلات</p>
+<!-- ═══ 2. DOWNLOADS ═══ -->
+<div class="page" id="page-downloads">
+  <div class="page-hdr">
+    <div><h1>⬇️ التحميلات</h1><p>إحصائيات التحميل التفصيلية</p></div>
+    <button class="refresh-btn" onclick="loadDownloads()">🔄 تحديث</button>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi g"><div class="kpi-ico">📅</div><div class="kpi-lbl">تحميلات اليوم</div><div class="kpi-val" id="dl-today">—</div></div>
+    <div class="kpi"><div class="kpi-ico">✅</div><div class="kpi-lbl">الإجمالي</div><div class="kpi-val" id="dl-total">—</div></div>
+    <div class="kpi o"><div class="kpi-ico">❌</div><div class="kpi-lbl">فاشلة</div><div class="kpi-val" id="dl-failed">—</div></div>
+    <div class="kpi p"><div class="kpi-ico">⚡</div><div class="kpi-lbl">مهام نشطة</div><div class="kpi-val" id="dl-active">—</div></div>
+  </div>
+  <div class="card full">
+    <div class="card-hdr"><span class="card-title">📈 التحميلات — آخر 30 يوم</span></div>
+    <div class="chart-box-lg"><canvas id="dl-chart-trend"></canvas></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🕐 حسب الساعة</span></div>
+      <div class="chart-box"><canvas id="dl-chart-hourly"></canvas></div>
     </div>
-
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-label">تحميلات اليوم</div>
-        <div class="kpi-value" id="dl-today">—</div>
-        <div class="kpi-icon">📅</div>
-      </div>
-      <div class="kpi-card green">
-        <div class="kpi-label">إجمالي التحميلات</div>
-        <div class="kpi-value" id="dl-total">—</div>
-        <div class="kpi-icon">✅</div>
-      </div>
-      <div class="kpi-card orange">
-        <div class="kpi-label">تحميلات فاشلة</div>
-        <div class="kpi-value" id="dl-failed">—</div>
-        <div class="kpi-icon">❌</div>
-      </div>
-      <div class="kpi-card purple">
-        <div class="kpi-label">مهام نشطة الآن</div>
-        <div class="kpi-value" id="dl-active">—</div>
-        <div class="kpi-icon">⚡</div>
-      </div>
-    </div>
-
-    <div class="charts-grid">
-      <div class="chart-card">
-        <div class="chart-title">توزيع المنصات</div>
-        <div class="donut-wrap"><canvas id="chart-platforms"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">📥 التحميلات - آخر 30 يوم</div>
-        <div class="chart-wrap"><canvas id="chart-downloads2"></canvas></div>
-      </div>
-    </div>
-
-    <div class="table-card">
-      <div class="table-header"><h3>آخر التحميلات</h3></div>
-      <table>
-        <thead><tr><th>المنصة</th><th>المدة</th><th>الجودات</th><th>الوقت</th></tr></thead>
-        <tbody id="recent-downloads-body"></tbody>
-      </table>
-    </div>
-
-    <div class="table-card">
-      <div class="table-header"><h3>آخر الأخطاء</h3></div>
-      <table>
-        <thead><tr><th>الرابط</th><th>الخطأ</th><th>الوقت</th></tr></thead>
-        <tbody id="recent-errors-body"></tbody>
-      </table>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📊 حسب المنصة</span></div>
+      <div class="chart-box"><canvas id="dl-chart-platforms-bar"></canvas></div>
     </div>
   </div>
-
-  <!-- ===== SUBSCRIBERS ===== -->
-  <div class="page" id="page-subscribers">
-    <div class="page-header">
-      <h1>المشتركون</h1>
-      <p>إدارة أكواد الاشتراك</p>
-    </div>
-
-    <div class="kpi-grid">
-      <div class="kpi-card green">
-        <div class="kpi-label">نشط</div>
-        <div class="kpi-value" id="sub-active">—</div>
-        <div class="kpi-icon">✅</div>
-      </div>
-      <div class="kpi-card orange">
-        <div class="kpi-label">منتهي</div>
-        <div class="kpi-value" id="sub-expired">—</div>
-        <div class="kpi-icon">⏰</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">غير مستخدم</div>
-        <div class="kpi-value" id="sub-unused">—</div>
-        <div class="kpi-icon">🎫</div>
-      </div>
-      <div class="kpi-card purple">
-        <div class="kpi-label">الإجمالي</div>
-        <div class="kpi-value" id="sub-total">—</div>
-        <div class="kpi-icon">🔑</div>
-      </div>
-    </div>
-
-    <div class="section-card">
-      <div class="section-title">إنشاء كود جديد</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">البريد الإلكتروني</label>
-          <input class="form-input" id="new-email" type="email" placeholder="example@gmail.com">
-        </div>
-        <div class="form-group">
-          <label class="form-label">مدة الاشتراك (أيام)</label>
-          <input class="form-input" id="new-days" type="number" value="30" min="1">
-        </div>
-      </div>
-      <div class="btn-group">
-        <button class="btn btn-primary" onclick="generateCode()">➕ إنشاء كود</button>
-        <a href="/admin/api/backup-codes" class="btn btn-secondary">💾 نسخ احتياطي</a>
-      </div>
-      <div id="new-code-result" style="margin-top:.8rem;display:none">
-        <div style="background:var(--card2);border:1px solid var(--green);border-radius:8px;padding:.8rem 1rem;font-family:monospace;font-size:1rem;color:var(--green)" id="new-code-val"></div>
-      </div>
-    </div>
-
-    <div class="table-card">
-      <div class="table-header">
-        <h3>قائمة الأكواد</h3>
-        <input class="form-input" style="width:200px;padding:.4rem .8rem" placeholder="بحث..." oninput="filterCodes(this.value)" id="code-search">
-      </div>
-      <table>
-        <thead><tr><th>الكود</th><th>البريد</th><th>الحالة</th><th>الانتهاء</th><th>حذف</th></tr></thead>
-        <tbody id="codes-body"></tbody>
-      </table>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>⬇️ سجل التحميلات</h3><span id="dl-count-badge" class="b bb">—</span></div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>المنصة</th><th>الحالة</th><th>المدة (ث)</th><th>الوقت</th></tr></thead>
+      <tbody id="dl-recent-body"><tr class="empty-row"><td colspan="4">جاري التحميل…</td></tr></tbody></table>
     </div>
   </div>
-
-  <!-- ===== SYSTEM ===== -->
-  <div class="page" id="page-system">
-    <div class="page-header">
-      <h1>النظام</h1>
-      <p>حالة السيرفر والأدوات</p>
-    </div>
-
-    <div class="status-grid">
-      <div class="status-card">
-        <div class="section-title">حالة السيرفر</div>
-        <div class="status-row"><span class="status-label">الحالة</span><span class="status-val"><span class="online-dot"></span>يعمل</span></div>
-        <div class="status-row"><span class="status-label">وقت التشغيل</span><span class="status-val" id="sys-uptime">—</span></div>
-        <div class="status-row"><span class="status-label">إصدار yt-dlp</span><span class="status-val" id="sys-ytdlp">—</span></div>
-        <div class="status-row"><span class="status-label">آخر تحديث</span><span class="status-val" id="sys-ytdlp-updated">—</span></div>
-        <div class="status-row"><span class="status-label">الملفات المؤقتة</span><span class="status-val" id="sys-files">—</span></div>
-        <div class="status-row"><span class="status-label">المساحة المستخدمة</span><span class="status-val" id="sys-storage">—</span></div>
-      </div>
-      <div class="status-card">
-        <div class="section-title">الأدوات</div>
-        <div style="display:flex;flex-direction:column;gap:.7rem;margin-top:.5rem">
-          <button class="btn btn-primary" onclick="updateYtdlp()">🔄 تحديث yt-dlp</button>
-          <button class="btn btn-danger" onclick="clearFiles()">🗑️ مسح الملفات المؤقتة</button>
-          <a href="https://www.vip-dl.com" target="_blank" class="btn btn-secondary">🌐 فتح الموقع</a>
-          <a href="/admin/api/backup-codes" class="btn btn-secondary">💾 نسخ احتياطي للأكواد</a>
-        </div>
-      </div>
-    </div>
-
-    <!-- Render Sleep Manager -->
-    <div class="section-card" id="render-card">
-      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
-        <span>🌙 إدارة نوم Render</span>
-        <span id="render-status-badge" class="badge badge-green">● نشط</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1rem">
-        <div style="background:var(--card2);border-radius:10px;padding:.9rem;text-align:center">
-          <div style="color:var(--sub);font-size:.75rem;margin-bottom:.3rem">وقت التشغيل</div>
-          <div id="render-uptime" style="font-size:1.1rem;font-weight:700;color:var(--accent)">—</div>
-        </div>
-        <div style="background:var(--card2);border-radius:10px;padding:.9rem;text-align:center">
-          <div style="color:var(--sub);font-size:.75rem;margin-bottom:.3rem">زمن الاستجابة</div>
-          <div id="render-latency" style="font-size:1.1rem;font-weight:700;color:var(--green)">—</div>
-        </div>
-        <div style="background:var(--card2);border-radius:10px;padding:.9rem;text-align:center;grid-column:1/-1">
-          <div style="color:var(--sub);font-size:.75rem;margin-bottom:.4rem">⏳ وقت حتى النوم</div>
-          <div id="render-sleep-bar" style="background:var(--border);border-radius:20px;height:8px;margin-bottom:.4rem;overflow:hidden">
-            <div id="render-sleep-fill" style="height:100%;background:var(--green);border-radius:20px;transition:width .5s,background .5s;width:100%"></div>
-          </div>
-          <div id="render-sleep-countdown" style="font-size:1.3rem;font-weight:700;color:var(--green)">15:00</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:.7rem;flex-wrap:wrap">
-        <button class="btn btn-primary" style="flex:1" onclick="renderPingNow()">🏓 إيقاظ / قياس</button>
-        <button id="render-auto-btn" class="btn btn-secondary" style="flex:1" onclick="toggleRenderAuto()">⏰ تلقائي: إيقاف</button>
-      </div>
-      <div id="render-auto-hint" style="color:var(--sub);font-size:.75rem;margin-top:.6rem;text-align:center;display:none">
-        يُرسل ping تلقائياً كل 5 دقائق لإبقاء السيرفر مستيقظاً
-      </div>
-    </div>
-
-    <div class="section-card">
-      <div class="section-title">وضع الصيانة</div>
-      <div class="toggle-row">
-        <div>
-          <div style="font-size:.9rem">تفعيل وضع الصيانة</div>
-          <div style="color:var(--sub);font-size:.8rem">سيظهر للزوار صفحة صيانة بدلاً من الموقع</div>
-        </div>
-        <label class="toggle">
-          <input type="checkbox" id="maintenance-toggle" onchange="toggleMaintenance()">
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-    </div>
-
-    <div class="section-card">
-      <div class="section-title">اختبار رابط</div>
-      <div style="display:flex;gap:.6rem">
-        <input class="form-input" id="test-url-input" placeholder="https://..." style="flex:1">
-        <button class="btn btn-primary" onclick="testUrl()">اختبار</button>
-      </div>
-      <div id="test-url-result" style="margin-top:.8rem;display:none;background:var(--card2);border-radius:8px;padding:.8rem;font-size:.8rem;font-family:monospace;color:var(--accent);white-space:pre-wrap;max-height:200px;overflow:auto"></div>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>⚠️ آخر الأخطاء</h3></div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>المنصة</th><th>الخطأ</th><th>الوقت</th></tr></thead>
+      <tbody id="dl-errors-body"><tr class="empty-row"><td colspan="3">جاري التحميل…</td></tr></tbody></table>
     </div>
   </div>
+</div>
 
-  <!-- ===== SETTINGS ===== -->
-  <div class="page" id="page-settings">
-    <div class="page-header">
-      <h1>الإعدادات</h1>
-      <p>إعدادات الموقع والحساب</p>
+<!-- ═══ 3. ANDROID ═══ -->
+<div class="page" id="page-android">
+  <div class="page-hdr">
+    <div><h1>📱 مستخدمو التطبيق</h1><p>الأجهزة وإحصائيات التحميل</p></div>
+    <button class="refresh-btn" onclick="loadAndroid()">🔄 تحديث</button>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-ico">📱</div><div class="kpi-lbl">إجمالي الأجهزة</div><div class="kpi-val" id="and-total">—</div><div class="kpi-sub">منذ الإطلاق</div></div>
+    <div class="kpi g"><div class="kpi-ico">✅</div><div class="kpi-lbl">نشطون اليوم</div><div class="kpi-val" id="and-active">—</div></div>
+    <div class="kpi o"><div class="kpi-ico">📅</div><div class="kpi-lbl">تحميلات الشهر</div><div class="kpi-val" id="and-month-dl">—</div></div>
+    <div class="kpi p"><div class="kpi-ico">🌍</div><div class="kpi-lbl">أكثر دولة</div><div class="kpi-val" id="and-top-country">—</div><div class="kpi-sub" id="and-top-count">—</div></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🌍 توزيع الدول</span></div>
+      <div class="donut-box"><canvas id="and-chart-countries"></canvas></div>
     </div>
-
-    <div class="section-card">
-      <div class="section-title">تغيير كلمة المرور</div>
-      <div class="form-group">
-        <label class="form-label">كلمة المرور الجديدة</label>
-        <input class="form-input" id="new-pass" type="password" placeholder="••••••••">
-      </div>
-      <button class="btn btn-primary" onclick="changePassword()">💾 حفظ</button>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📊 الدول حسب عدد الأجهزة</span></div>
+      <div id="and-countries-list" style="max-height:210px;overflow-y:auto"><div class="loading"><span class="spin"></span></div></div>
     </div>
+  </div>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>قائمة الأجهزة</h3>
+      <input class="fi" style="width:190px;padding:.35rem .75rem" placeholder="بحث…" oninput="filterUsers(this.value)">
+    </div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>المعرّف</th><th>الدولة</th><th>الإصدار</th><th>آخر نشاط</th><th>أول ظهور</th><th>اليوم</th><th>الشهر</th><th>الإجمالي</th></tr></thead>
+      <tbody id="and-users-body"><tr class="empty-row"><td colspan="8">جاري التحميل…</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
 
-    <div class="section-card">
-      <div class="section-title">إعدادات الموقع</div>
-      <div class="form-group">
-        <label class="form-label">الحد الأقصى للتحميل (ثانية/مستخدم في الدقيقة)</label>
-        <input class="form-input" id="setting-limit" type="number" value="5">
-      </div>
-      <div class="form-group">
-        <label class="form-label">وقت انتظار الإعلان (ثانية)</label>
-        <input class="form-input" id="setting-adwait" type="number" value="0">
-      </div>
-      <div class="toggle-row">
-        <div>
-          <div style="font-size:.9rem">السماح بالتحميل بدون اشتراك</div>
-        </div>
-        <label class="toggle">
-          <input type="checkbox" id="setting-free" checked>
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <div class="toggle-row" style="margin-top:.8rem">
-        <div>
-          <div style="font-size:.9rem">📲 إشعار تحديث التطبيق</div>
-          <div style="font-size:.75rem;color:var(--sub)">يظهر بانر للمستخدمين داخل التطبيق فقط</div>
-        </div>
-        <label class="toggle">
-          <input type="checkbox" id="setting-update-banner">
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <div style="margin-top:1rem">
-        <button class="btn btn-primary" onclick="saveSettings()">💾 حفظ الإعدادات</button>
+<!-- ═══ 4. VISITORS ═══ -->
+<div class="page" id="page-visitors">
+  <div class="page-hdr">
+    <div><h1>👥 الزوار</h1><p>تحليل الزوار والجلسات</p></div>
+    <button class="refresh-btn" onclick="loadVisitors()">🔄 تحديث</button>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-ico">📅</div><div class="kpi-lbl">زوار اليوم</div><div class="kpi-val" id="vis-today">—</div><div class="kpi-sub" id="vis-yesterday">أمس: —</div></div>
+    <div class="kpi g"><div class="kpi-ico">📆</div><div class="kpi-lbl">هذا الأسبوع</div><div class="kpi-val" id="vis-week">—</div></div>
+    <div class="kpi p"><div class="kpi-ico">🆕</div><div class="kpi-lbl">زوار جدد</div><div class="kpi-val" id="vis-new">—</div></div>
+    <div class="kpi o"><div class="kpi-ico">🔄</div><div class="kpi-lbl">عائدون</div><div class="kpi-val" id="vis-returning">—</div></div>
+    <div class="kpi y"><div class="kpi-ico">🕐</div><div class="kpi-lbl">ساعة الذروة</div><div class="kpi-val" id="vis-peak">—</div></div>
+  </div>
+  <div class="card full">
+    <div class="card-hdr"><span class="card-title">📈 الزوار — آخر 30 يوم</span></div>
+    <div class="chart-box-lg"><canvas id="vis-chart-trend"></canvas></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📱 الأجهزة</span></div>
+      <div class="donut-box"><canvas id="vis-chart-device"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🆚 جدد مقابل عائدون</span></div>
+      <div class="donut-box"><canvas id="vis-chart-new-ret"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 5. SUBSCRIPTIONS ═══ -->
+<div class="page" id="page-subscriptions">
+  <div class="page-hdr">
+    <div><h1>⭐ الاشتراكات</h1><p>إدارة الأكواد والمشتركين</p></div>
+    <div class="btn-row">
+      <a href="/admin/api/backup-codes" class="btn btn-sec btn-sm">💾 نسخ احتياطي</a>
+      <button class="refresh-btn" onclick="loadSubscriptions()">🔄 تحديث</button>
+    </div>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi g"><div class="kpi-ico">✅</div><div class="kpi-lbl">نشط</div><div class="kpi-val" id="sub-active">—</div></div>
+    <div class="kpi o"><div class="kpi-ico">⏰</div><div class="kpi-lbl">منتهي</div><div class="kpi-val" id="sub-expired">—</div></div>
+    <div class="kpi"><div class="kpi-ico">🎫</div><div class="kpi-lbl">غير مستخدم</div><div class="kpi-val" id="sub-unused">—</div></div>
+    <div class="kpi p"><div class="kpi-ico">🔑</div><div class="kpi-lbl">الإجمالي</div><div class="kpi-val" id="sub-total">—</div></div>
+  </div>
+  <div class="sec">
+    <div class="sec-title">➕ إنشاء كود جديد</div>
+    <div class="fr">
+      <div class="fg"><label class="fl">ملاحظة / اسم المشترك</label><input class="fi" id="new-note" type="text" placeholder="مثال: أحمد علي"></div>
+      <div class="fg"><label class="fl">مدة الاشتراك (أيام)</label><input class="fi" id="new-days" type="number" value="30" min="1"></div>
+    </div>
+    <button class="btn btn-pri" onclick="generateCode()">➕ إنشاء كود</button>
+    <div class="code-box" id="new-code-box"></div>
+  </div>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>✅ المشتركون النشطون</h3><span id="sub-active-badge" class="b bg">—</span></div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>الكود</th><th>الملاحظة</th><th>الأيام المتبقية</th><th>تاريخ الانتهاء</th><th>تمديد</th></tr></thead>
+      <tbody id="sub-active-body"><tr class="empty-row"><td colspan="5">جاري التحميل…</td></tr></tbody></table>
+    </div>
+  </div>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>🔑 جميع الأكواد</h3>
+      <input class="fi" style="width:190px;padding:.35rem .75rem" placeholder="بحث…" oninput="filterCodes(this.value)">
+    </div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>الكود</th><th>الملاحظة</th><th>الحالة</th><th>الانتهاء</th><th>الأيام</th><th>إجراء</th></tr></thead>
+      <tbody id="sub-codes-body"><tr class="empty-row"><td colspan="6">جاري التحميل…</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 6. SERVER ═══ -->
+<div class="page" id="page-server">
+  <div class="page-hdr">
+    <div><h1>⚙️ السيرفر</h1><p>حالة الخادم والأدوات</p></div>
+    <button class="refresh-btn" onclick="loadServer()">🔄 تحديث</button>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="sec-title" style="margin-bottom:.8rem">🖥️ حالة السيرفر</div>
+      <div class="stat-row"><span class="stat-lbl">الحالة</span><span class="stat-val"><span class="dot"></span>يعمل</span></div>
+      <div class="stat-row"><span class="stat-lbl">وقت التشغيل</span><span class="stat-val" id="srv-uptime">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">وقت السيرفر</span><span class="stat-val" id="srv-time">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">الملفات المؤقتة</span><span class="stat-val" id="srv-files">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">المساحة المستخدمة</span><span class="stat-val" id="srv-storage">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">مهام نشطة</span><span class="stat-val" id="srv-tasks">—</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="sec-title" style="margin-bottom:.8rem">🔧 yt-dlp</div>
+      <div class="stat-row"><span class="stat-lbl">الإصدار الحالي</span><span class="stat-val" id="srv-ytdlp-ver">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">آخر تحديث</span><span class="stat-val" id="srv-ytdlp-upd">—</span></div>
+      <div class="stat-row" id="srv-latest-row" style="display:none"><span class="stat-lbl">أحدث إصدار</span><span class="stat-val" id="srv-ytdlp-latest">—</span></div>
+      <div class="divider"></div>
+      <div class="btn-row">
+        <button class="btn btn-sec btn-sm" onclick="checkYtdlpUpdate()">🔍 فحص التحديثات</button>
+        <button class="btn btn-warn btn-sm" id="srv-update-btn" onclick="updateYtdlp()" style="display:none">⬆️ تحديث</button>
       </div>
     </div>
-
-    <div class="section-card">
-      <div class="section-title">إعدادات البريد الإلكتروني (SMTP)</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">SMTP Host</label>
-          <input class="form-input" id="smtp-host" placeholder="smtp.gmail.com">
-        </div>
-        <div class="form-group">
-          <label class="form-label">SMTP Port</label>
-          <input class="form-input" id="smtp-port" type="number" value="587">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">البريد الإلكتروني</label>
-          <input class="form-input" id="smtp-user" type="email">
-        </div>
-        <div class="form-group">
-          <label class="form-label">كلمة المرور / App Password</label>
-          <input class="form-input" id="smtp-pass" type="password">
-        </div>
-      </div>
-      <div class="btn-group">
-        <button class="btn btn-primary" onclick="saveSettings()">💾 حفظ</button>
-        <button class="btn btn-secondary" onclick="testSmtp()">📧 اختبار الإرسال</button>
+    <div class="stat-card">
+      <div class="sec-title" style="margin-bottom:.8rem">🛠️ إجراءات سريعة</div>
+      <div style="display:flex;flex-direction:column;gap:.65rem">
+        <button class="btn btn-red" onclick="clearFiles()">🗑️ مسح الملفات المؤقتة</button>
+        <button class="btn btn-sec" onclick="renderPing()">📡 اختبار Render Ping</button>
+        <a href="https://www.vip-dl.com" target="_blank" class="btn btn-sec">🌐 فتح الموقع</a>
+        <a href="/admin/api/backup-codes" class="btn btn-sec">💾 نسخ احتياطي</a>
       </div>
     </div>
   </div>
+  <div class="sec">
+    <div class="sec-title">🔗 اختبار رابط</div>
+    <div style="display:flex;gap:.7rem;flex-wrap:wrap">
+      <input class="fi" id="srv-test-url" placeholder="أدخل رابطاً للاختبار…" style="flex:1;min-width:180px">
+      <button class="btn btn-pri" onclick="testUrl()" id="srv-test-btn">🧪 اختبار</button>
+    </div>
+    <div class="url-res" id="srv-url-result"></div>
+  </div>
+  <div class="tbl-card">
+    <div class="tbl-hdr"><h3>⚠️ آخر الأخطاء</h3></div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th>المنصة</th><th>الخطأ</th><th>الوقت</th></tr></thead>
+      <tbody id="srv-errors-body"><tr class="empty-row"><td colspan="3">جاري التحميل…</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 7. SETTINGS ═══ -->
+<div class="page" id="page-settings">
+  <div class="page-hdr"><div><h1>🔧 الإعدادات</h1><p>إعدادات الحساب</p></div></div>
+  <div class="sec" style="max-width:440px">
+    <div class="sec-title">🔑 تغيير كلمة المرور</div>
+    <div class="fg"><label class="fl">كلمة المرور الحالية</label><input class="fi" id="pw-current" type="password" placeholder="••••••••"></div>
+    <div class="fg"><label class="fl">كلمة المرور الجديدة</label><input class="fi" id="pw-new" type="password" placeholder="••••••••"></div>
+    <div class="fg"><label class="fl">تأكيد كلمة المرور الجديدة</label><input class="fi" id="pw-confirm" type="password" placeholder="••••••••"></div>
+    <button class="btn btn-pri" onclick="changePassword()">💾 حفظ</button>
+  </div>
+  <div class="sec" style="max-width:440px">
+    <div class="sec-title">🚪 تسجيل الخروج</div>
+    <p style="color:var(--muted);font-size:.84rem;margin-bottom:.9rem">ستنتهي جلستك الحالية.</p>
+    <button class="btn btn-red" onclick="location.href='/admin/logout'">🚪 تسجيل الخروج</button>
+  </div>
+</div>
 
 </main>
 
-<!-- Toast -->
-<div id="toast"></div>
+<!-- Modals -->
+<div class="modal-bg" id="extend-modal">
+  <div class="modal-box">
+    <div class="modal-title">⏰ تمديد الاشتراك</div>
+    <input type="hidden" id="extend-code-val">
+    <div class="fg"><label class="fl">عدد الأيام الإضافية</label><input class="fi" id="extend-days" type="number" value="30" min="1"></div>
+    <div class="modal-foot">
+      <button class="btn btn-sec" onclick="closeModal('extend-modal')">إلغاء</button>
+      <button class="btn btn-grn" onclick="submitExtend()">✅ تمديد</button>
+    </div>
+  </div>
+</div>
 
-<!-- Modal: Generate Code Result -->
-<div class="modal-overlay" id="modal-code">
-  <div class="modal">
-    <div class="modal-title">✅ تم إنشاء الكود</div>
-    <div style="margin-bottom:.8rem;color:var(--sub);font-size:.85rem">الكود:</div>
-    <div style="background:var(--bg);border:1px solid var(--green);border-radius:8px;padding:1rem;font-family:monospace;font-size:1.2rem;color:var(--green);text-align:center;letter-spacing:2px" id="modal-code-val"></div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="copyCode()">📋 نسخ</button>
-      <button class="btn btn-primary" onclick="closeModal()">تم</button>
+<div class="modal-bg" id="delete-modal">
+  <div class="modal-box">
+    <div class="modal-title">🗑️ تأكيد الحذف</div>
+    <p style="color:var(--muted);font-size:.86rem;margin-bottom:.5rem">هل أنت متأكد من حذف الكود التالي؟</p>
+    <div style="background:var(--card2);border-radius:8px;padding:.65rem .9rem;font-family:monospace;color:var(--red);margin-bottom:.5rem" id="delete-code-display">—</div>
+    <p style="color:var(--red);font-size:.78rem">⚠️ لا يمكن التراجع عن هذا الإجراء.</p>
+    <input type="hidden" id="delete-code-val">
+    <div class="modal-foot">
+      <button class="btn btn-sec" onclick="closeModal('delete-modal')">إلغاء</button>
+      <button class="btn btn-red" onclick="submitDelete()">🗑️ حذف</button>
     </div>
   </div>
 </div>
 
 <script>
-// ===== Mobile Sidebar =====
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('sidebar-overlay').classList.toggle('open');
-}
-function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebar-overlay').classList.remove('open');
-}
+'use strict';
+const CHARTS={};
+let allUsers=[],allCodes=[],ovTimer=null;
 
-// ===== Navigation =====
-let allCodes = [];
+const CF={IQ:'🇮🇶',SA:'🇸🇦',AE:'🇦🇪',US:'🇺🇸',GB:'🇬🇧',DE:'🇩🇪',FR:'🇫🇷',KW:'🇰🇼',QA:'🇶🇦',BH:'🇧🇭',JO:'🇯🇴',EG:'🇪🇬',TR:'🇹🇷'};
+const flag=c=>CF[c]||'🌍';
+const PC={TikTok:'#69C9D0',Instagram:'#E1306C',Facebook:'#1877F2',YouTube:'#FF0000',Twitter:'#1DA1F2',Snapchat:'#FFFC00',Pinterest:'#E60023',Other:'#6b7280'};
+const GS={color:'#8888aa',grid:{color:'rgba(34,32,79,.55)'},plugins:{legend:{display:false},tooltip:{backgroundColor:'#1c1a48',titleColor:'#dde0ff',bodyColor:'#8888aa',borderColor:'#22204f',borderWidth:1}}};
 
-function showPage(name, el) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
-  closeSidebar();
-  if (el) el.classList.add('active');
-  else try { event.currentTarget.classList.add('active'); } catch(_) {}
-  if (name === 'overview') loadOverview();
-  else if (name === 'visitors') loadVisitors();
-  else if (name === 'downloads') loadDownloads();
-  else if (name === 'subscribers') loadSubscribers();
-  else if (name === 'system') { loadSystem(); renderPingNow(); }
-  else if (name === 'settings') loadSettings();
+// ── Nav ──
+const PL={overview:'loadOverview',downloads:'loadDownloads',android:'loadAndroid',visitors:'loadVisitors',subscriptions:'loadSubscriptions',server:'loadServer'};
+const LD={};
+function showPage(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(el) el.classList.add('active');
+  closeSB();
+  if(!LD[id]&&PL[id]){LD[id]=true;window[PL[id]]();}
+  if(id==='overview') resetOvTimer();
+}
+function resetOvTimer(){
+  if(ovTimer) clearInterval(ovTimer);
+  ovTimer=setInterval(()=>{if(document.getElementById('page-overview').classList.contains('active'))loadOverview();},60000);
 }
 
-// ===== Toast =====
-function showToast(msg, color) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.borderColor = color || 'var(--accent)';
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
+// ── Sidebar mobile ──
+function toggleSB(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('sb-overlay').classList.toggle('open');}
+function closeSB(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
+
+// ── Toast ──
+let tTimer;
+function toast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='show'+(type?' '+type:'');
+  clearTimeout(tTimer);tTimer=setTimeout(()=>t.className='',3200);
 }
 
-// ===== Charts helpers =====
-const chartDefaults = {
-  responsive: true, maintainAspectRatio: false,
-  plugins: { legend: { display: false } },
-  scales: {
-    x: { grid: { color: 'rgba(30,28,74,.5)' }, ticks: { color: '#9090b0', font: { size: 10 } } },
-    y: { grid: { color: 'rgba(30,28,74,.5)' }, ticks: { color: '#9090b0', font: { size: 10 } }, beginAtZero: true }
-  }
-};
-const charts = {};
+// ── Modal ──
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
 
-function makeLine(id, labels, data, color) {
-  if (charts[id]) charts[id].destroy();
-  const ctx = document.getElementById(id);
-  if (!ctx) return;
-  charts[id] = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{ data, borderColor: color || '#00c8ff', backgroundColor: (color || '#00c8ff') + '18',
-        fill: true, tension: .4, pointRadius: 2, pointHoverRadius: 5, borderWidth: 2 }]
-    },
-    options: { ...chartDefaults }
-  });
+// ── API ──
+async function api(url,method='GET',body=null){
+  const o={method,headers:{'Content-Type':'application/json'}};
+  if(body) o.body=JSON.stringify(body);
+  const r=await fetch(url,o);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return r.json();
 }
 
-function makeBar(id, labels, data, color) {
-  if (charts[id]) charts[id].destroy();
-  const ctx = document.getElementById(id);
-  if (!ctx) return;
-  charts[id] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{ data, backgroundColor: (color || '#00c8ff') + '80', borderColor: color || '#00c8ff',
-        borderWidth: 1, borderRadius: 4 }]
-    },
-    options: { ...chartDefaults }
-  });
+// ── Charts ──
+function dc(id){if(CHARTS[id]){CHARTS[id].destroy();delete CHARTS[id];}}
+
+function lineChart(id,labels,data,label='تحميلات'){
+  dc(id);
+  const ctx=document.getElementById(id).getContext('2d');
+  const g=ctx.createLinearGradient(0,0,0,300);
+  g.addColorStop(0,'rgba(0,200,255,.22)');g.addColorStop(1,'rgba(0,200,255,0)');
+  CHARTS[id]=new Chart(ctx,{type:'line',data:{labels,datasets:[{label,data,borderColor:'#00c8ff',backgroundColor:g,borderWidth:2,pointRadius:2,pointHoverRadius:4,tension:.4,fill:true}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{x:{ticks:{color:'#8888aa',font:{size:10},maxRotation:45},grid:GS.grid},y:{ticks:{color:'#8888aa',font:{size:10}},grid:GS.grid,beginAtZero:true}},plugins:GS.plugins}});
 }
 
-function makeDonut(id, labels, data, colors) {
-  if (charts[id]) charts[id].destroy();
-  const ctx = document.getElementById(id);
-  if (!ctx) return;
-  charts[id] = new Chart(ctx, {
-    type: 'doughnut',
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0, hoverOffset: 4 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false, cutout: '65%',
-      plugins: { legend: { display: true, position: 'bottom', labels: { color: '#9090b0', font: { size: 11 }, padding: 12 } } }
+function barChart(id,labels,data,colors=null){
+  dc(id);
+  const ctx=document.getElementById(id).getContext('2d');
+  const bg=colors||labels.map((_,i)=>['#00c8ff','#7c3aed','#22c55e','#f97316','#ef4444','#eab308','#1da1f2','#6b7280'][i%8]);
+  CHARTS[id]=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:bg,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{x:{ticks:{color:'#8888aa',font:{size:10}},grid:GS.grid},y:{ticks:{color:'#8888aa',font:{size:10}},grid:GS.grid,beginAtZero:true}},plugins:GS.plugins}});
+}
+
+function donutChart(id,labels,data,colors){
+  dc(id);
+  const ctx=document.getElementById(id).getContext('2d');
+  CHARTS[id]=new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#15133a',borderWidth:2,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:true,position:'bottom',labels:{color:'#8888aa',font:{size:11},boxWidth:12,padding:10}},tooltip:{backgroundColor:'#1c1a48',titleColor:'#dde0ff',bodyColor:'#8888aa',borderColor:'#22204f',borderWidth:1}}}});
+}
+
+// ── Format ──
+function fmt(n){return n!=null?Number(n).toLocaleString('ar'):'—';}
+function fmtDate(s){if(!s)return'—';try{return new Date(s).toLocaleString('ar-IQ',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return s;}}
+function fmtShort(s){if(!s)return'—';try{return new Date(s).toLocaleDateString('ar-IQ',{month:'numeric',day:'numeric'});}catch(e){return s;}}
+function bPlatform(p){const c={TikTok:'bb',Instagram:'br',Facebook:'bb',YouTube:'br',Twitter:'bb',Snapchat:'by',Pinterest:'br',Other:'bm'};return`<span class="b ${c[p]||'bm'}">${p||'—'}</span>`;}
+function bStatus(s){if(s==='success'||s==='ok')return'<span class="b bg">نجح</span>';if(s==='failed'||s==='error')return'<span class="b br">فشل</span>';return`<span class="b bm">${s||'—'}</span>`;}
+function el(id){return document.getElementById(id);}
+function setText(id,v){const e=el(id);if(e)e.textContent=v;}
+function emptyRow(n){return`<tr class="empty-row"><td colspan="${n}">لا توجد بيانات</td></tr>`;}
+
+// ── 1. OVERVIEW ──
+async function loadOverview(){
+  el('ov-spin').style.display='inline-block';
+  try{
+    const [stats,trend,hourly,recent,vs,ss,au]=await Promise.all([
+      api('/admin/api/stats'),api('/admin/api/download-trend?days=30'),
+      api('/admin/api/hourly-stats'),api('/admin/api/recent-downloads'),
+      api('/admin/api/visitor-stats'),api('/admin/api/subscriber-stats'),
+      api('/admin/api/android-users'),
+    ]);
+    setText('ov-time','وقت السيرفر: '+(stats.server_time||'—'));
+    setText('ov-today-dl',fmt(stats.today_downloads));
+    setText('ov-total-dl','الإجمالي: '+fmt(stats.total_downloads));
+    setText('ov-today-vis',fmt(vs.today));
+    setText('ov-week-vis','الأسبوع: '+fmt(vs.week));
+    setText('ov-active-users',fmt(au.active_today));
+    setText('ov-total-users','الإجمالي: '+fmt(au.total));
+    setText('ov-active-subs',fmt(ss.active));
+    setText('ov-total-subs','الإجمالي: '+fmt(ss.total));
+    setText('ov-failed',fmt(stats.failed_downloads));
+    setText('ov-tasks-sub','مهام نشطة: '+fmt(stats.active_tasks));
+    setText('ov-tasks',fmt(stats.active_tasks));
+    setText('ov-storage','التخزين: '+(stats.storage_mb||0)+' MB');
+    if(trend&&trend.length) lineChart('ov-chart-trend',trend.map(d=>fmtShort(d.date)),trend.map(d=>d.count));
+    else{const c=el('ov-chart-trend');if(c)c.closest('.chart-box-lg').innerHTML='<div class="no-data">لا توجد بيانات بعد</div>';}
+    if(hourly&&hourly.length) barChart('ov-chart-hourly',hourly.map(h=>h.hour+':00'),hourly.map(h=>h.count));
+    else{const c=el('ov-chart-hourly');if(c)c.closest('.chart-box').innerHTML='<div class="no-data">لا توجد بيانات بعد</div>';}
+    if(stats.platform_counts){const pc=stats.platform_counts;const labs=Object.keys(pc).filter(k=>pc[k]>0);if(labs.length)donutChart('ov-chart-platforms',labs,labs.map(k=>pc[k]),labs.map(k=>PC[k]||'#6b7280'));else{const cb=el('ov-chart-platforms');if(cb)cb.closest('.donut-box').innerHTML='<div class="no-data">لا توجد بيانات بعد</div>';}}
+    renderRecentDL('ov-recent-body',recent);
+    renderErrorsList('ov-errors-list',stats.recent_errors);
+  }catch(e){toast('خطأ: '+e.message,'err');}
+  el('ov-spin').style.display='none';
+}
+
+function renderRecentDL(id,data,max=10){
+  const tb=el(id);if(!tb)return;
+  if(!data||!data.length){tb.innerHTML=emptyRow(4);return;}
+  tb.innerHTML=data.slice(0,max).map(r=>`<tr><td>${bPlatform(r.platform)}</td><td>${bStatus(r.status)}</td><td>${r.duration!=null?r.duration.toFixed(1)+'s':'—'}</td><td style="color:var(--muted);white-space:nowrap">${fmtDate(r.time)}</td></tr>`).join('');
+}
+
+function renderErrorsList(id,errors){
+  const e=el(id);if(!e)return;
+  if(!errors||!errors.length){e.innerHTML='<div class="no-data">لا توجد أخطاء 🎉</div>';return;}
+  e.innerHTML=errors.slice(0,10).map(x=>`<div style="padding:.5rem 0;border-bottom:1px solid rgba(34,32,79,.4)"><div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.2rem">${bPlatform(x.platform)}<span style="color:var(--muted);font-size:.73rem;margin-right:auto">${fmtDate(x.time)}</span></div><div style="color:var(--red);font-size:.79rem;word-break:break-word">${x.error||'—'}</div></div>`).join('');
+}
+
+function renderErrorsTable(id,errors){
+  const tb=el(id);if(!tb)return;
+  if(!errors||!errors.length){tb.innerHTML=emptyRow(3);return;}
+  tb.innerHTML=errors.slice(0,20).map(x=>`<tr><td>${bPlatform(x.platform)}</td><td style="color:var(--red);font-size:.8rem;max-width:300px;word-break:break-word">${x.error||'—'}</td><td style="color:var(--muted);white-space:nowrap">${fmtDate(x.time)}</td></tr>`).join('');
+}
+
+// ── 2. DOWNLOADS ──
+async function loadDownloads(){
+  try{
+    const [stats,trend,hourly,recent]=await Promise.all([api('/admin/api/stats'),api('/admin/api/download-trend?days=30'),api('/admin/api/hourly-stats'),api('/admin/api/recent-downloads')]);
+    setText('dl-today',fmt(stats.today_downloads));setText('dl-total',fmt(stats.total_downloads));setText('dl-failed',fmt(stats.failed_downloads));setText('dl-active',fmt(stats.active_tasks));
+    const cb=el('dl-count-badge');if(cb)cb.textContent=(recent?recent.length:0)+' سجل';
+    if(trend&&trend.length) lineChart('dl-chart-trend',trend.map(d=>fmtShort(d.date)),trend.map(d=>d.count));
+    if(hourly&&hourly.length) barChart('dl-chart-hourly',hourly.map(h=>h.hour+':00'),hourly.map(h=>h.count));
+    if(stats.platform_counts){const pc=stats.platform_counts;const labs=Object.keys(pc).filter(k=>pc[k]>0);barChart('dl-chart-platforms-bar',labs,labs.map(k=>pc[k]),labs.map(k=>PC[k]||'#6b7280'));}
+    renderRecentDL('dl-recent-body',recent,50);renderErrorsTable('dl-errors-body',stats.recent_errors);
+  }catch(e){toast('خطأ: '+e.message,'err');}
+}
+
+// ── 3. ANDROID ──
+async function loadAndroid(){
+  try{
+    const data=await api('/admin/api/android-users');
+    allUsers=data.users||[];
+    setText('and-total',fmt(data.total));setText('and-active',fmt(data.active_today));
+    setText('and-month-dl',fmt(allUsers.reduce((s,u)=>s+(u.dl_month||0),0)));
+    const cList=el('and-countries-list');
+    const cBox=el('and-chart-countries');
+    if(data.countries&&data.countries.length){
+      const top=data.countries[0];setText('and-top-country',flag(top.code)+' '+top.code);setText('and-top-count',fmt(top.count)+' جهاز');
+      const t6=data.countries.slice(0,6);const rest=data.countries.slice(6).reduce((s,c)=>s+c.count,0);
+      const cl=t6.map(c=>flag(c.code)+' '+c.code);const cd=t6.map(c=>c.count);
+      if(rest>0){cl.push('أخرى');cd.push(rest);}
+      donutChart('and-chart-countries',cl,cd,['#00c8ff','#7c3aed','#22c55e','#f97316','#ef4444','#eab308','#6b7280']);
+      const mx=data.countries[0].count||1;
+      cList.innerHTML=data.countries.map(c=>`<div class="c-item"><span class="c-flag">${flag(c.code)}</span><span class="c-name">${c.code}</span><div class="c-bar"><div class="c-fill" style="width:${(c.count/mx*100).toFixed(1)}%"></div></div><span class="c-cnt">${fmt(c.count)}</span></div>`).join('');
+    } else {
+      if(cBox) cBox.closest('.donut-box').innerHTML='<div class="no-data">لا توجد بيانات بعد</div>';
+      if(cList) cList.innerHTML='<div class="no-data">لا توجد بيانات بعد</div>';
     }
-  });
+    renderUsersTable(allUsers);
+  }catch(e){toast('خطأ: '+e.message,'err');}
 }
 
-// ===== Overview =====
-async function loadOverview() {
-  const [stats, visitors, dlRaw, appData] = await Promise.all([
-    fetch('/admin/api/stats').then(r => r.json()).catch(() => ({})),
-    fetch('/admin/api/visitor-stats').then(r => r.json()).catch(() => ({})),
-    fetch('/admin/api/download-trend?days=30').then(r => r.json()).catch(() => []),
-    fetch('/admin/api/app-installs').then(r => r.json()).catch(() => ({})),
-  ]);
-  const dl = { days: Array.isArray(dlRaw) ? dlRaw : [] };
-  const subs = await fetch('/admin/api/subscriber-stats').then(r => r.json()).catch(() => ({}));
-  const hourly = await fetch('/admin/api/hourly-stats').then(r => r.json()).catch(() => ({}));
-
-  document.getElementById('server-time').textContent = stats.server_time || '';
-  document.getElementById('kpi-today-visitors').textContent = visitors.today ?? '—';
-  document.getElementById('kpi-yesterday-visitors').textContent = 'أمس: ' + (visitors.yesterday ?? '—');
-  document.getElementById('kpi-today-dl').textContent = stats.today_downloads ?? '—';
-  document.getElementById('kpi-total-dl').textContent = 'الإجمالي: ' + (stats.total_downloads ?? '—');
-  document.getElementById('kpi-active-subs').textContent = subs.active ?? '—';
-  document.getElementById('kpi-total-subs').textContent = 'الإجمالي: ' + (subs.total ?? '—');
-  document.getElementById('kpi-failed').textContent = stats.failed_downloads ?? '—';
-  document.getElementById('kpi-active-tasks').textContent = 'مهام نشطة: ' + (stats.active_tasks ?? '—');
-  document.getElementById('kpi-app-installs').textContent = appData.total ?? '—';
-
-  if (visitors.days) {
-    const labels = visitors.days.map(d => d.date.slice(5));
-    makeLine('chart-visitors', labels, visitors.days.map(d => d.count), '#00c8ff');
-  }
-  if (dl.days) {
-    const labels = dl.days.map(d => d.date.slice(5));
-    makeLine('chart-downloads', labels, dl.days.map(d => d.count), '#22c55e');
-  }
-  const hourlyArr = Array.isArray(hourly) ? hourly : (hourly.hours || []);
-  if (hourlyArr.length) {
-    makeBar('chart-hourly', hourlyArr.map(h => h.hour + ':00'), hourlyArr.map(h => h.count), '#7c3aed');
-  }
+function renderUsersTable(users){
+  const tb=el('and-users-body');if(!tb)return;
+  if(!users||!users.length){tb.innerHTML=emptyRow(8);return;}
+  tb.innerHTML=users.map(u=>`<tr><td style="font-family:monospace;font-size:.76rem;color:var(--muted)">${u.id||'—'}</td><td>${flag(u.country)} ${u.country||'—'}</td><td><span class="b bm">${u.app_version||'—'}</span></td><td style="color:var(--muted);white-space:nowrap">${fmtDate(u.last_seen)}</td><td style="color:var(--muted);white-space:nowrap">${fmtDate(u.first_seen)}</td><td>${fmt(u.dl_today)}</td><td>${fmt(u.dl_month)}</td><td style="color:var(--accent);font-weight:700">${fmt(u.dl_total)}</td></tr>`).join('');
 }
 
-// ===== Visitors =====
-async function loadVisitors() {
-  const [visitors, device] = await Promise.all([
-    fetch('/admin/api/visitor-stats').then(r => r.json()).catch(() => ({})),
-    fetch('/admin/api/visitor-device-stats').then(r => r.json()).catch(() => ({})),
-  ]);
+function filterUsers(q){q=q.toLowerCase();renderUsersTable(q?allUsers.filter(u=>(u.id||'').toLowerCase().includes(q)||(u.country||'').toLowerCase().includes(q)):allUsers);}
 
-  document.getElementById('v-today').textContent = visitors.today ?? '—';
-  document.getElementById('v-week').textContent = visitors.week ?? '—';
-  document.getElementById('v-new').textContent = device.new ?? '—';
-  document.getElementById('v-returning').textContent = device.returning ?? '—';
-
-  const newV = device.new || 0, retV = device.returning || 0;
-  if (newV + retV > 0) {
-    makeDonut('chart-new-return', ['جدد', 'عائدون'], [newV, retV], ['#00c8ff', '#7c3aed']);
-  }
-  if (visitors.days) {
-    const labels = visitors.days.map(d => d.date.slice(5));
-    makeLine('chart-visitors2', labels, visitors.days.map(d => d.count), '#00c8ff');
-  }
+// ── 4. VISITORS ──
+async function loadVisitors(){
+  try{
+    const [vs,ds]=await Promise.all([api('/admin/api/visitor-stats'),api('/admin/api/visitor-device-stats')]);
+    setText('vis-today',fmt(vs.today));setText('vis-yesterday','أمس: '+fmt(vs.yesterday));setText('vis-week',fmt(vs.week));
+    setText('vis-new',fmt(ds.new));setText('vis-returning',fmt(ds.returning));
+    setText('vis-peak',ds.peak_hour!=null?ds.peak_hour+':00':'—');
+    donutChart('vis-chart-device',['موبايل','ديسكتوب'],[ds.mobile||0,ds.desktop||0],['#00c8ff','#7c3aed']);
+    donutChart('vis-chart-new-ret',['جدد','عائدون'],[ds.new||0,ds.returning||0],['#22c55e','#f97316']);
+    if(vs.days&&vs.days.length) lineChart('vis-chart-trend',vs.days.map(d=>fmtShort(d.date)),vs.days.map(d=>d.count),'الزوار');
+  }catch(e){toast('خطأ: '+e.message,'err');}
 }
 
-// ===== Downloads =====
-async function loadDownloads() {
-  const [stats, dlRaw2, recent] = await Promise.all([
-    fetch('/admin/api/stats').then(r => r.json()).catch(() => ({})),
-    fetch('/admin/api/download-trend?days=30').then(r => r.json()).catch(() => []),
-    fetch('/admin/api/recent-downloads').then(r => r.json()).catch(() => []),
-  ]);
-  const dl = Array.isArray(dlRaw2) ? dlRaw2 : [];
-
-  document.getElementById('dl-today').textContent = stats.today_downloads ?? '—';
-  document.getElementById('dl-total').textContent = stats.total_downloads ?? '—';
-  document.getElementById('dl-failed').textContent = stats.failed_downloads ?? '—';
-  document.getElementById('dl-active').textContent = stats.active_tasks ?? '—';
-
-  const platforms = stats.platform_counts || {};
-  const pLabels = Object.keys(platforms);
-  const pData = Object.values(platforms);
-  if (pLabels.length) {
-    makeDonut('chart-platforms', pLabels, pData, ['#ff0000','#ee1d7d','#000000','#1d9bf0','#1877f2','#888']);
-  }
-  if (dl.length) {
-    makeLine('chart-downloads2', dl.map(d => d.date.slice(5)), dl.map(d => d.count), '#22c55e');
-  }
-
-  const tbody = document.getElementById('recent-downloads-body');
-  tbody.innerHTML = recent.length ? recent.map(r => `
-    <tr><td><span class="badge badge-blue">${r.platform||'—'}</span></td>
-    <td>${r.duration||'—'}</td><td>${r.formats||'—'}</td><td>${r.time||'—'}</td></tr>`).join('')
-    : '<tr><td colspan="4" style="text-align:center;color:var(--sub)">لا توجد بيانات</td></tr>';
-
-  const errBody = document.getElementById('recent-errors-body');
-  const errors = stats.recent_errors || [];
-  errBody.innerHTML = errors.length ? errors.map(e => `
-    <tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem">${e.url||'—'}</td>
-    <td style="color:var(--red);font-size:.8rem">${e.error||'—'}</td>
-    <td style="font-size:.8rem">${e.time||'—'}</td></tr>`).join('')
-    : '<tr><td colspan="3" style="text-align:center;color:var(--sub)">لا توجد أخطاء</td></tr>';
+// ── 5. SUBSCRIPTIONS ──
+async function loadSubscriptions(){
+  try{
+    const [ss,active,codes]=await Promise.all([api('/admin/api/subscriber-stats'),api('/admin/api/subscriber-list'),api('/admin/api/codes')]);
+    setText('sub-active',fmt(ss.active));setText('sub-expired',fmt(ss.expired));setText('sub-unused',fmt(ss.unused));setText('sub-total',fmt(ss.total));
+    const ab=el('sub-active-badge');if(ab)ab.textContent=(active?active.length:0)+' كود';
+    const atb=el('sub-active-body');
+    if(!active||!active.length){if(atb)atb.innerHTML=emptyRow(5);}
+    else{atb.innerHTML=active.map(s=>{const dl=s.days_left!=null?s.days_left:0;const c=dl<7?'br':dl<30?'bo':'bg';return`<tr><td style="font-family:monospace">${s.code||'—'}</td><td style="color:var(--muted)">${s.note||'—'}</td><td><span class="b ${c}">${dl} يوم</span></td><td style="color:var(--muted)">${s.expires_at?fmtShort(s.expires_at):'—'}</td><td><button class="ext-btn" onclick="openExtend('${s.code}')">⏰</button></td></tr>`;}).join('');}
+    allCodes=Array.isArray(codes)?codes:[];renderCodesTable(allCodes);
+  }catch(e){toast('خطأ: '+e.message,'err');}
 }
 
-// ===== Subscribers =====
-async function loadSubscribers() {
-  const [subs, codes] = await Promise.all([
-    fetch('/admin/api/subscriber-stats').then(r => r.json()).catch(() => ({})),
-    fetch('/admin/api/codes').then(r => r.json()).catch(() => []),
-  ]);
-
-  document.getElementById('sub-active').textContent = subs.active ?? '—';
-  document.getElementById('sub-expired').textContent = subs.expired ?? '—';
-  document.getElementById('sub-unused').textContent = subs.unused ?? '—';
-  document.getElementById('sub-total').textContent = subs.total ?? '—';
-
-  allCodes = codes;
-  renderCodes(codes);
+function renderCodesTable(codes){
+  const tb=el('sub-codes-body');if(!tb)return;
+  if(!codes||!codes.length){tb.innerHTML=emptyRow(6);return;}
+  tb.innerHTML=codes.map(c=>{const u=c.used||c.active;const exp=c.expired;const sb=exp?'<span class="b br">منتهي</span>':u?'<span class="b bg">نشط</span>':'<span class="b bm">غير مستخدم</span>';const dl=c.days_left!=null?c.days_left:'—';return`<tr><td style="font-family:monospace;font-size:.81rem">${c.code||'—'}</td><td style="color:var(--muted)">${c.note||'—'}</td><td>${sb}</td><td style="color:var(--muted)">${c.expires_at?fmtShort(c.expires_at):'—'}</td><td>${dl!=='—'?dl+' يوم':'—'}</td><td style="white-space:nowrap"><button class="ext-btn" onclick="openExtend('${c.code}')" title="تمديد">⏰</button><button class="del-btn" onclick="openDelete('${c.code}')" title="حذف">🗑️</button></td></tr>`;}).join('');
 }
 
-function fmtExpiry(c) {
-  if (!c.used || !c.expires_at) return '—';
-  if (c.expired) return `<span style="color:var(--red);font-size:.75rem">منتهي<br><span style="color:var(--sub)">${c.expires_at}</span></span>`;
-  const d = c.days_left;
-  const color = d <= 3 ? 'var(--red)' : d <= 7 ? 'var(--orange)' : 'var(--green)';
-  return `<span style="color:${color};font-weight:700">${d} يوم متبقي</span><br><span style="color:var(--sub);font-size:.72rem">${c.expires_at}</span>`;
+function filterCodes(q){q=q.toLowerCase();renderCodesTable(q?allCodes.filter(c=>(c.code||'').toLowerCase().includes(q)||(c.note||'').toLowerCase().includes(q)):allCodes);}
+
+async function generateCode(){
+  const note=el('new-note').value.trim();const days=parseInt(el('new-days').value)||30;
+  try{const r=await api('/admin/api/generate-code','POST',{note,days});const b=el('new-code-box');b.textContent=r.code||'—';b.style.display='block';toast('تم إنشاء الكود ✅','ok');LD['subscriptions']=false;loadSubscriptions();}
+  catch(e){toast('فشل: '+e.message,'err');}
 }
 
-function renderCodes(codes) {
-  const tbody = document.getElementById('codes-body');
-  tbody.innerHTML = codes.length ? codes.map(c => `
-    <tr>
-      <td style="font-family:monospace;font-weight:700;color:var(--accent)">${c.code}</td>
-      <td>${c.email||'—'}</td>
-      <td>${c.used ? (c.expired ? '<span class="badge badge-red">منتهي</span>' : '<span class="badge badge-green">نشط</span>') : '<span class="badge badge-gray">غير مستخدم</span>'}</td>
-      <td style="font-size:.8rem">${fmtExpiry(c)}</td>
-      <td><button class="del-btn" onclick="deleteCode('${c.code}')">🗑️</button></td>
-    </tr>`).join('')
-    : '<tr><td colspan="5" style="text-align:center;color:var(--sub)">لا توجد أكواد</td></tr>';
+function openExtend(code){el('extend-code-val').value=code;openModal('extend-modal');}
+async function submitExtend(){
+  const code=el('extend-code-val').value;const days=parseInt(el('extend-days').value)||30;
+  try{await api('/admin/api/extend-code','POST',{code,days});closeModal('extend-modal');toast('تم التمديد ✅','ok');LD['subscriptions']=false;loadSubscriptions();}
+  catch(e){toast('فشل: '+e.message,'err');}
+}
+function openDelete(code){el('delete-code-val').value=code;el('delete-code-display').textContent=code;openModal('delete-modal');}
+async function submitDelete(){
+  const code=el('delete-code-val').value;
+  try{await api('/admin/api/delete-code','POST',{code});closeModal('delete-modal');toast('تم الحذف ✅','ok');LD['subscriptions']=false;loadSubscriptions();}
+  catch(e){toast('فشل: '+e.message,'err');}
 }
 
-function filterCodes(q) {
-  const filtered = allCodes.filter(c =>
-    (c.code||'').includes(q) || (c.email||'').toLowerCase().includes(q.toLowerCase()));
-  renderCodes(filtered);
+// ── 6. SERVER ──
+async function loadServer(){
+  try{
+    const stats=await api('/admin/api/stats');
+    setText('srv-uptime',stats.uptime||'—');setText('srv-time',stats.server_time||'—');
+    setText('srv-files',fmt(stats.temp_files)+' ملف');setText('srv-storage',(stats.storage_mb||0)+' MB');
+    setText('srv-tasks',fmt(stats.active_tasks));setText('srv-ytdlp-ver',stats.ytdlp_version||'—');setText('srv-ytdlp-upd',stats.ytdlp_updated||'—');
+    renderErrorsTable('srv-errors-body',stats.recent_errors);
+  }catch(e){toast('خطأ: '+e.message,'err');}
 }
 
-async function generateCode() {
-  const email = document.getElementById('new-email').value.trim();
-  const days = parseInt(document.getElementById('new-days').value) || 30;
-  if (!email) { showToast('أدخل بريداً إلكترونياً', 'var(--red)'); return; }
-  try {
-    const res = await fetch('/admin/api/generate-code', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ email, days })
-    });
-    const data = await res.json();
-    if (data.code) {
-      document.getElementById('modal-code-val').textContent = data.code;
-      document.getElementById('modal-code').classList.add('open');
-      loadSubscribers();
-    } else { showToast('❌ ' + (data.error || 'فشل'), 'var(--red)'); }
-  } catch { showToast('❌ خطأ في الاتصال', 'var(--red)'); }
+async function checkYtdlpUpdate(){
+  try{toast('جاري الفحص…');const r=await api('/admin/api/check-updates');const lr=el('srv-latest-row');const lv=el('srv-ytdlp-latest');const ub=el('srv-update-btn');lv.textContent=r.latest||'—';lr.style.display='flex';if(r.needs_update){ub.style.display='inline-flex';toast('يوجد تحديث: '+r.latest);}else{ub.style.display='none';toast('أحدث إصدار ✅','ok');}}
+  catch(e){toast('فشل: '+e.message,'err');}
+}
+async function updateYtdlp(){
+  if(!confirm('هل تريد تحديث yt-dlp؟'))return;
+  try{toast('جاري التحديث…');await api('/admin/api/update-ytdlp','POST');toast('تم التحديث ✅','ok');loadServer();}
+  catch(e){toast('فشل: '+e.message,'err');}
+}
+async function clearFiles(){
+  if(!confirm('هل تريد مسح الملفات المؤقتة؟'))return;
+  try{const r=await api('/admin/api/clear-files','POST');toast(r.message||'تم المسح ✅','ok');loadServer();}
+  catch(e){toast('فشل: '+e.message,'err');}
+}
+async function renderPing(){
+  try{toast('جاري الاختبار…');const r=await api('/admin/api/render-ping');toast(r.ok?'Render يعمل ✅':'استجابة غير متوقعة');}
+  catch(e){toast('فشل: '+e.message,'err');}
+}
+async function testUrl(){
+  const url=el('srv-test-url').value.trim();if(!url){toast('أدخل رابطاً','err');return;}
+  const btn=el('srv-test-btn');const res=el('srv-url-result');
+  btn.disabled=true;btn.textContent='⏳ جاري…';res.style.display='none';
+  try{
+    const r=await api('/admin/api/test-url','POST',{url});res.style.display='block';
+    if(r.ok){res.className='url-res ok';const fs=(r.formats||[]).map(f=>`<span class="b bb" style="margin:.1rem">${f.quality||f.ext||'—'}</span>`).join(' ');res.innerHTML=`<div style="color:var(--green);font-weight:700;margin-bottom:.3rem">✅ نجح</div><div>${fs||'لا توجد صيغ'}</div>`;}
+    else{res.className='url-res err';res.innerHTML=`<div style="color:var(--red);font-weight:700;margin-bottom:.3rem">❌ فشل</div><div style="color:var(--muted);font-size:.79rem">${r.error||'خطأ'}</div>`;}
+  }catch(e){res.style.display='block';res.className='url-res err';res.innerHTML=`<div style="color:var(--red)">❌ ${e.message}</div>`;}
+  btn.disabled=false;btn.textContent='🧪 اختبار';
 }
 
-function copyCode() {
-  const code = document.getElementById('modal-code-val').textContent;
-  navigator.clipboard.writeText(code);
-  showToast('✅ تم نسخ الكود');
+// ── 7. SETTINGS ──
+async function changePassword(){
+  const cur=el('pw-current').value;const nw=el('pw-new').value;const cf=el('pw-confirm').value;
+  if(!cur||!nw||!cf){toast('يرجى ملء جميع الحقول','err');return;}
+  if(nw!==cf){toast('كلمتا المرور غير متطابقتين','err');return;}
+  try{await api('/admin/api/change-password','POST',{current:cur,new:nw});toast('تم تغيير كلمة المرور ✅','ok');el('pw-current').value='';el('pw-new').value='';el('pw-confirm').value='';}
+  catch(e){toast('فشل: '+e.message,'err');}
 }
 
-function closeModal() {
-  document.getElementById('modal-code').classList.remove('open');
-}
-
-async function deleteCode(code) {
-  if (!confirm('حذف الكود ' + code + '؟')) return;
-  try {
-    await fetch('/admin/api/delete-code', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ code })
-    });
-    showToast('✅ تم الحذف');
-    loadSubscribers();
-  } catch { showToast('❌ فشل الحذف', 'var(--red)'); }
-}
-
-// ===== System =====
-async function loadSystem() {
-  const stats = await fetch('/admin/api/stats').then(r => r.json()).catch(() => ({}));
-  const cfg = await fetch('/admin/api/settings').then(r => r.json()).catch(() => ({}));
-
-  document.getElementById('sys-uptime').textContent = stats.uptime || '—';
-  document.getElementById('sys-ytdlp').textContent = stats.ytdlp_version || '—';
-  document.getElementById('sys-ytdlp-updated').textContent = stats.ytdlp_updated || '—';
-  document.getElementById('sys-files').textContent = (stats.temp_files || 0) + ' ملف';
-  document.getElementById('sys-storage').textContent = (stats.storage_mb || 0) + ' MB';
-  document.getElementById('maintenance-toggle').checked = cfg.maintenance_mode || false;
-}
-
-async function updateYtdlp() {
-  showToast('⏳ جاري التحديث...');
-  try {
-    const res = await fetch('/admin/api/update-ytdlp', { method: 'POST' });
-    const data = await res.json();
-    showToast('✅ ' + (data.message || 'تم التحديث'));
-    loadSystem();
-  } catch { showToast('❌ فشل التحديث', 'var(--red)'); }
-}
-
-async function clearFiles() {
-  if (!confirm('مسح جميع الملفات المؤقتة؟')) return;
-  try {
-    const res = await fetch('/admin/api/clear-files', { method: 'POST' });
-    const data = await res.json();
-    showToast('✅ ' + data.message);
-    loadSystem();
-  } catch { showToast('❌ فشل', 'var(--red)'); }
-}
-
-async function resetVisitors() {
-  if (!confirm('مسح جميع إحصائيات الزوار؟ لا يمكن التراجع.')) return;
-  try {
-    const res = await fetch('/admin/api/reset-visitors', { method: 'POST' });
-    const data = await res.json();
-    showToast('✅ ' + data.message);
-    loadVisitors();
-  } catch { showToast('❌ فشل', 'var(--red)'); }
-}
-
-async function toggleMaintenance() {
-  const on = document.getElementById('maintenance-toggle').checked;
-  try {
-    await fetch('/admin/api/settings', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ maintenance_mode: on })
-    });
-    showToast(on ? '⚠️ وضع الصيانة مفعّل' : '✅ وضع الصيانة معطّل');
-  } catch { showToast('❌ فشل', 'var(--red)'); }
-}
-
-async function testUrl() {
-  const url = document.getElementById('test-url-input').value.trim();
-  if (!url) return;
-  const res_el = document.getElementById('test-url-result');
-  res_el.style.display = 'block';
-  res_el.textContent = '⏳ جاري الاختبار...';
-  try {
-    const res = await fetch('/admin/api/test-url', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ url })
-    });
-    const data = await res.json();
-    res_el.textContent = JSON.stringify(data, null, 2);
-  } catch (e) { res_el.textContent = '❌ ' + e.message; }
-}
-
-// ===== Settings =====
-async function loadSettings() {
-  const cfg = await fetch('/admin/api/settings').then(r => r.json()).catch(() => ({}));
-  if (cfg.ad_wait_seconds !== undefined) document.getElementById('setting-adwait').value = cfg.ad_wait_seconds;
-  if (cfg.smtp_host) document.getElementById('smtp-host').value = cfg.smtp_host;
-  if (cfg.smtp_port) document.getElementById('smtp-port').value = cfg.smtp_port;
-  if (cfg.smtp_user) document.getElementById('smtp-user').value = cfg.smtp_user;
-  document.getElementById('setting-free').checked = cfg.allow_free !== false;
-  document.getElementById('maintenance-toggle') && (document.getElementById('maintenance-toggle').checked = cfg.maintenance_mode || false);
-  document.getElementById('setting-update-banner').checked = cfg.app_update_banner || false;
-}
-
-async function saveSettings() {
-  const body = {
-    ad_wait_seconds: parseInt(document.getElementById('setting-adwait').value) || 0,
-    allow_free: document.getElementById('setting-free').checked,
-    app_update_banner: document.getElementById('setting-update-banner').checked,
-    smtp_host: document.getElementById('smtp-host').value,
-    smtp_port: parseInt(document.getElementById('smtp-port').value) || 587,
-    smtp_user: document.getElementById('smtp-user').value,
-    smtp_pass: document.getElementById('smtp-pass').value || undefined,
-  };
-  try {
-    await fetch('/admin/api/settings', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(body)
-    });
-    showToast('✅ تم حفظ الإعدادات');
-  } catch { showToast('❌ فشل الحفظ', 'var(--red)'); }
-}
-
-async function changePassword() {
-  const pass = document.getElementById('new-pass').value;
-  if (!pass || pass.length < 4) { showToast('كلمة المرور قصيرة جداً', 'var(--red)'); return; }
-  try {
-    const res = await fetch('/admin/api/change-password', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ password: pass })
-    });
-    const data = await res.json();
-    showToast(data.ok ? '✅ تم تغيير كلمة المرور' : '❌ فشل');
-    document.getElementById('new-pass').value = '';
-  } catch { showToast('❌ فشل', 'var(--red)'); }
-}
-
-async function testSmtp() {
-  try {
-    const res = await fetch('/admin/api/test-smtp', { method: 'POST' });
-    const data = await res.json();
-    showToast(data.ok ? '✅ تم إرسال بريد اختباري' : '❌ ' + data.error, data.ok ? undefined : 'var(--red)');
-  } catch { showToast('❌ فشل', 'var(--red)'); }
-}
-
-function logout() {
-  if (confirm('تسجيل الخروج؟')) window.location.href = '/admin/logout';
-}
-
-// ===== Init =====
-loadOverview();
-
-// ===== Render Sleep Manager =====
-let _renderAutoInterval = null;
-let _renderCountdown = 900;
-let _renderCountdownTimer = null;
-
-function fmtUptime(sec) {
-  if (sec < 60) return sec + 'ث';
-  if (sec < 3600) return Math.floor(sec / 60) + 'د ' + (sec % 60) + 'ث';
-  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
-  return h + 'س ' + m + 'د';
-}
-
-function updateSleepUI(sleepIn) {
-  _renderCountdown = sleepIn;
-  const pct = (sleepIn / 900) * 100;
-  const fill = document.getElementById('render-sleep-fill');
-  const cd = document.getElementById('render-sleep-countdown');
-  const badge = document.getElementById('render-status-badge');
-  const m = String(Math.floor(sleepIn / 60)).padStart(2, '0');
-  const s = String(sleepIn % 60).padStart(2, '0');
-  cd.textContent = m + ':' + s;
-  fill.style.width = pct + '%';
-  if (sleepIn > 300) {
-    fill.style.background = 'var(--green)';
-    cd.style.color = 'var(--green)';
-    badge.className = 'badge badge-green';
-    badge.textContent = '● نشط';
-  } else if (sleepIn > 60) {
-    fill.style.background = 'var(--orange)';
-    cd.style.color = 'var(--orange)';
-    badge.className = 'badge badge-orange';
-    badge.textContent = '● تحذير';
-  } else {
-    fill.style.background = 'var(--red)';
-    cd.style.color = 'var(--red)';
-    badge.className = 'badge badge-red';
-    badge.textContent = '● قريب من النوم';
-  }
-}
-
-function startCountdownTick() {
-  if (_renderCountdownTimer) clearInterval(_renderCountdownTimer);
-  _renderCountdownTimer = setInterval(() => {
-    if (_renderCountdown > 0) {
-      _renderCountdown--;
-      updateSleepUI(_renderCountdown);
-    }
-  }, 1000);
-}
-
-async function renderPingNow() {
-  const btn = document.querySelector('#render-card .btn-primary');
-  btn.disabled = true;
-  btn.textContent = '⏳ جاري...';
-  const t0 = Date.now();
-  try {
-    const res = await fetch('/admin/api/render-ping');
-    const latency = Date.now() - t0;
-    const data = await res.json();
-    document.getElementById('render-latency').textContent = latency + ' ms';
-    document.getElementById('render-uptime').textContent = fmtUptime(data.uptime);
-    updateSleepUI(data.sleep_in);
-    startCountdownTick();
-    showToast('✅ السيرفر مستيقظ — ' + latency + 'ms');
-  } catch {
-    showToast('❌ لا يوجد اتصال بالسيرفر', 'var(--red)');
-    document.getElementById('render-status-badge').className = 'badge badge-red';
-    document.getElementById('render-status-badge').textContent = '● نائم';
-  }
-  btn.disabled = false;
-  btn.textContent = '🏓 إيقاظ / قياس';
-}
-
-function toggleRenderAuto() {
-  const btn = document.getElementById('render-auto-btn');
-  const hint = document.getElementById('render-auto-hint');
-  if (_renderAutoInterval) {
-    clearInterval(_renderAutoInterval);
-    _renderAutoInterval = null;
-    btn.textContent = '⏰ تلقائي: إيقاف';
-    btn.className = 'btn btn-secondary';
-    hint.style.display = 'none';
-    showToast('تم إيقاف الـ ping التلقائي');
-  } else {
-    _renderAutoInterval = setInterval(renderPingNow, 5 * 60 * 1000);
-    btn.textContent = '⏰ تلقائي: تشغيل ✅';
-    btn.className = 'btn btn-primary';
-    hint.style.display = 'block';
-    renderPingNow();
-    showToast('✅ سيتم إرسال ping كل 5 دقائق');
-  }
-}
-
-
+// ── Init ──
+window.addEventListener('DOMContentLoaded',()=>{loadOverview();resetOvTimer();});
 </script>
 </body>
 </html>
