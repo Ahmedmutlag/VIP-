@@ -325,6 +325,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
             if (id == R.id.menu_about)    { showAboutDialog();     return true; }
             if (id == R.id.menu_blog)     { openUrl(SITE_URL);     return true; }
+            if (id == R.id.menu_referral) { startActivity(new android.content.Intent(this, ReferralActivity.class)); return true; }
             if (id == R.id.menu_contact)  { openEmail();           return true; }
             return false;
         });
@@ -1152,6 +1153,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         nm.cancel(notifId);
         AppOpenAdManager.suppressAd = false;
         sendDownloadEvent(ok);
+        if (ok) trackReferralDownload();
         if (ok) {
             incrementDownloadCount();
             Uri fu = resultUri[0];
@@ -1514,6 +1516,55 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 c.disconnect();
             } catch (Exception ignored) {}
         }).start();
+    }
+
+    private void trackReferralDownload() {
+        if (getSharedPreferences("app_prefs", MODE_PRIVATE).getBoolean("referral_dl_tracked", false)) return;
+        getSharedPreferences("app_prefs", MODE_PRIVATE).edit().putBoolean("referral_dl_tracked", true).apply();
+        final String body = "{\"device_id\":" + org.json.JSONObject.quote(getOrCreateDeviceId()) + "}";
+        new Thread(() -> {
+            try {
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection)
+                    new java.net.URL(API_BASE + "/api/referral/track-download").openConnection();
+                c.setRequestMethod("POST");
+                c.setRequestProperty("Content-Type", "application/json");
+                c.setDoOutput(true);
+                c.setConnectTimeout(10_000);
+                c.setReadTimeout(10_000);
+                c.getOutputStream().write(body.getBytes("UTF-8"));
+                int code = c.getResponseCode();
+                if (code == 200) {
+                    try {
+                        String resp = new String(c.getInputStream().readAllBytes(), "UTF-8");
+                        org.json.JSONObject json = new org.json.JSONObject(resp);
+                        int rewardDays = json.optInt("referral_reward_days", 0);
+                        if (rewardDays > 0) applyReferralReward(rewardDays);
+                    } catch (Exception ignored) {}
+                }
+                c.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
+    private void applyReferralReward(int days) {
+        try {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US);
+            String current = getPrefs().getString("premium_expires", "");
+            java.util.Date base;
+            try { base = sdf.parse(current); } catch (Exception e) { base = new java.util.Date(); }
+            if (base.before(new java.util.Date())) base = new java.util.Date();
+            java.util.Calendar cal = java.util.Calendar.getInstance();
+            cal.setTime(base);
+            cal.add(java.util.Calendar.DAY_OF_YEAR, days);
+            String newExpiry = sdf.format(cal.getTime());
+            getPrefs().edit().putString("premium_expires", newExpiry).apply();
+            runOnUiThread(() -> {
+                Toast.makeText(this,
+                    "🎉 مبروك! حصلت على " + days + " يوم VIP مجاناً لإحالاتك",
+                    Toast.LENGTH_LONG).show();
+                refreshPremiumButton();
+            });
+        } catch (Exception ignored) {}
     }
 
     private void sendDownloadEvent(boolean success) {

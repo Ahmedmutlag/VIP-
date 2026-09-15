@@ -1429,7 +1429,17 @@ def app_ping():
     # rich per-user record
     _record_app_user(device_id, country, app_version)
 
-    return jsonify({"ok": True, "total": installs["total"]})
+    # Referral reward: check if a reward is pending for this device
+    reward_days = 0
+    raw_reward = _redis("GET", f"ref:pending_reward:{device_id}")
+    if raw_reward:
+        try:
+            reward_days = int(raw_reward)
+            _redis("DEL", f"ref:pending_reward:{device_id}")
+        except Exception:
+            reward_days = 0
+
+    return jsonify({"ok": True, "total": installs["total"], "referral_reward_days": reward_days})
 
 
 @app.route("/api/analytics/download", methods=["POST"])
@@ -1443,6 +1453,97 @@ def analytics_download():
         _record_app_download(device_id, success)
     record_download(platform, success)
     return jsonify({"ok": True})
+
+
+# ── Referral System ──────────────────────────────────────────────────────────
+
+def _referral_code(device_id: str) -> str:
+    """8-char uppercase code derived from device_id (no confusable chars)."""
+    import hashlib as _hl
+    h = _hl.sha256(device_id.encode()).hexdigest()
+    chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return ''.join(chars[int(h[i * 2: i * 2 + 2], 16) % len(chars)] for i in range(8))
+
+
+@app.route("/api/referral/stats", methods=["POST"])
+@limiter.limit("30 per minute")
+def referral_stats():
+    data = request.get_json() or {}
+    device_id = (data.get("device_id") or "").strip()[:64]
+    if not device_id:
+        return jsonify({"error": "device_id required"}), 400
+    code = _referral_code(device_id)
+    if not _redis("GET", f"ref:owner:{code}"):
+        _redis("SET", f"ref:owner:{code}", device_id)
+    count_raw = _redis("GET", f"ref:count:{device_id}")
+    valid_count = int(count_raw) if count_raw else 0
+    rewards_raw = _redis("GET", f"ref:total_rewards:{device_id}")
+    total_rewards = int(rewards_raw) if rewards_raw else 0
+    return jsonify({
+        "code": code,
+        "link": f"https://www.vip-dl.com/r/{code}",
+        "valid_count": valid_count,
+        "needed": 10,
+        "total_rewards": total_rewards,
+        "share_text": f"حمّل نزّلها+ وحمّل الفيديوهات من تيك توك وانستا ويوتيوب مجاناً!\nكودي الخاص: {code}\nhttps://www.vip-dl.com/r/{code}",
+    })
+
+
+@app.route("/api/referral/register", methods=["POST"])
+@limiter.limit("10 per minute")
+def referral_register():
+    data = request.get_json() or {}
+    code = (data.get("code") or "").strip().upper()[:8]
+    new_device = (data.get("device_id") or "").strip()[:64]
+    if not code or not new_device:
+        return jsonify({"error": "missing fields"}), 400
+    owner = _redis("GET", f"ref:owner:{code}")
+    if not owner:
+        return jsonify({"error": "invalid_code"}), 404
+    if owner == new_device:
+        return jsonify({"error": "self_referral"}), 400
+    if _redis("GET", f"ref:install:{new_device}"):
+        return jsonify({"ok": True, "message": "already_registered"})
+    payload = json.dumps({"code": code, "owner": owner, "time": time.time(), "valid": False})
+    _redis("SET", f"ref:install:{new_device}", payload)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/referral/track-download", methods=["POST"])
+@limiter.limit("10 per minute")
+def referral_track_download():
+    data = request.get_json() or {}
+    device_id = (data.get("device_id") or "").strip()[:64]
+    if not device_id:
+        return jsonify({"error": "device_id required"}), 400
+    raw = _redis("GET", f"ref:install:{device_id}")
+    if not raw:
+        return jsonify({"ok": True, "message": "no_referral"})
+    try:
+        install = json.loads(raw)
+    except Exception:
+        return jsonify({"ok": True})
+    if install.get("valid"):
+        return jsonify({"ok": True, "message": "already_valid"})
+    install["valid"] = True
+    install["validated_at"] = time.time()
+    _redis("SET", f"ref:install:{device_id}", json.dumps(install))
+    owner = install.get("owner", "")
+    if owner:
+        new_count_raw = _redis("INCR", f"ref:count:{owner}")
+        new_count = int(new_count_raw) if new_count_raw else 1
+        if new_count % 10 == 0:
+            pending = int(_redis("GET", f"ref:pending_reward:{owner}") or 0)
+            _redis("SET", f"ref:pending_reward:{owner}", str(pending + 30))
+            total_r = int(_redis("GET", f"ref:total_rewards:{owner}") or 0)
+            _redis("SET", f"ref:total_rewards:{owner}", str(total_r + 1))
+    return jsonify({"ok": True})
+
+
+@app.route("/r/<code>")
+def referral_landing(code):
+    code = (code or "").strip().upper()[:8]
+    return render_template("referral.html", code=code)
 
 
 @app.route("/admin/api/app-installs")

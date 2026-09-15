@@ -59,6 +59,11 @@
             android:configChanges="orientation|screenSize" />
 
         <activity
+            android:name=".ReferralActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize" />
+
+        <activity
             android:name=".FileBrowserActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize" />
