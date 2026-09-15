@@ -209,6 +209,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     protected void onResume() {
         super.onResume();
         checkBiometricLock();
+        ClipboardMonitorService.start(this);
         autoFillClipboard();
         sendSessionPing();
         if (billingClient != null && billingClient.isReady()) {
@@ -307,6 +308,10 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 : getString(R.string.menu_upgrade_inactive);
         popup.getMenu().findItem(R.id.menu_upgrade).setTitle(premiumLabel);
 
+        // Show correct clipboard monitor label
+        boolean clipOn = getPrefs().getBoolean("clip_monitor_enabled", false);
+        popup.getMenu().findItem(R.id.menu_clip_monitor).setTitle(clipOn ? "🔕 إيقاف كشف الروابط" : "🔔 كشف الروابط التلقائي");
+
         // Show correct biometric lock label
         boolean bioLocked = getPrefs().getBoolean("biometric_lock", false);
         popup.getMenu().findItem(R.id.menu_biometric).setTitle(bioLocked ? "🔓 إلغاء قفل البصمة" : "🔒 قفل البصمة");
@@ -330,6 +335,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
             if (id == R.id.menu_about)    { showAboutDialog();     return true; }
             if (id == R.id.menu_blog)     { openUrl(SITE_URL);     return true; }
+            if (id == R.id.menu_clip_monitor) { toggleClipMonitor(); return true; }
             if (id == R.id.menu_biometric) { toggleBiometricLock(); return true; }
             if (id == R.id.menu_referral) { startActivity(new android.content.Intent(this, ReferralActivity.class)); return true; }
             if (id == R.id.menu_contact)  { openEmail();           return true; }
@@ -1522,6 +1528,20 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 c.disconnect();
             } catch (Exception ignored) {}
         }).start();
+    }
+
+    // ── Clipboard Monitor ────────────────────────────────────────────────────
+
+    private void toggleClipMonitor() {
+        boolean current = getPrefs().getBoolean("clip_monitor_enabled", false);
+        getPrefs().edit().putBoolean("clip_monitor_enabled", !current).apply();
+        if (!current) {
+            ClipboardMonitorService.start(this);
+            Toast.makeText(this, "✅ كشف الروابط مفعّل — انسخ أي رابط فيديو", Toast.LENGTH_SHORT).show();
+        } else {
+            ClipboardMonitorService.stop(this);
+            Toast.makeText(this, "كشف الروابط معطّل", Toast.LENGTH_SHORT).show();
+        }
     }
 
     // ── Biometric Lock ───────────────────────────────────────────────────────
