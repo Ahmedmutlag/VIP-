@@ -57,4 +57,5 @@ dependencies {
     implementation 'com.google.firebase:firebase-messaging'
     implementation 'com.android.billingclient:billing:8.0.0'
     implementation 'com.google.android.play:review:2.0.2'
+    implementation 'androidx.biometric:biometric:1.1.0'
 }

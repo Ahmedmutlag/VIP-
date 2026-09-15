@@ -208,6 +208,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     @Override
     protected void onResume() {
         super.onResume();
+        checkBiometricLock();
         autoFillClipboard();
         sendSessionPing();
         if (billingClient != null && billingClient.isReady()) {
@@ -306,6 +307,10 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 : getString(R.string.menu_upgrade_inactive);
         popup.getMenu().findItem(R.id.menu_upgrade).setTitle(premiumLabel);
 
+        // Show correct biometric lock label
+        boolean bioLocked = getPrefs().getBoolean("biometric_lock", false);
+        popup.getMenu().findItem(R.id.menu_biometric).setTitle(bioLocked ? "🔓 إلغاء قفل البصمة" : "🔒 قفل البصمة");
+
         // Show correct bubble label based on running state
         boolean bubbleRunning = BubbleService.isRunning(this);
         popup.getMenu().findItem(R.id.menu_bubble).setTitle(
@@ -325,6 +330,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
             if (id == R.id.menu_privacy)  { showPrivacyDialog();   return true; }
             if (id == R.id.menu_about)    { showAboutDialog();     return true; }
             if (id == R.id.menu_blog)     { openUrl(SITE_URL);     return true; }
+            if (id == R.id.menu_biometric) { toggleBiometricLock(); return true; }
             if (id == R.id.menu_referral) { startActivity(new android.content.Intent(this, ReferralActivity.class)); return true; }
             if (id == R.id.menu_contact)  { openEmail();           return true; }
             return false;
@@ -1516,6 +1522,64 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 c.disconnect();
             } catch (Exception ignored) {}
         }).start();
+    }
+
+    // ── Biometric Lock ───────────────────────────────────────────────────────
+
+    private boolean biometricShowing = false;
+
+    private void checkBiometricLock() {
+        if (!getPrefs().getBoolean("biometric_lock", false)) return;
+        if (biometricShowing) return;
+        androidx.biometric.BiometricManager bm = androidx.biometric.BiometricManager.from(this);
+        int can = bm.canAuthenticate(
+            androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG |
+            androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+        if (can != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) return;
+        biometricShowing = true;
+        androidx.biometric.BiometricPrompt prompt = new androidx.biometric.BiometricPrompt(
+            this,
+            new androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                @Override
+                public void onAuthenticationSucceeded(androidx.biometric.BiometricPrompt.AuthenticationResult r) {
+                    biometricShowing = false;
+                }
+                @Override
+                public void onAuthenticationError(int code, CharSequence msg) {
+                    biometricShowing = false;
+                    if (code != androidx.biometric.BiometricPrompt.ERROR_NEGATIVE_BUTTON &&
+                        code != androidx.biometric.BiometricPrompt.ERROR_USER_CANCELED) {
+                        finishAffinity();
+                    }
+                }
+                @Override
+                public void onAuthenticationFailed() { /* let user retry */ }
+            });
+        androidx.biometric.BiometricPrompt.PromptInfo info =
+            new androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+                .setTitle("نزّلها+")
+                .setSubtitle("تحقق من هويتك للمتابعة")
+                .setAllowedAuthenticators(
+                    androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG |
+                    androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                .build();
+        prompt.authenticate(info);
+    }
+
+    private void toggleBiometricLock() {
+        androidx.biometric.BiometricManager bm = androidx.biometric.BiometricManager.from(this);
+        int can = bm.canAuthenticate(
+            androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG |
+            androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+        if (can != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
+            Toast.makeText(this, "هاتفك لا يدعم قفل البصمة أو لم يُفعَّل", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        boolean current = getPrefs().getBoolean("biometric_lock", false);
+        getPrefs().edit().putBoolean("biometric_lock", !current).apply();
+        Toast.makeText(this,
+            !current ? "✅ قفل البصمة مفعّل" : "قفل البصمة معطّل",
+            Toast.LENGTH_SHORT).show();
     }
 
     private void trackReferralDownload() {
