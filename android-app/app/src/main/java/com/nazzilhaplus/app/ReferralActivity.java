@@ -51,6 +51,13 @@ public class ReferralActivity extends AppCompatActivity {
             registerSection.setVisibility(View.GONE);
         }
 
+        // Show cached code immediately while fetching from server
+        String cachedCode = getSharedPreferences("app_prefs", MODE_PRIVATE)
+            .getString("referral_code", "");
+        if (!cachedCode.isEmpty()) {
+            codeView.setText(cachedCode);
+        }
+
         loadStats(deviceId);
     }
 
@@ -66,7 +73,9 @@ public class ReferralActivity extends AppCompatActivity {
                 c.setConnectTimeout(10_000);
                 c.setReadTimeout(10_000);
                 c.getOutputStream().write(body.getBytes("UTF-8"));
-                java.io.InputStream is = c.getResponseCode() == 200 ? c.getInputStream() : c.getErrorStream();
+                int status = c.getResponseCode();
+                java.io.InputStream is = status == 200 ? c.getInputStream() : c.getErrorStream();
+                if (is == null) throw new Exception("HTTP " + status);
                 String resp = new String(is.readAllBytes(), "UTF-8");
                 c.disconnect();
                 org.json.JSONObject json = new org.json.JSONObject(resp);
@@ -76,7 +85,11 @@ public class ReferralActivity extends AppCompatActivity {
                 int    count     = json.optInt("valid_count", 0);
                 int    needed    = json.optInt("needed", 10);
                 int    rewards   = json.optInt("total_rewards", 0);
-                runOnUiThread(() -> updateUI(code, link, shareText, count, needed, rewards));
+                if (!code.isEmpty()) {
+                    runOnUiThread(() -> updateUI(code, link, shareText, count, needed, rewards));
+                } else {
+                    runOnUiThread(() -> statusText.setText("تعذر الاتصال بالخادم"));
+                }
             } catch (Exception e) {
                 runOnUiThread(() -> statusText.setText("تعذر الاتصال بالخادم"));
             }
