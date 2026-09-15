@@ -44,7 +44,7 @@ public class ReferralActivity extends AppCompatActivity {
         findViewById(R.id.copyBtn).setOnClickListener(v -> copyCode());
         findViewById(R.id.registerBtn).setOnClickListener(v -> registerCode());
 
-        String deviceId = getDeviceId();
+        String deviceId = getOrCreateDeviceId();
         boolean alreadyRegistered = getSharedPreferences("app_prefs", MODE_PRIVATE)
             .getBoolean("referral_registered", false);
         if (alreadyRegistered) {
@@ -138,7 +138,7 @@ public class ReferralActivity extends AppCompatActivity {
             Toast.makeText(this, "الكود يجب أن يكون 8 أحرف", Toast.LENGTH_SHORT).show();
             return;
         }
-        String deviceId = getDeviceId();
+        String deviceId = getOrCreateDeviceId();
         String body = "{\"device_id\":" + org.json.JSONObject.quote(deviceId) +
             ",\"code\":" + org.json.JSONObject.quote(code) + "}";
         new Thread(() -> {
@@ -174,7 +174,7 @@ public class ReferralActivity extends AppCompatActivity {
         }).start();
     }
 
-    private String getDeviceId() {
+    private String getOrCreateDeviceId() {
         String id = getSharedPreferences("nazzilha_prefs", MODE_PRIVATE).getString("device_id", "");
         if (!id.isEmpty()) return id;
         String raw = android.provider.Settings.Secure.getString(
