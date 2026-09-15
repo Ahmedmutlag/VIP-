@@ -5,7 +5,6 @@
     <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -95,11 +94,7 @@
         <service
             android:name=".ClipboardMonitorService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="clipboardMonitor" />
-        </service>
+            android:foregroundServiceType="dataSync" />
 
         <receiver android:name=".ClipboardActionReceiver"
             android:exported="false">
@@ -112,11 +107,7 @@
         <service
             android:name=".BubbleService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="floatingBubble" />
-        </service>
+            android:foregroundServiceType="dataSync" />
 
     </application>
 
