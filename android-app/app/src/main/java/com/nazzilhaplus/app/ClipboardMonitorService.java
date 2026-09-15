@@ -54,36 +54,74 @@ public class ClipboardMonitorService extends Service {
         if (cm == null) return;
         clipListener = () -> {
             try {
-                if (!cm.hasPrimaryClip() || cm.getPrimaryClip() == null) return;
-                android.content.ClipData.Item item = cm.getPrimaryClip().getItemAt(0);
-                if (item == null || item.getText() == null) return;
-                String txt = item.getText().toString().trim();
-                if (isVideoUrl(txt) && !txt.equals(lastShownUrl)) {
-                    lastShownUrl = txt;
-                    showClipNotification(txt);
+                if (!cm.hasPrimaryClip()) return;
+
+                // Android 10+ blocks background clipboard reads; try anyway
+                String url = null;
+                android.content.ClipData clip = null;
+                try { clip = cm.getPrimaryClip(); } catch (Exception ignored) {}
+                if (clip != null) {
+                    android.content.ClipData.Item item = clip.getItemAt(0);
+                    if (item != null && item.getText() != null)
+                        url = item.getText().toString().trim();
+                }
+
+                if (url != null) {
+                    // Could read clipboard (Android 9- or foreground)
+                    if (isVideoUrl(url) && !url.equals(lastShownUrl)) {
+                        lastShownUrl = url;
+                        showClipNotification(url);
+                    }
+                } else {
+                    // Android 10+: can't read content in background → show tap-to-open notification
+                    showGenericClipNotification();
                 }
             } catch (Exception ignored) {}
         };
         cm.addPrimaryClipChangedListener(clipListener);
     }
 
+    private void showGenericClipNotification() {
+        // Tap → open MainActivity which reads clipboard from foreground
+        Intent openIntent = new Intent(this, MainActivity.class);
+        openIntent.putExtra("from_clip_monitor", true);
+        openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent openPi = PendingIntent.getActivity(this, 2,
+            openIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        Intent dimIntent = new Intent(this, ClipboardActionReceiver.class);
+        dimIntent.setAction(ACTION_DISMISS);
+        PendingIntent dimPi = PendingIntent.getBroadcast(this, 0,
+            dimIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        NotificationCompat.Builder nb = new NotificationCompat.Builder(this, CHANNEL_CLIP)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("📋 رابط في الحافظة؟")
+            .setContentText("اضغط لتحميله فوراً")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(openPi)
+            .setAutoCancel(true)
+            .addAction(R.mipmap.ic_launcher, "✕ تجاهل", dimPi);
+
+        try {
+            NotificationManagerCompat.from(this).notify(NOTIF_CLIP, nb.build());
+        } catch (Exception ignored) {}
+    }
+
     private void showClipNotification(String url) {
         String shortUrl = url.length() > 60 ? url.substring(0, 57) + "..." : url;
 
-        // "تحميل الآن" action
         Intent dlIntent = new Intent(this, ClipboardActionReceiver.class);
         dlIntent.setAction(ACTION_DOWNLOAD);
         dlIntent.putExtra(EXTRA_URL, url);
         PendingIntent dlPi = PendingIntent.getBroadcast(this, url.hashCode(),
             dlIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        // "تجاهل" action
         Intent dimIntent = new Intent(this, ClipboardActionReceiver.class);
         dimIntent.setAction(ACTION_DISMISS);
         PendingIntent dimPi = PendingIntent.getBroadcast(this, 0,
             dimIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        // Tap → open MainActivity with URL
         Intent openIntent = new Intent(this, MainActivity.class);
         openIntent.setAction(Intent.ACTION_SEND);
         openIntent.setType("text/plain");

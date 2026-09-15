@@ -571,6 +571,9 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         if (isVideoUrl(clip) && !clip.equals(current)) {
             urlInput.setText(clip);
             urlInput.setSelection(clip.length());
+            if (ClipboardMonitorService.isEnabled(this)) {
+                Toast.makeText(this, "📋 تم لصق رابط الفيديو تلقائياً", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
