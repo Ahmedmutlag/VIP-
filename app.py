@@ -508,6 +508,7 @@ ADMIN_USER = os.environ.get("ADMIN_USER", "")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
 ADMIN_CODE = os.environ.get("ADMIN_CODE", "")
+YOUTUBE_UNLOCK_DATE = os.environ.get("YOUTUBE_UNLOCK_DATE", "")
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 RESET_SECRET = os.environ.get("RESET_SECRET", "")
@@ -2871,6 +2872,17 @@ def _resolve_platform(url: str) -> str:
     return "Other"
 
 
+def _is_youtube_unlocked() -> bool:
+    """YouTube is enabled only after YOUTUBE_UNLOCK_DATE (YYYY-MM-DD).
+    If env var is not set, YouTube is disabled."""
+    if not YOUTUBE_UNLOCK_DATE:
+        return False
+    try:
+        unlock = datetime.strptime(YOUTUBE_UNLOCK_DATE, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) >= unlock
+    except Exception:
+        return False
+
 
 @app.route("/api/resolve", methods=["POST"])
 @limiter.limit("120 per minute")
@@ -2895,6 +2907,9 @@ def api_resolve():
     formats: list = []
     title = ""
     thumbnail = ""
+
+    if platform == "YouTube" and not _is_youtube_unlocked():
+        return jsonify({"error": "هذه المنصة غير مدعومة حالياً"}), 422
 
     # ── 1. Try SMVD RapidAPI (all supported platforms) ────────────────────────
     try:
