@@ -685,7 +685,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                 String type     = fmt.optString("type", "video");
                 if (dlUrl.isEmpty()) continue;
 
-                String emoji    = "audio".equals(type) ? "🎵" : "🎬";
+                String emoji    = "audio".equals(type) ? "🎵" : "image".equals(type) ? "🖼️" : "🎬";
                 String filename = sanitizeFilename(title) + "." + ext;
 
                 LinearLayout row = new LinearLayout(this);
@@ -1131,21 +1131,35 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
     @android.annotation.TargetApi(Build.VERSION_CODES.Q)
     private boolean downloadMediaStore(String url, String filename, int notifId,
             NotificationCompat.Builder nb, NotificationManagerCompat nm, Uri[] out) {
+        String mime = mimeFor(filename);
+        boolean isImage = mime.startsWith("image/");
+        Uri collectionUri = isImage
+            ? MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            : MediaStore.Downloads.EXTERNAL_CONTENT_URI;
+        String displayNameCol = isImage ? MediaStore.Images.Media.DISPLAY_NAME : MediaStore.Downloads.DISPLAY_NAME;
+        String mimeCol        = isImage ? MediaStore.Images.Media.MIME_TYPE    : MediaStore.Downloads.MIME_TYPE;
+        String pathCol        = isImage ? MediaStore.Images.Media.RELATIVE_PATH: MediaStore.Downloads.RELATIVE_PATH;
+        String pendingCol     = isImage ? MediaStore.Images.Media.IS_PENDING   : MediaStore.Downloads.IS_PENDING;
+        String sizeCol        = isImage ? MediaStore.Images.Media.SIZE         : MediaStore.Downloads.SIZE;
+        String relPath        = isImage
+            ? (Environment.DIRECTORY_DCIM + "/NazzilhaPlus")
+            : (Environment.DIRECTORY_DOWNLOADS + "/NazzilhaPlus");
+
         Uri dlUri = null;
         for (int attempt = 0; attempt < 5; attempt++) {
             try {
                 long existing = 0;
                 if (dlUri == null) {
                     ContentValues cv = new ContentValues();
-                    cv.put(MediaStore.Downloads.DISPLAY_NAME, filename);
-                    cv.put(MediaStore.Downloads.MIME_TYPE, mimeFor(filename));
-                    cv.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/NazzilhaPlus");
-                    cv.put(MediaStore.Downloads.IS_PENDING, 1);
-                    dlUri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                    cv.put(displayNameCol, filename);
+                    cv.put(mimeCol, mime);
+                    cv.put(pathCol, relPath);
+                    cv.put(pendingCol, 1);
+                    dlUri = getContentResolver().insert(collectionUri, cv);
                     if (dlUri == null) return false;
                 } else {
                     android.database.Cursor c = getContentResolver().query(
-                        dlUri, new String[]{MediaStore.Downloads.SIZE}, null, null, null);
+                        dlUri, new String[]{sizeCol}, null, null, null);
                     if (c != null) { if (c.moveToFirst()) existing = c.getLong(0); c.close(); }
                 }
                 HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
@@ -1171,7 +1185,7 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
                     }
                 }
                 ContentValues cv2 = new ContentValues();
-                cv2.put(MediaStore.Downloads.IS_PENDING, 0);
+                cv2.put(pendingCol, 0);
                 getContentResolver().update(dlUri, cv2, null, null);
                 out[0] = dlUri;
                 return true;
@@ -1419,6 +1433,9 @@ public class MainActivity extends AppCompatActivity implements PurchasesUpdatedL
         if (filename.endsWith(".mp3")) return "audio/mpeg";
         if (filename.endsWith(".m4a")) return "audio/mp4";
         if (filename.endsWith(".aac")) return "audio/aac";
+        if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return "image/jpeg";
+        if (filename.endsWith(".png")) return "image/png";
+        if (filename.endsWith(".webp")) return "image/webp";
         return "video/mp4";
     }
 

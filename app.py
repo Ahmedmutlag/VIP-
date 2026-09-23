@@ -254,6 +254,7 @@ def _parse_smvd_response(data: dict) -> tuple:
       data.metadata.title / data.metadata.thumbnailUrl
       data.contents[0].videos[]  → {label, url, metadata:{height, width}}
       data.contents[0].audios[]  → {label, url, metadata:{mime_type}}
+      data.contents[i].images[]  → {url} (Instagram photos / carousel)
     """
     title = ""
     thumbnail = ""
@@ -324,11 +325,39 @@ def _parse_smvd_response(data: dict) -> tuple:
         })
         audio_added = True
 
-    # Sort video formats highest quality first, audio at the end
+    # ── Images / carousel (Instagram photos) ─────────────────────────────────
+    # Walk ALL contents for carousel posts (each content = one slide)
+    if not formats:
+        img_count = 0
+        for ci, content in enumerate(contents):
+            images = content.get("images") or content.get("image") or []
+            if isinstance(images, dict):
+                images = [images]
+            for img in images:
+                img_url = ""
+                if isinstance(img, str):
+                    img_url = img.strip()
+                elif isinstance(img, dict):
+                    img_url = (img.get("url") or img.get("src") or "").strip()
+                if not img_url:
+                    continue
+                img_count += 1
+                label = f"صورة {img_count}" if len(contents) > 1 or img_count > 1 else "صورة"
+                formats.append({
+                    "id": f"img{img_count}",
+                    "label": label,
+                    "url": img_url,
+                    "ext": "jpg",
+                    "type": "image",
+                    "height": 0,
+                })
+
+    # Sort video formats highest quality first, audio at the end, images after audio
     video_fmts = sorted([f for f in formats if f["type"] == "video"],
                         key=lambda x: x["height"], reverse=True)
     audio_fmts = [f for f in formats if f["type"] == "audio"]
-    formats = video_fmts + audio_fmts
+    image_fmts = [f for f in formats if f["type"] == "image"]
+    formats = video_fmts + audio_fmts + image_fmts
 
     return title, thumbnail, formats
 
