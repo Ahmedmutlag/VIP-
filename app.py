@@ -2843,12 +2843,21 @@ def api_resolve():
     try:
         smvd_result = _call_smvd_api(url, platform)
         if not smvd_result.get("error"):
+            # Debug: log raw SMVD structure for troubleshooting
+            if platform == "Instagram":
+                contents = smvd_result.get("contents") or []
+                app.logger.info("SMVD Instagram raw keys: %s", list(smvd_result.keys()))
+                for ci, c in enumerate(contents[:3]):
+                    app.logger.info("SMVD contents[%d] keys: %s", ci, list(c.keys()))
             s_title, s_thumb, s_formats = _parse_smvd_response(smvd_result)
             if s_formats:
                 title = s_title or title
                 thumbnail = s_thumb or thumbnail
                 formats = s_formats
                 app.logger.info("resolve: SMVD returned %d formats for %s", len(formats), platform)
+            else:
+                app.logger.warning("SMVD returned 0 formats for %s, raw: %s", platform,
+                                   str(smvd_result)[:500])
         else:
             app.logger.warning("SMVD resolve error for %s: %s", platform, smvd_result.get("error"))
     except Exception as e:
